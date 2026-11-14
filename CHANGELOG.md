@@ -22,7 +22,7 @@ What's new in each codechart release. Update with `codechart update`; the [relea
 - Usage errors exit with code 2, other failures with 1: a bad flag value (unknown commit or agent), a flag on the wrong kind of map (`--git` on an explain map, `--pr` on a business map).
 - Conflicting flags are refused with exit 2: `doctor --fix --last`, `update --check --skills-only`, `comment --side` without a line, `feedback --import --copy` without `--take`.
 - `install-skill` outside a terminal without `--agent` installs only the skill and prints the flags that add the reminder line, Claude Code hook and OpenCode plugin; it used to add them all.
-- `setup-pr-maps --pr` asks before it goes online or runs your git transport config.
+- `setup-pr-maps --pr` asks before it goes online or runs your git transport config. The GitHub workflow it writes pins `actions/checkout` and `actions/setup-node` to exact commits.
 - The map check compares each new, changed and removed box with git's added, modified, deleted or renamed status, and warns, without failing, when a listed field or arrow isn't in the code.
 - The check line in the terminal, the page header and PR or MR descriptions says how many boxes could not be checked: `✓ 10 nodes checked against the code · 2 not checkable`.
 - Release maps say *Before* and *Now* with *New* and *Changed* badges; a feature of up to three cards moves to the next page whole; file names start with the version, like `v2-0-0--<title>`.
