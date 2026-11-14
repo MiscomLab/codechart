@@ -2,64 +2,58 @@
 
 What's new in each codechart release. Update with `codechart update`; the [releases page](https://github.com/freeleex/codechart/releases) has the same notes.
 
-## Unreleased
+## 1.0.0 (2026-11-14)
+
+1.0: stable. Change maps, flows, explain maps, business pages, release maps and PR maps, all checked against your code.
 
 ### New
 
-- Every map box and explain node carries a short summary paragraph now: what it does, its role in the system. The page shows it at the top of the node's panel and inside the box. The agent is told to write one on every node.
-- Omitted groups on the page: a *Not on map* entry that says what the group is and why it is off the map (`frontend pages calling telemetry: frontend/src/pages/`) is drawn as a dashed *omitted* box in that area. Its panel lists the changed files the entry covers; a bare `tests:` or `docs:` list stays in the page info without a box.
-- Business page that explains how something works today: ask your agent to explain an area for a product owner, QA or support. One lane diagram of who does what, with every yes and no branch, then rules, odd cases and saved data in plain words. It starts from the explain map of that area (the newest one on your current branch) and is read-only: no notes or replies.
-
-### Fixed
-
-- The map image in a PR or MR description no longer shows the page's review tick boxes, which do nothing in a picture.
-- The check line in a PR or MR description and in the page header now says how many boxes could not be checked (`✓ 10 nodes checked against the code · 2 not checkable`).
-- The map check no longer warns about Terraform nested blocks, references by address (`module.vpc`, `var.x`), Go packages, `index` files or two boxes in one file; it now also accepts the other box's name, not only its file name.
-- Plan vs built no longer calls a file "built in another file" when only its path is spelled differently (`src\db.ts`, `./src/db.ts`, or relative to the folder you ran from), on maps and on flow steps.
-- A flow anchor written Windows-style (`src\b.py:2`) for a file at its exact repo path now gets the "did you mean" hint.
-- `codechart render --tech` no longer accepts an explain map for a business change page; it says a change map is needed.
-- A path rule's `context: short` now wins over `defaults.context: full` when it is the only rule that fired.
-- The business-map docs no longer say explain pages turn gaps into questions.
-- The HTML check line keeps each claim's own colour: `✓ 15 nodes checked against the code` stays green next to a red `✗ 1 changed file not on map`; warnings are amber and `diff not checked` muted. One failed claim used to paint the whole line red.
-- On Windows, the `gh`, `glab`, `powershell` and `opencode` commands that codechart runs are now looked up on PATH before they run, so a file inside your repo can't stand in for one of them.
-- A note of several lines keeps all of them after `codechart review`: saving the editor used to keep only the first line, and a later line that looked like a diff row could move the note to another line.
-- Page notes on a gap, arrow or box whose text has a colon in it come back with their own words: the copied message now shows that colon as a dash, so the item's text can no longer end up inside the note.
-- A line in a page note that starts with `>` keeps its `>` when you import the notes. A review pasted as a quote still imports.
-- A note on a long gap in a flow imports: it used to make the whole pasted review count as damaged.
-- `codechart setup-pr-maps --pr` run a second time, before the setup pull request is merged, links that request instead of failing on the push.
-- A failed git push or fetch in the PR map commands says why (`! [rejected] … (non-fast-forward)`, with the server's reason when a hook declines it), not just `To <remote>`.
-- `codechart setup-pr-maps` on GitLab: when your `.gitlab-ci.yml` lists `stages:` without `test`, the appended job runs in your first stage, so the file stays valid.
-- `codechart release-context` keeps the PR text it could read when one `(#N)` number isn't a PR (often an issue), and lists the skipped numbers in `notes`. After a timeout or network failure it stops asking and says which PRs were not read. On Windows, `gh` or `glab` missing from PATH is reported as not installed.
-- `codechart release-context` with no tag before the release commit (none yet, or `v1.0.0` already on it) lists every commit from the first one, for a first release; it used to ask for `--since`, which could never include the first commit. When the tags before it don't start with `v`, it still asks for `--since` and says so; in a shallow clone it asks you to fetch the full history and tags.
-- The release map docs show the real PDF and page file names.
-- `--git` now sees renames even when your git config turns rename detection off.
-- When a flow step points at a file that doesn't exist, the "did you mean" hint also offers files not yet added to git.
-- Flow steps and map boxes that point at a secret-looking file (like `.env`) show "not shown: looks like a secret" instead of the line.
-- `--md` output for business and release maps keeps the page title inside the code block, so image Markdown or HTML in a title no longer shows up in chat.
-- The map section in a PR or MR description handles file names with blank lines or escape characters safely.
-- `setup-pr-maps --pr` no longer goes online or runs your git transport config until you answer yes.
-- `doctor --last` and `setup-pr-maps` strip escape characters from repo text they print, and a remote URL containing them is refused.
-- `setup-pr-maps` refuses to write through a symlinked `.github` or `.github/workflows` folder.
-- `uninstall` also removes skill copies installed with `install-skill --dir`.
-- `feedback --import` reads the clipboard when stdin is an empty file or `/dev/null`, instead of failing with "No codechart review found".
-- Two hook runs at the same moment no longer lose a turn's snapshot, and the hook no longer hangs when the transcript path is a pipe.
-- Conflicting flags are refused with exit 2: `doctor --fix --last`, `update --check --skills-only`, `comment --side` without a line, and `feedback --import --copy` without `--take`.
-- `gh` and `glab` now run without token environment variables (`GH_TOKEN`, `GITLAB_TOKEN` and similar) for a repo host other than github.com or gitlab.com, so only a login you stored for that host is used.
-- A stalled network connection no longer keeps codechart running for 10 seconds or more after the update check times out.
-- With `XDG_CONFIG_HOME` set, `install-skill`, `doctor`, `update` and `uninstall` keep OpenCode's skill, reminder line and plugin together under `$XDG_CONFIG_HOME/opencode`.
-- Saving a map no longer loses a note added with `codechart comment` at the same moment.
-- `setup-pr-maps` no longer writes control characters from a GitLab stage name into its output or the file.
-- Clearer errors: a damaged review file is reported as damaged, with what to do; an output folder that can't be written names the setting to change; a missing spec file says "no such file" and an empty stdin says to pipe the spec in; `install-skill --dir` says when it can't create the folder; a `release.browser` path that doesn't exist is named in the no-PDF message.
-- `check --since` and `--head` say "is not a commit" for an unknown revision, like `--commit`.
-- A box whose path is outside the repo is labelled "outside the repo" on the check line.
+- Explain map: ask your agent how an existing area works ("explain how billing works", "onboard me on checkout") and get a map of the code as it is, each box checked against your code.
+- Explain maps have a *Flows* tab: up to five main behaviours of the area, step by step, each step on its line of code and linked to the box it happens in.
+- *Side by side* on an explain map puts the components next to a flow: click a step and its box lights up, click a box and its steps light up. See [Explain map](https://github.com/freeleex/codechart/blob/main/docs/explain-map.md).
+- Business page of how something works today, for a product owner, QA or support: who does what, every yes and no branch, rules, odd cases and saved data. Built from the area's explain map; read-only.
+- Each kind of map box has its own outline and icon: an endpoint is a pill (⇄), a table has column ticks (▤), config is a tag (⚑), a file has a folded corner (≡). Colour still means only the status.
+- Every map box and explain node has a short summary of what it does, at the top of its panel and inside the box.
+- A *Not on map* entry that names paths and says why they are left out is drawn as a dashed *omitted* box in its area; its panel lists the changed files it covers.
 
 ### Changed
 
-- `codechart install-skill` run outside a terminal without `--agent` now installs only the skill and prints the flags that would add the reminder line, Claude Code hook and OpenCode plugin; before, it added them all without asking. It may edit global files (`~/.claude/CLAUDE.md`, your agents' `AGENTS.md`/`GEMINI.md`, `~/.claude/settings.json`), which the README now says up front.
-- The PR-maps workflow template for GitHub pins `actions/checkout` and `actions/setup-node` to exact commits, like this repo's own CI.
-- The map check now compares each new, changed and removed box with git's own added, modified, deleted or renamed status, not just the list of changed files. It also warns, without failing, when a listed field or arrow isn't backed by the code, and says how many boxes it could not check.
-- `render` and `install-skill` now exit 2 for a bad flag value (an unknown commit or agent) and 1 for other failures.
-- Using a flag on the wrong kind of map now exits with code 2 like other usage errors, for example `--git` on an explain map or `--pr` on a business map.
+- For a repo host other than github.com or gitlab.com, `gh` and `glab` get no token variables (`GH_TOKEN`, `GITLAB_TOKEN`…): log in once with `gh auth login --hostname` or `glab auth login --hostname`.
+- Usage errors exit with code 2, other failures with 1: a bad flag value (unknown commit or agent), a flag on the wrong kind of map (`--git` on an explain map, `--pr` on a business map).
+- Conflicting flags are refused with exit 2: `doctor --fix --last`, `update --check --skills-only`, `comment --side` without a line, `feedback --import --copy` without `--take`.
+- `install-skill` outside a terminal without `--agent` installs only the skill and prints the flags that add the reminder line, Claude Code hook and OpenCode plugin; it used to add them all.
+- `setup-pr-maps --pr` asks before it goes online or runs your git transport config. The GitHub workflow it writes pins `actions/checkout` and `actions/setup-node` to exact commits.
+- The map check compares each new, changed and removed box with git's added, modified, deleted or renamed status, and warns, without failing, when a listed field or arrow isn't in the code.
+- The check line in the terminal, the page header and PR or MR descriptions says how many boxes could not be checked: `✓ 10 nodes checked against the code · 2 not checkable`.
+- Release maps say *Before* and *Now* with *New* and *Changed* badges; a feature of up to three cards moves to the next page whole; file names start with the version, like `v2-0-0--<title>`.
+
+### Fixed
+
+- On Windows, the `gh`, `glab`, `powershell` and `opencode` commands codechart runs are looked up on PATH first, so a file inside your repo can't stand in for one of them.
+- `setup-pr-maps` won't write through a symlinked `.github` or `.github/workflows` or use a remote URL with escape characters; it and `doctor --last` strip control characters from repo text.
+- Flow steps and map boxes that point at a secret-looking file (like `.env`) show "not shown: looks like a secret" instead of the line.
+- The map section in a PR or MR description handles file names with blank lines or escape characters safely.
+- `--md` output for business and release maps keeps the page title inside the code block, so image Markdown or HTML in a title no longer shows up in chat.
+- A note of several lines keeps all of them after `codechart review`; a later line that looked like a diff row could move the note to another line.
+- Saving a map no longer loses a note added with `codechart comment` at the same moment.
+- Two hook runs at the same moment no longer lose a turn's snapshot, and the hook no longer hangs when the transcript path is a pipe.
+- Importing page notes: a note on an item with a colon in its text keeps its own words, a line starting with `>` keeps its `>`, and a note on a long flow gap no longer marks the review damaged.
+- The map check no longer warns about Terraform nested blocks, references like `module.vpc` or `var.x`, Go packages, `index` files or two boxes in one file, and accepts the other box's name.
+- Plan vs built no longer says "built in another file" when only the path is spelled differently (`src\db.ts`, `./src/db.ts`, or relative to where you ran it).
+- The "did you mean" hint for a flow step's missing file also offers files not yet added to git, and works for an anchor written Windows-style (`src\b.py:2`).
+- The page's check line keeps each claim's colour: a green ✓ next to a red ✗, amber warnings, a muted `diff not checked`. A box whose path is outside the repo is labelled "outside the repo".
+- `--git` sees renames even when your git config turns rename detection off.
+- A path rule's `context: short` wins over `defaults.context: full` when it is the only rule that fired.
+- `render --tech` no longer accepts an explain map for a business page of a change; it says a change map is needed.
+- The map image in a PR or MR description no longer shows the page's review tick boxes.
+- `setup-pr-maps --pr` run again before the setup request is merged links that request; on GitLab, a `stages:` list without `test` puts the job in your first stage, so the file stays valid.
+- `release-context` keeps the PR text it read when a `(#N)` isn't a PR; after a timeout it stops and says which PRs were not read. On Windows a missing `gh` or `glab` is reported as not installed.
+- `release-context` with no tag before the release commit lists every commit, for a first release. Tags not starting with `v` or a shallow clone get a message saying what to do.
+- Clearer errors: a damaged review file says what to do; an unwritable output folder names the setting; `install-skill --dir` says why it can't create the folder; a failed push or fetch gives git's reason.
+- Clearer input errors: a missing spec file says "no such file", an empty stdin says to pipe the spec in, `check --since`/`--head` say "is not a commit", a missing `release.browser` path is named.
+- `feedback --import` reads the clipboard when stdin is an empty file or `/dev/null`, instead of failing with "No codechart review found".
+- `uninstall` also removes copies installed with `install-skill --dir`; with `XDG_CONFIG_HOME` set, OpenCode's skill, reminder line and plugin stay together under `$XDG_CONFIG_HOME/opencode`.
+- A stalled network connection no longer keeps codechart running for 10 seconds or more after the update check times out.
 
 ## 0.9.0 (2026-11-10)
 

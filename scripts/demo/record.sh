@@ -16,7 +16,7 @@ node "$work/pw/page.mjs" "$html" "$work/vid"
 page="$(ls "$work"/vid/*.webm)"
 
 # Page video starts blank while it loads; the terminal one ends on a 3 s hold.
-ffmpeg -loglevel error -y -i "$work/shop/demo-term.mp4" -i "$page" -filter_complex "
+ffmpeg -loglevel error -y -i "$work/demo-term.mp4" -i "$page" -filter_complex "
   [0:v]fps=12,scale=960:-2:flags=lanczos,setpts=PTS-STARTPTS[t];
   [1:v]trim=start=0.6,fps=12,scale=960:-2:flags=lanczos,setpts=PTS-STARTPTS[p];
   [t][p]xfade=transition=fade:duration=0.4:offset=8.6,split[a][b];

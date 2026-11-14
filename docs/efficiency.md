@@ -7,7 +7,7 @@ Commit refs in this doc are from pre-release history and do not resolve in this 
 ## At a glance
 
 - A diagram is about **2–3 extra API calls**. In a long session that's roughly 2–3% of your usage per diagram, and nothing for trivial changes. That's an estimate from Claude Code sessions with Sonnet; other agents and models will differ, and shorter sessions pay proportionally more ([In a real session](#in-a-real-session-estimate)).
-- The CLI is small: a 205.2 kB package, 5 runtime dependencies, and a cold start around 110 ms (0.9.0, measured 2026-11-14; see Current). The token figures below predate today's larger skill, see the caveat under Token cost.
+- The CLI is small: a 208.4 kB package, 5 runtime dependencies, and a cold start around 110 ms (1.0.0, measured 2026-11-14; see Current). The token figures below predate today's larger skill, see the caveat under Token cost.
 
 ## Baseline (2026-10-28)
 
@@ -22,14 +22,14 @@ These figures were taken from disk blocks (`du`) before the later size work and 
 ## Current
 
 <!-- measure:start -->
-Measured 2026-11-14 | codechart 0.9.0 | node v25.3.0 | darwin arm64 | `npx tsx scripts/measure.ts --write`
+Measured 2026-11-14 | codechart 1.0.0 | node v25.3.0 | darwin arm64 | `npx tsx scripts/measure.ts --write`
 
 Size (`npm pack` + `npm i` of the tarball)
 
 | Metric | Value |
 |---|---|
-| Tarball packed | 205.2 kB |
-| Tarball unpacked | 693.1 kB |
+| Tarball packed | 208.4 kB |
+| Tarball unpacked | 703.3 kB |
 | Tarball files | 19 |
 | Installed node_modules (runtime, excl. codechart) | 15.37 MB |
 | - commander | 207.4 kB |
@@ -37,7 +37,7 @@ Size (`npm pack` + `npm i` of the tarball)
 | - picomatch | 93.8 kB |
 | - yaml | 686.3 kB |
 | - zod | 6148.9 kB |
-| Skill text (skills/codechart/*.md) | 66.1 kB |
+| Skill text (skills/codechart/*.md) | 66.6 kB |
 
 Cold start (median of 10, `node dist/cli.js`)
 
@@ -54,7 +54,7 @@ HTML output size
 | Spec | Size |
 |---|---|
 | small map | 100.8 kB |
-| large map (120 nodes) | 332.9 kB |
+| large map (120 nodes) | 333.4 kB |
 | flow | 108.7 kB |
 
 <!-- measure:end -->

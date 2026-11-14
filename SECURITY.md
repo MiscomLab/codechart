@@ -2,11 +2,13 @@
 
 ## Supported versions
 
-Security fixes go to the latest minor release only.
+Security fixes go to the latest 1.x release. 0.x releases get no fixes; update with `codechart update`.
 
 ## Reporting a vulnerability
 
 Use GitHub private vulnerability reporting: <https://github.com/freeleex/codechart/security/advisories/new>. Do not open a public issue.
+
+Without a GitHub account, open a confidential issue on the GitLab mirror: <https://gitlab.com/freeleex/codechart/-/issues/new?issue[confidential]=true>. Check that "This issue is confidential" is ticked before you send it.
 
 Acknowledgement within 7 days, fix or mitigation within 30 days.
 

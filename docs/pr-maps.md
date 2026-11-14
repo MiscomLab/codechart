@@ -33,6 +33,18 @@ Adds `.github/workflows/codechart.yml`. It uses the built-in token, no secret to
 
 Appends a `codechart-map` job to `.gitlab-ci.yml` (or creates it). The job runs in the `test` stage; if your file lists `stages:` without `test`, it gets the first stage listed (not `.pre` or `.post`), and a file listing only those two needs the setup by hand. Then add a masked CI/CD variable `CODECHART_GITLAB_TOKEN`: an access token with `api` scope from a user with at least the Developer role (GitLab's job token can't edit an MR or upload files). The command prints the link to create the token and the one to add the variable. Until the variable exists the job is skipped. The job has no fork check: it runs wherever the variable is set, so don't make the variable available to pipelines that run a fork's code. The image is a project upload, visible to project members. Merged-results pipelines and merge trains work.
 
+### Self-managed GitLab
+
+Works on your own GitLab server: the job takes the server's address from GitLab's CI variables, so nothing names gitlab.com. What differs:
+
+- **Setup:** when the server's name doesn't contain "gitlab", run `codechart setup-pr-maps --host gitlab`.
+- **`setup-pr-maps --pr`** (and `codechart release-context`) call your `glab`. For a server other than gitlab.com they use only a login stored for it: run `glab auth login --hostname <your server>` once. Token environment variables are not passed to other servers.
+- **Runners:** the job pulls the `node:22` image and downloads codechart from the npm registry. Where runners can't reach them, set `image:` to your registry's copy and the `npm_config_registry` variable to your npm mirror.
+- **Certificates:** for a server certificate signed by your own authority, give the job the CA file in a `NODE_EXTRA_CA_CERTS` variable.
+- **Token:** a project or group access token works as `CODECHART_GITLAB_TOKEN` (`api` scope, Developer role).
+
+Tested on gitlab.com; the points above come from how the job works, not from a run on every GitLab version.
+
 ### By hand
 
 Copy `templates/github-workflow.yml`, or the job in `templates/gitlab-ci.yml`, from the installed package (`$(npm root -g)/codechart/templates/`) and replace `codechart@latest` with a version to pin it.
