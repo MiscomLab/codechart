@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Security fixes go to the latest minor release only.
+Security fixes go to the latest 1.x release. 0.x releases get no fixes; update with `codechart update`.
 
 ## Reporting a vulnerability
 
