@@ -8,6 +8,8 @@ Security fixes go to the latest minor release only.
 
 Use GitHub private vulnerability reporting: <https://github.com/freeleex/codechart/security/advisories/new>. Do not open a public issue.
 
+Without a GitHub account, open a confidential issue on the GitLab mirror: <https://gitlab.com/freeleex/codechart/-/issues/new?issue[confidential]=true>. Check that "This issue is confidential" is ticked before you send it.
+
 Acknowledgement within 7 days, fix or mitigation within 30 days.
 
 ## Threat model
