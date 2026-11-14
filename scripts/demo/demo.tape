@@ -1,5 +1,5 @@
 # vhs scripts/demo/demo.tape, run from a repo built by make-repo.sh (see record.sh)
-Output demo-term.mp4
+Output ../demo-term.mp4
 Set Shell zsh
 Set FontSize 15
 Set Width 1180
