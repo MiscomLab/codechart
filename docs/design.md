@@ -1,7 +1,5 @@
 # codechart — Design
 
-Status: draft · 2026-10-27
-
 ## 1. Why
 
 When a coding agent (Claude Code, Codex, Gemini CLI…) gives a plan or a final summary for a large change, it lists names: tables, columns, models, enums, files, components, config keys. The reader doesn't have the codebase in their head, so those names mean nothing until they open the code and trace the relations by hand. That is slow, and it hides the real shape of the change.
