@@ -30,4 +30,4 @@ Unpublish only for leaked secrets. npm allows it for 72 hours after publishing, 
 
 ## Mirror
 
-`gitlab.com/freeleex/codechart` is a daily read-only mirror of the GitHub repo. Releases, issues and PRs live on GitHub; the mirror's issues are only for confidential security reports (see [SECURITY.md](../SECURITY.md)).
+`gitlab.com/miscomlab/codechart` is a daily read-only mirror of the GitHub repo. Releases, issues and PRs live on GitHub; the mirror's issues are only for confidential security reports (see [SECURITY.md](../SECURITY.md)).

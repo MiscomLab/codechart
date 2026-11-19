@@ -1,6 +1,12 @@
 # Changelog
 
-What's new in each codechart release. Update with `codechart update`; the [releases page](https://github.com/freeleex/codechart/releases) has the same notes.
+What's new in each codechart release. Update with `codechart update`; the [releases page](https://github.com/MiscomLab/codechart/releases) has the same notes.
+
+## 1.0.1 (2026-11-19)
+
+### Changed
+
+- codechart moved to [github.com/MiscomLab/codechart](https://github.com/MiscomLab/codechart). Old links redirect. With the skills CLI, use `npx skills add MiscomLab/codechart`.
 
 ## 1.0.0 (2026-11-14)
 
@@ -10,7 +16,7 @@ What's new in each codechart release. Update with `codechart update`; the [relea
 
 - Explain map: ask your agent how an existing area works ("explain how billing works", "onboard me on checkout") and get a map of the code as it is, each box checked against your code.
 - Explain maps have a *Flows* tab: up to five main behaviours of the area, step by step, each step on its line of code and linked to the box it happens in.
-- *Side by side* on an explain map puts the components next to a flow: click a step and its box lights up, click a box and its steps light up. See [Explain map](https://github.com/freeleex/codechart/blob/main/docs/explain-map.md).
+- *Side by side* on an explain map puts the components next to a flow: click a step and its box lights up, click a box and its steps light up. See [Explain map](https://github.com/MiscomLab/codechart/blob/main/docs/explain-map.md).
 - Business page of how something works today, for a product owner, QA or support: who does what, every yes and no branch, rules, odd cases and saved data. Built from the area's explain map; read-only.
 - Each kind of map box has its own outline and icon: an endpoint is a pill (⇄), a table has column ticks (▤), config is a tag (⚑), a file has a folded corner (≡). Colour still means only the status.
 - Every map box and explain node has a short summary of what it does, at the top of its panel and inside the box.
@@ -82,7 +88,7 @@ What's new in each codechart release. Update with `codechart update`; the [relea
 
 ### Changed
 
-- README is shorter, with a features table; details moved to pages under [docs](https://github.com/freeleex/codechart/tree/main/docs).
+- README is shorter, with a features table; details moved to pages under [docs](https://github.com/MiscomLab/codechart/tree/main/docs).
 
 ## 0.7.0 (2026-11-06)
 
@@ -125,7 +131,7 @@ What's new in each codechart release. Update with `codechart update`; the [relea
 
 ### New
 
-- Maps in pull and merge requests: the map and its check overview in the description, re-rendered by CI on every push (GitHub and GitLab); set up with `setup-pr-maps`, see [PR maps](https://github.com/freeleex/codechart/blob/main/docs/pr-maps.md).
+- Maps in pull and merge requests: the map and its check overview in the description, re-rendered by CI on every push (GitHub and GitLab); set up with `setup-pr-maps`, see [PR maps](https://github.com/MiscomLab/codechart/blob/main/docs/pr-maps.md).
 - `codechart update` installs the newest version and refreshes your skill copies and reminder lines; a once-a-day notice says when there is one (off with `updateCheck: false`).
 - Summary maps flag changed files that no node covers, and say when the diff wasn't checked.
 - HTML: browser Back/Forward and ← → buttons walk the nodes you opened; `#node=<id>` links open a node.
@@ -144,7 +150,7 @@ Not published to npm; these changes shipped in 0.4.0.
 
 ### Changed
 
-- Security review fixes; see [security review](https://github.com/freeleex/codechart/blob/main/docs/security-review.md).
+- Security review fixes; see [security review](https://github.com/MiscomLab/codechart/blob/main/docs/security-review.md).
 - Faster previews on big diffs (100 files: 1.8 s → 0.1 s) and shorter agent output (one error per missing file).
 
 ## 0.3.0 (2026-11-03)

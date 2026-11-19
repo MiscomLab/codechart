@@ -33,7 +33,7 @@ Any agent that supports [Agent Skills](https://agentskills.io): Claude Code, Cod
 
 **Not on the list?** If it loads `SKILL.md` skills, run `codechart install-skill --dir <its skills folder>`. If not, the CLI still works for any agent that can run a command and write JSON: point it at `codechart schema` and `codechart render`.
 
-Already use the [skills CLI](https://skills.sh)? `npx skills add freeleex/codechart` installs the skill, but not the CLI it runs: add `npm i -g codechart` too. Pick one way to install the skill, so your agent doesn't load it twice.
+Already use the [skills CLI](https://skills.sh)? `npx skills add MiscomLab/codechart` installs the skill, but not the CLI it runs: add `npm i -g codechart` too. Pick one way to install the skill, so your agent doesn't load it twice.
 
 ## Help agents remember it
 

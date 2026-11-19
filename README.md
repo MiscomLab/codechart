@@ -7,8 +7,8 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/codechart"><img alt="npm" src="https://img.shields.io/npm/v/codechart"></a>
-  <a href="https://github.com/freeleex/codechart/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/freeleex/codechart/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://skills.sh/freeleex/codechart"><img alt="skills.sh" src="https://skills.sh/b/freeleex/codechart"></a>
+  <a href="https://github.com/MiscomLab/codechart/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/MiscomLab/codechart/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://skills.sh/MiscomLab/codechart"><img alt="skills.sh" src="https://skills.sh/b/MiscomLab/codechart"></a>
   <img alt="Node 22.12+" src="https://img.shields.io/badge/node-%3E%3D22.12-339933">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
 </p>
@@ -234,7 +234,7 @@ More: [Why you can trust the diagram](docs/trust.md).
 
 ## Cost
 
-A diagram is about **2–3 extra API calls**, roughly 2–3% of a long session's usage, and nothing for trivial changes. That figure was measured on 2026-10-28 with a skill of 7.1k chars; the skill is now 17.0k chars (about 4.2k tokens), so a diagram costs more than that, and the benchmark has not been re-run. The CLI is a 208.4 kB package. Measured runs: [Efficiency](docs/efficiency.md).
+A diagram is about **2–3 extra API calls**, roughly 2–3% of a long session's usage, and nothing for trivial changes. That figure was measured on 2026-10-28 with a skill of 7.1k chars; the skill is now 17.0k chars (about 4.2k tokens), so a diagram costs more than that, and the benchmark has not been re-run. The CLI is a 208.5 kB package. Measured runs: [Efficiency](docs/efficiency.md).
 
 ## Safe to run
 

@@ -30,7 +30,7 @@ const registry = (version: string | undefined, changelog?: string) => {
 };
 
 const NOTE_LINES = ['  - first thing, see the docs', '  - second thing'];
-const ALL_NOTES = '  all notes: https://github.com/freeleex/codechart/blob/main/CHANGELOG.md';
+const ALL_NOTES = '  all notes: https://github.com/MiscomLab/codechart/blob/main/CHANGELOG.md';
 
 describe('isNewer', () => {
   it('compares x.y.z releases, never pre-releases or junk', () => {
@@ -71,7 +71,7 @@ describe('updateNotice', () => {
     const reg = registry(NEXT, NOTES);
     const line = await updateNotice(ctx({ fetch: reg.fn }));
     expect(line).toBe([`codechart ${NEXT} is available (you have ${CURRENT}): run codechart update`, ...NOTE_LINES, ALL_NOTES].join('\n'));
-    expect(reg.rawCalls).toEqual([`https://raw.githubusercontent.com/freeleex/codechart/v${NEXT}/CHANGELOG.md`]);
+    expect(reg.rawCalls).toEqual([`https://raw.githubusercontent.com/MiscomLab/codechart/v${NEXT}/CHANGELOG.md`]);
     expect(knownHighlights(readState(join(sb.tmp, 'cache')), CURRENT, NEXT)?.bullets).toEqual(['first thing, see the docs', 'second thing']);
     await updateNotice(ctx({ fetch: reg.fn, now: 1_000_000_000_000 + DAY }));
     expect(reg.rawCalls.length).toBe(1);
@@ -192,7 +192,7 @@ describe('codechart update', () => {
     const tool = (c: string, a: string[]) => (calls.push([c, ...a]), a[0] === 'root' ? `${npmRoot}\n` : '');
     const r = await run([], { fetch: registry(NEXT, NOTES).fn, tool });
     expect(r.out).toContain(`Updating codechart ${CURRENT} → ${NEXT}: npm install -g codechart@${NEXT}\n${NOTE_LINES.join('\n')}\n${ALL_NOTES}\n`);
-    expect(r.out).toContain(`codechart ${NEXT} installed. What changed: https://github.com/freeleex/codechart/blob/main/CHANGELOG.md`);
+    expect(r.out).toContain(`codechart ${NEXT} installed. What changed: https://github.com/MiscomLab/codechart/blob/main/CHANGELOG.md`);
     expect(calls).toEqual([
       ['npm', 'root', '-g'],
       ['npm', 'install', '-g', `codechart@${NEXT}`],
