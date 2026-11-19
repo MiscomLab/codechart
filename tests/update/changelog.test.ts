@@ -83,7 +83,7 @@ describe('fetchHighlights', () => {
   it('reads the CHANGELOG of the latest tag', async () => {
     const r = answering(new Response(MD));
     expect(await fetchHighlights(r.fn, '0.2.0', '0.3.0', 1000)).toEqual({ bullets: ['three-a', 'three-b'], more: false });
-    expect(r.calls).toEqual(['https://raw.githubusercontent.com/freeleex/codechart/v0.3.0/CHANGELOG.md']);
+    expect(r.calls).toEqual(['https://raw.githubusercontent.com/MiscomLab/codechart/v0.3.0/CHANGELOG.md']);
   });
 
   it('is undefined when it fails, whatever the failure', async () => {
@@ -107,7 +107,7 @@ describe('fetchHighlights', () => {
 
 describe('notesLines', () => {
   it('lists the bullets then the link; nothing without highlights', () => {
-    expect(notesLines({ bullets: ['a', 'b'], more: false })).toEqual(['  - a', '  - b', '  all notes: https://github.com/freeleex/codechart/blob/main/CHANGELOG.md']);
+    expect(notesLines({ bullets: ['a', 'b'], more: false })).toEqual(['  - a', '  - b', '  all notes: https://github.com/MiscomLab/codechart/blob/main/CHANGELOG.md']);
     expect(notesLines({ bullets: ['a'], more: true })).toContain('  - …and more');
     expect(notesLines(undefined)).toEqual([]);
     expect(notesLines({ bullets: [], more: false })).toEqual([]);

@@ -1,6 +1,6 @@
 {
   "name": "codechart",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Agent skill + CLI: maps and flowcharts of code changes, and of how existing code works, for AI coding agents, in terminal, chat and HTML",
   "keywords": [
     "agent-skills",
@@ -18,15 +18,15 @@
   ],
   "type": "module",
   "license": "MIT",
-  "author": "freeleex",
+  "author": "MiscomLab",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/freeleex/codechart.git"
+    "url": "git+https://github.com/MiscomLab/codechart.git"
   },
   "bugs": {
-    "url": "https://github.com/freeleex/codechart/issues"
+    "url": "https://github.com/MiscomLab/codechart/issues"
   },
-  "homepage": "https://github.com/freeleex/codechart#readme",
+  "homepage": "https://github.com/MiscomLab/codechart#readme",
   "publishConfig": {
     "access": "public",
     "provenance": true

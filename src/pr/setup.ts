@@ -143,7 +143,7 @@ function appendedStage(existing: string): string | undefined {
   return stage;
 }
 
-const BY_HAND = 'https://github.com/freeleex/codechart/blob/main/docs/pr-maps.md#by-hand';
+const BY_HAND = 'https://github.com/MiscomLab/codechart/blob/main/docs/pr-maps.md#by-hand';
 
 function conflict(file: string): never {
   throw new Error(`${file} already exists and is not codechart's; move it or set PR maps up by hand: ${BY_HAND}`);

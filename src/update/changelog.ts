@@ -1,8 +1,8 @@
 import { stripInvisible } from '../render/strip.js';
 import { isNewer } from './check.js';
 
-export const NOTES_URL = 'https://github.com/freeleex/codechart/blob/main/CHANGELOG.md';
-const RAW = 'https://raw.githubusercontent.com/freeleex/codechart';
+export const NOTES_URL = 'https://github.com/MiscomLab/codechart/blob/main/CHANGELOG.md';
+const RAW = 'https://raw.githubusercontent.com/MiscomLab/codechart';
 const VERSION = /^\d+\.\d+\.\d+$/;
 const MAX_BYTES = 256 * 1024;
 const MAX_CHARS = 200;

@@ -107,7 +107,7 @@ function readSettings(file: string): { path: string; settings: Record<string, un
   try {
     settings = text === undefined || text.trim() === '' ? {} : JSON.parse(text);
   } catch {
-    throw new Error(`${file}: not valid JSON; edit the hooks by hand: https://github.com/freeleex/codechart/blob/main/docs/install.md#help-agents-remember-it`);
+    throw new Error(`${file}: not valid JSON; edit the hooks by hand: https://github.com/MiscomLab/codechart/blob/main/docs/install.md#help-agents-remember-it`);
   }
   if (!isObject(settings)) throw new Error(`${file}: not a JSON object`);
   settings.hooks ??= {};
