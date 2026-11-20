@@ -85,7 +85,7 @@ export function linkImports(files: readonly ParsedFile[], resolver: Resolver): P
   const resolved = files.map((f) => ({
     ...f,
     imports: f.imports.map((stated): Import => {
-      const imp = { ...stated, ...resolver.resolve(f.file.path, stated.spec) };
+      const imp = { ...stated, ...resolver.resolve(f.file.path, stated.spec, stated.kind) };
       if (imp.status !== 'resolved') delete imp.resolved;
       return imp;
     }),

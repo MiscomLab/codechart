@@ -39,6 +39,22 @@ describe('linkImports', () => {
     expect(found).toEqual({ x: undefined, y: undefined, z: 'open.ts', def: undefined });
   });
 
+  it("lets a file's own export or explicit re-export win over export *", async () => {
+    const found = await definitions({
+      'app.ts': "import { I, ia, x } from './barrel';\nimport { y } from './local';",
+      'barrel.ts': "export * from './p';\nexport interface I {}\nnamespace A { export const B = 1; }\nexport import ia = A.B;\nexport { x } from './q';",
+      'local.ts': "export * from './p';\nexport const y = 1;",
+      'p.ts': 'export interface I {}\nexport const ia = 1, x = 1, y = 1;',
+      'q.ts': 'export const x = 2;',
+    });
+    expect(found).toEqual({ I: 'barrel.ts', ia: 'barrel.ts', x: 'q.ts', y: 'local.ts' });
+  });
+
+  it('stops at a cycle of explicit re-exports', async () => {
+    const found = await definitions({ 'app.ts': "import { x } from './a';", 'a.ts': "export { x } from './b';", 'b.ts': "export { x } from './a';" });
+    expect(found).toEqual({ x: undefined });
+  });
+
   it('proves nothing for one name two stars bind to different exports of the same file', async () => {
     const found = await definitions({
       'app.ts': "import { x } from './barrel';",
@@ -80,7 +96,7 @@ describe('linkImports', () => {
     const stale = { ...file!, imports: file!.imports.map((i) => ({ ...i, status: 'resolved' as const, resolved: 'a.ts', names: [{ imported: 'a', local: 'a', definedIn: 'a.ts' }] })) };
     const [relinked] = linkImports([stale], createResolver(['app.ts'], () => ''));
     expect(relinked!.imports[0]).toMatchObject({ status: 'unknown', names: [{ imported: 'a', local: 'a' }] });
-    expect(relinked!.imports[0]!.resolved).toBeUndefined();
-    expect(relinked!.imports[0]!.names![0]!.definedIn).toBeUndefined();
+    expect(relinked!.imports[0]).not.toHaveProperty('resolved');
+    expect(relinked!.imports[0]!.names![0]).not.toHaveProperty('definedIn');
   });
 });

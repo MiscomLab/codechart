@@ -47,6 +47,11 @@ describe('relative specifiers', () => {
     expect(['./lib', './only', './plain'].map((s) => r.resolve('a.js', s))).toEqual([to('lib/entry.js'), to('only/src/m.ts'), to('plain/index.js')]);
   });
 
+  it('loads a file before a folder of the same name', () => {
+    const r = repo({ 'x.ts': '', 'x/package.json': json({ main: './m.js' }), 'x/m.js': '', 'a.ts': '' });
+    expect(r.resolve('a.ts', './x')).toEqual(to('x.ts'));
+  });
+
   it('marks missing files and paths leaving the repo unknown', () => {
     expect([r.resolve('src/a.ts', './nope'), r.resolve('src/a.ts', '../../a'), r.resolve('src/a.ts', '/abs/a')]).toEqual([UNKNOWN, UNKNOWN, UNKNOWN]);
   });
@@ -79,6 +84,28 @@ describe('bare specifiers', () => {
   it('marks an alias without a file unknown, unless it names a declared dependency', () => {
     const r = repo({ 'tsconfig.json': json({ compilerOptions: { paths: { '*': ['./types/*'] } } }), 'package.json': json({ dependencies: { react: '1' } }), 'a.ts': '' });
     expect([r.resolve('a.ts', 'react'), r.resolve('a.ts', 'fs'), r.resolve('a.ts', 'left-pad')]).toEqual([EXTERNAL, EXTERNAL, UNKNOWN]);
+  });
+
+  it('tries alias targets in order, matches suffix patterns and an empty *', () => {
+    const r = repo({
+      'tsconfig.json': json({ compilerOptions: { paths: { '@/*': ['./missing/*', './src/*'], '*.css': ['./styles/*.css'] } } }),
+      'src/a.ts': '',
+      'src/index.ts': '',
+      'styles/main.css': '',
+      'x.ts': '',
+    });
+    expect(['@/a', 'main.css', '@/'].map((s) => r.resolve('x.ts', s))).toEqual([to('src/a.ts'), to('styles/main.css'), to('src/index.ts')]);
+  });
+
+  it('marks an alias unknown under a solution-style tsconfig whose references it does not follow', () => {
+    const r = repo({
+      'tsconfig.json': json({ files: [], references: [{ path: './tsconfig.app.json' }] }),
+      'tsconfig.app.json': json({ compilerOptions: { paths: { '@/*': ['./src/*'] } } }),
+      'package.json': json({ dependencies: { react: '1' } }),
+      'src/a.ts': '',
+      'src/b.ts': '',
+    });
+    expect(['@/b', 'react', 'fs', 'left-pad'].map((s) => r.resolve('src/a.ts', s))).toEqual([UNKNOWN, EXTERNAL, EXTERNAL, UNKNOWN]);
   });
 
   it('resolves through baseUrl before packages', () => {
@@ -125,6 +152,37 @@ describe('tsconfig extends', () => {
     expect([r.resolve('a.ts', 'left-pad'), r.resolve('a.ts', 'x'), r.resolve('a.ts', '@/x')]).toEqual([UNKNOWN, UNKNOWN, UNKNOWN]);
   });
 
+  it('resolves inherited paths against the config that set them, or against the child baseUrl', () => {
+    const r = repo({
+      'cfgs/base.json': json({ compilerOptions: { paths: { '@c/*': ['./t/*'] } } }),
+      'cfgs/t/z.ts': '',
+      'sub/tsconfig.json': json({ extends: '../cfgs/base.json' }),
+      'sub/s.ts': '',
+      'other/tsconfig.json': json({ extends: '../cfgs/base.json', compilerOptions: { baseUrl: '.' } }),
+      'other/t/z.ts': '',
+      'other/o.ts': '',
+    });
+    expect([r.resolve('sub/s.ts', '@c/z'), r.resolve('other/o.ts', '@c/z')]).toEqual([to('cfgs/t/z.ts'), to('other/t/z.ts')]);
+  });
+
+  it('extends a package by its exports, else its tsconfig field, else its tsconfig.json', () => {
+    const cfg = (pkg: object) =>
+      repo({
+        'package.json': json({ workspaces: ['packages/*'] }),
+        'packages/cfg/package.json': json({ name: '@o/cfg', ...pkg }),
+        'packages/cfg/base.json': json({ compilerOptions: { paths: { '@/*': ['../app/src/*'] } } }),
+        'packages/cfg/tsconfig.json': json({ compilerOptions: { paths: { '@/*': ['./wrong/*'] } } }),
+        'packages/cfg/wrong/x.ts': '',
+        'packages/app/tsconfig.json': json({ extends: '@o/cfg' }),
+        'packages/app/src/x.ts': '',
+        'packages/app/src/main.ts': '',
+      }).resolve('packages/app/src/main.ts', '@/x');
+    expect(cfg({ tsconfig: './base.json' })).toEqual(to('packages/app/src/x.ts'));
+    expect(cfg({ exports: { '.': './base.json' }, tsconfig: './tsconfig.json' })).toEqual(to('packages/app/src/x.ts'));
+    expect(cfg({})).toEqual(to('packages/cfg/wrong/x.ts'));
+    expect(cfg({ exports: { './other': './base.json' } })).toEqual(UNKNOWN);
+  });
+
   it('stops at a cycle', () => {
     const r = repo({ 'tsconfig.json': json({ extends: './b.json' }), 'b.json': json({ extends: './tsconfig.json' }), 'a.ts': '' });
     expect(r.resolve('a.ts', 'left-pad')).toEqual(UNKNOWN);
@@ -140,9 +198,33 @@ describe('workspace packages', () => {
     expect(['lib', 'lib/src/util/x', 'lib/util/x'].map((s) => r.resolve('app.ts', s))).toEqual([to('libs/lib/src/index.ts'), to('libs/lib/src/util/x.ts'), UNKNOWN]);
   });
 
-  it('marks build output unknown when two source files could be it', () => {
+  it('marks build output unknown when two source files could be it, without falling back to index', () => {
     const r = repo({ ...base, ...lib({ exports: './dist/index.js' }, ['src/index.ts', 'index.js']) });
     expect(r.resolve('app.ts', 'lib')).toEqual(UNKNOWN);
+    const viaMain = repo({ ...base, ...lib({ main: './dist/index.js' }, ['src/index.ts', 'index.ts']) });
+    expect(viaMain.resolve('app.ts', 'lib')).toEqual(UNKNOWN);
+  });
+
+  it('does not fall back to main when exports names a missing file', () => {
+    const r = repo({ ...base, ...lib({ exports: { '.': './missing.js' }, main: './src/index.ts' }, ['src/index.ts']) });
+    expect(r.resolve('app.ts', 'lib')).toEqual(UNKNOWN);
+  });
+
+  it('prefers the require condition for require() and import for the rest, source first', () => {
+    const r = repo({ ...base, ...lib({ exports: { require: './src/cjs.ts', import: './src/esm.ts' } }, ['src/cjs.ts', 'src/esm.ts']) });
+    expect([r.resolve('app.ts', 'lib', 'require'), r.resolve('app.ts', 'lib', 'import'), r.resolve('app.ts', 'lib', 'dynamic'), r.resolve('app.ts', 'lib')]).toEqual([
+      to('libs/lib/src/cjs.ts'),
+      to('libs/lib/src/esm.ts'),
+      to('libs/lib/src/esm.ts'),
+      to('libs/lib/src/esm.ts'),
+    ]);
+    const withSource = repo({ ...base, ...lib({ exports: { require: './src/cjs.ts', source: './src/esm.ts' } }, ['src/cjs.ts', 'src/esm.ts']) });
+    expect(withSource.resolve('app.ts', 'lib', 'require')).toEqual(to('libs/lib/src/esm.ts'));
+  });
+
+  it('looks in baseUrl before workspace packages, as TypeScript does', () => {
+    const r = repo({ ...base, ...lib({ main: './src/index.ts' }, ['src/index.ts']), 'tsconfig.json': json({ compilerOptions: { baseUrl: '.' } }), 'lib/index.ts': '' });
+    expect(r.resolve('app.ts', 'lib')).toEqual(to('lib/index.ts'));
   });
 
   it('uses the exports target that exists and keeps hidden subpaths unknown', () => {

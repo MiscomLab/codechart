@@ -62,6 +62,11 @@ describe('import extraction', () => {
     expect(incomplete.map((f) => f.exports.complete)).toEqual([false, false, false, false]);
   });
 
+  it('lists every kind of exported declaration by its outermost name', async () => {
+    const own = await parse("export interface I {}\nexport type T = 1;\nexport enum E {}\nexport abstract class AC {}\nexport function* g() {}\nexport namespace A.B {}\nexport import ia = A.B;\nexport declare function df(): void;\nexport declare module 'm' {}");
+    expect(own.exports.names.map((n) => n.name)).toEqual(['I', 'T', 'E', 'AC', 'g', 'A', 'ia', 'df']);
+  });
+
   it('gives files without a grammar no imports and unknown exports', async () => {
     expect(await parse('{}', 'a.json')).toMatchObject({ imports: [], exports: { names: [], complete: false } });
   });

@@ -98,13 +98,22 @@ function bindings(node: Node | null): Node[] {
   return node.namedChildren.flatMap((c) => (c && c.type !== 'property_identifier' ? bindings(c) : []));
 }
 
+/** `A` of `A.B.C`: a dotted namespace exports its outermost name. */
+function outermost(node: Node): Node {
+  let name = node;
+  while (name.type === 'nested_identifier' || name.type === 'member_expression') name = name.childForFieldName('object') ?? name.namedChildren[0]!;
+  return name;
+}
+
 function declarationNames(decl: Node): string[] {
   const inner = decl.type === 'ambient_declaration' ? decl.namedChildren[0] : decl;
   if (!inner) return [];
   const many = DECLARED_NAMES[inner.type];
   if (many) return many(inner).map((n) => n.text);
-  const name = inner.childForFieldName('name');
-  return name ? [name.text] : [];
+  // `export import ia = A.B` has no name field.
+  const name = inner.type === 'import_alias' ? inner.namedChildren[0] : inner.childForFieldName('name');
+  // `declare module 'x'` describes another module; it adds no export here.
+  return name && name.type !== 'string' ? [outermost(name).text] : [];
 }
 
 /** The names an `export` statement without `from` adds; undefined for `export =`, which makes the exports unknowable. */

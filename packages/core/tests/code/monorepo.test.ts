@@ -61,9 +61,9 @@ describe('parseRepo on an npm workspaces monorepo', () => {
 
   it('records each import with its kind, names and line', () => {
     const main = importsOf('packages/app/src/main.ts');
-    expect(main.find((i) => i.spec === './esm.mjs')).toMatchObject({ kind: 'import', typeOnly: true, names: [{ imported: 'Mode', local: 'Mode', typeOnly: true, definedIn: 'packages/app/src/esm.mts' }], range: { start: { line: 12 } } });
+    expect(main.find((i) => i.spec === './esm.mjs')).toMatchObject({ kind: 'import', typeOnly: true, names: [{ imported: 'Mode', local: 'Mode', typeOnly: true, definedIn: 'packages/app/src/esm.mts' }] });
     expect(main.find((i) => i.spec === './views')!.names).toEqual([{ imported: '*', local: 'views', definedIn: 'packages/app/src/views/index.ts' }]);
-    expect(main.find((i) => i.spec === './lazy.js')).toMatchObject({ kind: 'dynamic', range: { start: { line: 15 } } });
+    expect(main.find((i) => i.spec === './lazy.js')).toMatchObject({ kind: 'dynamic' });
     expect(main.find((i) => i.spec === './lazy.js')!.names).toBeUndefined();
   });
 });

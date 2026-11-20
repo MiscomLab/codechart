@@ -1,5 +1,6 @@
 import { dirOf, isRelative, joinRepo, resolveFile, type FileSet } from './files.js';
 import { parseJsonc } from './jsonc.js';
+import { mapTargets, type PackageJson } from './package-json.js';
 import { splitPackageSpec } from './packages.js';
 
 /** The module options of a tsconfig, its `extends` chain merged in. Directories are repo paths. */
@@ -8,7 +9,10 @@ export interface TsOptions {
   baseUrl?: string | null;
   /** `compilerOptions.paths`; `dir` is the folder of the config that set them, which targets are relative to without `baseUrl`. */
   paths?: { patterns: [string, string[]][]; dir: string };
-  /** False when a config in the chain could not be read, so an option it sets is unknown. */
+  /**
+   * False when a config in the chain could not be read, so an option it sets is unknown, or when the config is
+   * solution-style (`references`, `files: []`): the projects it points to, which hold the real options, aren't read.
+   */
   complete: boolean;
 }
 
@@ -17,19 +21,38 @@ const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((s): s is
 const firstListed = (files: FileSet, path: string | undefined) => (path === undefined ? undefined : [path, `${path}.json`].find((p) => files.has(p)));
 
 /**
- * Reads tsconfig files on demand, cached. `extends` follows relative paths and workspace packages (`packageDir`);
- * a base config from a package outside the repo is not read, which leaves the chain incomplete.
+ * The config `extends: "<package>/<subpath>"` names, as TypeScript looks it up: the package's `exports`, else its
+ * `tsconfig` field for the package itself, else the path. Undefined when that file isn't in the repo.
  */
-export function createTsconfigs(files: FileSet, read: (path: string) => string | undefined, packageDir: (name: string) => string | undefined) {
+function packageConfig(files: FileSet, dir: string, pkg: PackageJson | undefined, subpath: string): string | undefined {
+  if (pkg?.exports !== undefined) {
+    const target = mapTargets(pkg.exports, subpath).find((t) => t.startsWith('./'));
+    return target === undefined ? undefined : firstListed(files, joinRepo(dir, target));
+  }
+  if (subpath !== '.') return firstListed(files, joinRepo(dir, subpath));
+  return firstListed(files, joinRepo(dir, pkg?.tsconfig ?? 'tsconfig.json'));
+}
+
+const isSolution = (raw: Record<string, unknown>) => (Array.isArray(raw.references) && raw.references.length > 0) || (Array.isArray(raw.files) && raw.files.length === 0);
+
+interface Packages {
+  dir: (name: string) => string | undefined;
+  read: (dir: string) => PackageJson | undefined;
+}
+
+/**
+ * Reads tsconfig files on demand, cached. `extends` follows relative paths and workspace packages; a base config from
+ * a package outside the repo is not read, which leaves the chain incomplete.
+ */
+export function createTsconfigs(files: FileSet, read: (path: string) => string | undefined, packages: Packages) {
   const configs = new Map<string, TsOptions>();
   const nearest = new Map<string, string | undefined>();
 
   const extendsPath = (from: string, spec: string): string | undefined => {
     if (isRelative(spec)) return firstListed(files, joinRepo(dirOf(from), spec));
     const { name, subpath } = splitPackageSpec(spec);
-    const dir = packageDir(name);
-    if (dir === undefined) return undefined;
-    return firstListed(files, joinRepo(dir, subpath === '.' ? 'tsconfig.json' : subpath));
+    const dir = packages.dir(name);
+    return dir === undefined ? undefined : packageConfig(files, dir, packages.read(dir), subpath);
   };
 
   const load = (path: string, seen: Set<string>): TsOptions => {
@@ -39,7 +62,7 @@ export function createTsconfigs(files: FileSet, read: (path: string) => string |
     seen.add(path);
     const raw = parseJsonc(read(path) ?? '');
     if (!isObject(raw)) return { complete: false };
-    let merged: TsOptions = { complete: true };
+    let merged: TsOptions = { complete: !isSolution(raw) };
     for (const spec of typeof raw.extends === 'string' ? [raw.extends] : strings(raw.extends)) {
       const base = extendsPath(path, spec);
       const opts = base ? load(base, seen) : { complete: false };

@@ -1,7 +1,7 @@
 import picomatch from 'picomatch';
 import { parse as parseYaml } from 'yaml';
 import { dirOf, joinRepo, resolveFile, type FileSet } from './files.js';
-import { mapTargets, type PackageJson } from './package-json.js';
+import { mapTargets, type LoadKind, type PackageJson } from './package-json.js';
 
 /** Leading folders build tools write to; `dist/esm/x.js` is looked for as `src/x.*` or `x.*`. */
 const BUILD_DIRS = new Set(['dist', 'build', 'lib', 'out', 'esm', 'cjs', 'mjs', 'es', 'umd', 'types', 'typings']);
@@ -10,9 +10,9 @@ const BUILT_EXT = /(\.d)?\.[mc]?[jt]sx?$/;
 
 /**
  * Where a build output path missing from the repo comes from: the one source file at the same path under `src/` or
- * the package root, build folders and extension dropped. Undefined when there is none or more than one.
+ * the package root, build folders and extension dropped. Undefined when there is none, null when there are several.
  */
-function sourceOf(files: FileSet, dir: string, rel: string): string | undefined {
+function sourceOf(files: FileSet, dir: string, rel: string): string | null | undefined {
   const segments = rel.split('/');
   let skip = 0;
   while (skip < segments.length - 1 && BUILD_DIRS.has(segments[skip]!)) skip++;
@@ -20,11 +20,14 @@ function sourceOf(files: FileSet, dir: string, rel: string): string | undefined 
   const stem = segments.slice(skip).join('/').replace(BUILT_EXT, '');
   const prefix = dir ? `${dir}/` : '';
   const found = new Set([`${prefix}src/${stem}`, `${prefix}${stem}`].flatMap((base) => SOURCE_EXTS.map((e) => base + e).filter((p) => files.has(p))));
-  return found.size === 1 ? [...found][0] : undefined;
+  return found.size > 1 ? null : [...found][0];
 }
 
-/** The repo file a package-relative target (`./dist/index.js`) stands for, mapping build output back to source. */
-export function inPackage(files: FileSet, dir: string, target: string): string | undefined {
+/**
+ * The repo file a package-relative target (`./dist/index.js`) stands for, mapping build output back to source;
+ * null when several source files could be it.
+ */
+export function inPackage(files: FileSet, dir: string, target: string): string | null | undefined {
   const path = joinRepo(dir, target);
   if (path === undefined || (dir && path !== dir && !path.startsWith(`${dir}/`))) return undefined;
   const direct = resolveFile(files, path, false);
@@ -32,19 +35,16 @@ export function inPackage(files: FileSet, dir: string, target: string): string |
   return sourceOf(files, dir, dir ? path.slice(dir.length + 1) : path);
 }
 
-/** The file a workspace package's `subpath` (`.` or `./x`) is, by `exports`, else by its entry fields or the path itself. */
-export function packageEntry(files: FileSet, dir: string, pkg: PackageJson, subpath: string): string | undefined {
-  if (pkg.exports !== undefined) {
-    for (const target of mapTargets(pkg.exports, subpath)) {
-      const file = target.startsWith('./') ? inPackage(files, dir, target) : undefined;
-      if (file) return file;
-    }
-    return undefined;
-  }
-  if (subpath !== '.') return inPackage(files, dir, subpath);
-  for (const entry of [...pkg.entries, './index']) {
-    const file = inPackage(files, dir, entry.startsWith('.') ? entry : `./${entry}`);
-    if (file) return file;
+/**
+ * The file a workspace package's `subpath` (`.` or `./x`) is, by `exports`, else by its entry fields or the path itself.
+ * A target several source files could be stops the search: a later fallback would be a guess.
+ */
+export function packageEntry(files: FileSet, dir: string, pkg: PackageJson, subpath: string, kind: LoadKind = 'import'): string | undefined {
+  const candidates =
+    pkg.exports !== undefined ? mapTargets(pkg.exports, subpath, kind).filter((t) => t.startsWith('./')) : subpath === '.' ? [...pkg.entries, './index'] : [subpath];
+  for (const target of candidates) {
+    const file = inPackage(files, dir, target.startsWith('.') ? target : `./${target}`);
+    if (file !== undefined) return file ?? undefined;
   }
   return undefined;
 }
