@@ -45,7 +45,7 @@ function fromPackageImports(repo: Repo, from: string, spec: string, load: LoadKi
   const dir = packageDirs(repo, dirOf(from))[0];
   const pkg = dir === undefined ? undefined : repo.readPackage(dir);
   for (const target of pkg?.imports ? mapTargets(pkg.imports, spec, load) : []) {
-    const hit = target.startsWith('./') ? found(inPackage(repo.listed, dir!, target)) : bare(repo, from, target, load);
+    const hit = target.startsWith('./') ? found(inPackage(repo.listed, dir!, target, isJsFile(from))) : bare(repo, from, target, load);
     if (hit.status !== 'unknown') return hit;
   }
   return UNKNOWN;
@@ -64,7 +64,7 @@ function bare(repo: Repo, from: string, spec: string, load: LoadKind): Resolutio
   if (BUILTINS.has(spec)) return EXTERNAL;
   if (repo.workspaces().has(name)) {
     const dir = repo.workspaces().get(name);
-    return dir === undefined ? UNKNOWN : found(packageEntry(repo.listed, dir, repo.readPackage(dir)!, subpath, load));
+    return dir === undefined ? UNKNOWN : found(packageEntry(repo.listed, dir, repo.readPackage(dir)!, subpath, { load, fromJs }));
   }
   // Bun's runtime module, like `bun:test`, ships with Bun rather than as a package.
   if (spec === 'bun') return EXTERNAL;
@@ -74,7 +74,7 @@ function bare(repo: Repo, from: string, spec: string, load: LoadKind): Resolutio
 }
 
 /** A file first; a folder by its package.json entry, else its `index`, as Node loads them. */
-function relative(repo: Repo, from: string, spec: string): Resolution {
+function relative(repo: Repo, from: string, spec: string, load: LoadKind): Resolution {
   // A query (`?raw`, `?worker&url`) changes how a bundler loads the file, not which file.
   const query = spec.indexOf('?');
   const path = joinRepo(dirOf(from), query < 0 ? spec : spec.slice(0, query));
@@ -82,13 +82,13 @@ function relative(repo: Repo, from: string, spec: string): Resolution {
   const file = resolveFile(repo.listed, path, isJsFile(from));
   const pkg = !file || file.startsWith(path ? `${path}/index.` : 'index.') ? repo.readPackage(path) : undefined;
   // `exports` applies to imports by package name only.
-  if (pkg?.entries.length) return found(packageEntry(repo.listed, path, { ...pkg, exports: undefined }, '.'));
+  if (pkg?.entries.length) return found(packageEntry(repo.listed, path, { ...pkg, exports: undefined }, '.', { load, fromJs: isJsFile(from) }));
   return found(file);
 }
 
 function resolveSpec(repo: Repo, from: string, spec: string, load: LoadKind): Resolution {
   if (RUNTIME_SCHEMES.test(spec)) return EXTERNAL;
-  if (isRelative(spec)) return relative(repo, from, spec);
+  if (isRelative(spec)) return relative(repo, from, spec, load);
   if (spec.startsWith('#')) return fromPackageImports(repo, from, spec, load);
   // Absolute paths, URLs and bundler schemes (`virtual:`) are outside what the repo proves.
   if (!spec || spec.startsWith('/') || /^[a-z][a-z\d+.-]*:/i.test(spec)) return UNKNOWN;

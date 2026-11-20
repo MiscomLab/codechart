@@ -47,6 +47,22 @@ describe('relative specifiers', () => {
     expect(['./lib', './only', './plain'].map((s) => r.resolve('a.js', s))).toEqual([to('lib/entry.js'), to('only/src/m.ts'), to('plain/index.js')]);
   });
 
+  it('gives a JS importer the .js a package entry names and a TS importer the .ts beside it', () => {
+    const r = repo({
+      'package.json': json({ workspaces: ['pkgs/*'], imports: { '#e': './lib/entry.js' } }),
+      'lib/package.json': json({ main: './entry.js' }),
+      'lib/entry.js': '',
+      'lib/entry.ts': '',
+      'pkgs/w/package.json': json({ name: 'w', main: './entry.js' }),
+      'pkgs/w/entry.js': '',
+      'pkgs/w/entry.ts': '',
+      'a.js': '',
+      'a.ts': '',
+    });
+    expect(['./lib', 'w', '#e'].map((s) => r.resolve('a.js', s, 'require'))).toEqual([to('lib/entry.js'), to('pkgs/w/entry.js'), to('lib/entry.js')]);
+    expect(['./lib', 'w', '#e'].map((s) => r.resolve('a.ts', s))).toEqual([to('lib/entry.ts'), to('pkgs/w/entry.ts'), to('lib/entry.ts')]);
+  });
+
   it('loads a file before a folder of the same name', () => {
     const r = repo({ 'x.ts': '', 'x/package.json': json({ main: './m.js' }), 'x/m.js': '', 'a.ts': '' });
     expect(r.resolve('a.ts', './x')).toEqual(to('x.ts'));

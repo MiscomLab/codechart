@@ -25,25 +25,31 @@ function sourceOf(files: FileSet, dir: string, rel: string): string | null | und
 
 /**
  * The repo file a package-relative target (`./dist/index.js`) stands for, mapping build output back to source;
- * null when several source files could be it.
+ * null when several source files could be it. `fromJs` as in `resolveFile`: a JS importer gets the `.js` that runs.
  */
-export function inPackage(files: FileSet, dir: string, target: string): string | null | undefined {
+export function inPackage(files: FileSet, dir: string, target: string, fromJs: boolean): string | null | undefined {
   const path = joinRepo(dir, target);
   if (path === undefined || (dir && path !== dir && !path.startsWith(`${dir}/`))) return undefined;
-  const direct = resolveFile(files, path, false);
+  const direct = resolveFile(files, path, fromJs);
   if (direct) return direct;
   return sourceOf(files, dir, dir ? path.slice(dir.length + 1) : path);
+}
+
+/** How the importer loads: `require()` or not picks conditions, a JS importer gets the `.js` an entry names. */
+export interface Importer {
+  load: LoadKind;
+  fromJs: boolean;
 }
 
 /**
  * The file a workspace package's `subpath` (`.` or `./x`) is, by `exports`, else by its entry fields or the path itself.
  * A target several source files could be stops the search: a later fallback would be a guess.
  */
-export function packageEntry(files: FileSet, dir: string, pkg: PackageJson, subpath: string, kind: LoadKind = 'import'): string | undefined {
+export function packageEntry(files: FileSet, dir: string, pkg: PackageJson, subpath: string, importer: Importer): string | undefined {
   const candidates =
-    pkg.exports !== undefined ? mapTargets(pkg.exports, subpath, kind).filter((t) => t.startsWith('./')) : subpath === '.' ? [...pkg.entries, './index'] : [subpath];
+    pkg.exports !== undefined ? mapTargets(pkg.exports, subpath, importer.load).filter((t) => t.startsWith('./')) : subpath === '.' ? [...pkg.entries, './index'] : [subpath];
   for (const target of candidates) {
-    const file = inPackage(files, dir, target.startsWith('.') ? target : `./${target}`);
+    const file = inPackage(files, dir, target.startsWith('.') ? target : `./${target}`, importer.fromJs);
     if (file !== undefined) return file ?? undefined;
   }
   return undefined;
