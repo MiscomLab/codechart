@@ -75,6 +75,16 @@ describe('scripts/check-core-version.mjs', () => {
     expect(r.stderr).toContain('packages/core/package.json');
   });
 
+  it('does not count reformatting the version line as a bump', () => {
+    const cwd = repo();
+    write(cwd, 'packages/core/src/index.ts', 'export const a = 2;\n');
+    write(cwd, 'packages/core/package.json', corePkg('0.1.0').replace('"version": "0.1.0"', '"version":  "0.1.0"'));
+    commit(cwd, 'change and reformat');
+    const r = check(cwd);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('packages/core/src/index.ts');
+  });
+
   it('passes once a later commit bumps the version and the CLI pin', () => {
     const cwd = repo();
     write(cwd, 'packages/core/src/index.ts', 'export const a = 2;\n');
