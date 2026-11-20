@@ -1,7 +1,7 @@
 import { fstatSync, type Stats } from 'node:fs';
 import { Command, Option } from 'commander';
 import type { CommandOptions } from '../program.js';
-import { sanitizeText } from '../render/strip.js';
+import { sanitizeText } from '@codechart/core';
 import { readClipboard } from '../review/clipboard.js';
 import { changeTitle } from '../review/doc.js';
 import { countsLine, feedbackText, osc52 } from '../review/feedback.js';

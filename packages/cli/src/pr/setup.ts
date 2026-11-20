@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { packageFile } from '../assets.js';
-import { escapeJsonControls, hasHiddenChars } from '../render/strip.js';
+import { escapeJsonControls, hasHiddenChars } from '@codechart/core';
 import { gitRun } from './git.js';
 
 export type Host = 'github' | 'gitlab';

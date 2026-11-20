@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { hasHiddenChars } from '../render/strip.js';
+import { hasHiddenChars } from '@codechart/core';
 
 export const SHORT = 200;
 export const LONG = 2000;

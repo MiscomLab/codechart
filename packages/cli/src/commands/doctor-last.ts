@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { findRepoRoot, loadConfig } from '../config/load.js';
 import type { CommandOptions } from '../program.js';
-import { sanitizeText } from '../render/strip.js';
+import { sanitizeText } from '@codechart/core';
 import { resolveRules } from '../rules/resolve.js';
 import { MIN_FILES } from './hook-core.js';
 import { latestRecord, turnsDir, type Decision, type TurnRecord } from './hook-record.js';

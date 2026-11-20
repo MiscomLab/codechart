@@ -1,4 +1,4 @@
-import { hasHiddenChars } from '../render/strip.js';
+import { hasHiddenChars } from '@codechart/core';
 import { CODE_PATTERNS, hashToken } from './shared.js';
 
 const CAMEL_OK = new Set([

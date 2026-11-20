@@ -1,4 +1,4 @@
-import { sanitizeText } from '../render/strip.js';
+import { sanitizeText } from '@codechart/core';
 import { lastNoteNumber, nodeOfHeading } from './doc.js';
 import type { Note, NoteKind, Review, ReviewNode } from './schema.js';
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { sanitizeText } from '../render/strip.js';
+import { sanitizeText } from '@codechart/core';
 import { LONG, SHORT } from '../spec/shared.js';
 import { targetExists } from './carry.js';
 import { isAt, lastNoteNumber } from './doc.js';

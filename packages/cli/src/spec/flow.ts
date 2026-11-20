@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { hasHiddenChars } from '../render/strip.js';
+import { hasHiddenChars } from '@codechart/core';
 import { codeLabelIssue, driftBase, driftIssues, formatIssues, ident, labelIssues, long, pathStr, short, SHORT, shortOpt, type ValidationResult } from './shared.js';
 
 const STEP_TYPES = ['step', 'decision', 'end'] as const;

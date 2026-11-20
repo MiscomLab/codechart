@@ -1,5 +1,5 @@
 import { isExplainSlug } from '../render/output-path.js';
-import { sanitizeText } from '../render/strip.js';
+import { sanitizeText } from '@codechart/core';
 import type { DiffLine, Note, NoteKind, Review, ReviewNode } from './schema.js';
 
 const NOTE_MARK: Record<NoteKind, string> = { comment: '>', question: '>?', delete: '>del', answer: '>', confirm: '>', reject: '>' };

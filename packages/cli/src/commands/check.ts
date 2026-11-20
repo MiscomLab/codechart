@@ -3,7 +3,7 @@ import { Command } from 'commander';
 import { findRepoRoot, loadConfig } from '../config/load.js';
 import type { CommandOptions } from '../program.js';
 import { type CheckResult, onlyBuiltinsToJudge, resolveRules } from '../rules/resolve.js';
-import { escapeJsonControls } from '../render/strip.js';
+import { escapeJsonControls } from '@codechart/core';
 import { releaseHint, type ReleaseHint } from './release-branch.js';
 import { resolveCommit } from '../rules/git-files.js';
 import { csv, gitFiles, selectionError, type GitSelection } from '../rules/selection.js';

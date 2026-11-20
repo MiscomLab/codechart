@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { parseConfigFile } from '../../src/config/schema.js';
 import { markdownBlock } from '../../src/render/markdown.js';
 import { FLOW_KEY, flowMarkdown } from '../../src/render/flow/tree.js';
-import { sanitizeText } from '../../src/render/strip.js';
+import { sanitizeText } from '@codechart/core';
 import { flat } from '../../src/render/terminal/wrap.js';
 import { renderTerminal } from '../../src/render/terminal/render.js';
 import { businessPage } from '../../src/render/business/html.js';

@@ -2,7 +2,7 @@ import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parse } from 'yaml';
-import { readRegularFile } from '../read-regular.js';
+import { readRegularFile } from '@codechart/core';
 import { findRepoRoot } from './repo-root.js';
 import { builtinRules } from './builtin-rules.js';
 import { DEFAULT_RELEASE_BRANCHES, parseConfigFile, type Config, type ConfigFile, type Rule } from './schema.js';

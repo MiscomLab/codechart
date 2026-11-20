@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { DriftItem } from '../render/drift.js';
 import type { FlowSnippets } from '../render/flow/anchors.js';
 import type { Preview } from '../render/preview.js';
-import { sanitizeText } from '../render/strip.js';
+import { sanitizeText } from '@codechart/core';
 import { diffRev } from '../render/web/tools.js';
 import { flowGaps, type FlowView } from '../render/explain-flows.js';
 import { stepLabel } from '../render/flow/tree.js';

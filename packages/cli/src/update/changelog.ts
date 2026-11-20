@@ -1,4 +1,4 @@
-import { stripInvisible } from '../render/strip.js';
+import { stripInvisible } from '@codechart/core';
 import { isNewer } from './check.js';
 
 export const NOTES_URL = 'https://github.com/MiscomLab/codechart/blob/main/CHANGELOG.md';

@@ -1,7 +1,7 @@
 import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { CommandOptions } from '../program.js';
-import { readRegularFile } from '../read-regular.js';
+import { readRegularFile } from '@codechart/core';
 
 const isSymlink = (path: string) => lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink() === true;
 

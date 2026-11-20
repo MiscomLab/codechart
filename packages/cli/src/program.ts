@@ -17,7 +17,7 @@ import { reviewCommand } from './commands/review.js';
 import { schemaCommand } from './commands/schema.js';
 import { uninstallCommand } from './commands/uninstall.js';
 import { loadConfig } from './config/load.js';
-import { sanitizeText } from './render/strip.js';
+import { sanitizeText } from '@codechart/core';
 import { currentVersion, updateNotice } from './update/check.js';
 import { httpsFetch } from './update/http-get.js';
 

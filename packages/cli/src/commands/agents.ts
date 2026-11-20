@@ -1,6 +1,6 @@
 import { lstatSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-import { readRegularFile } from '../read-regular.js';
+import { readRegularFile } from '@codechart/core';
 
 // User-level skills folders from each agent's docs (2026-10). `reads` lists other folders the agent also loads skills from.
 export interface AgentPreset {

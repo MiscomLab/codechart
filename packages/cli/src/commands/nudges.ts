@@ -1,6 +1,6 @@
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { readRegularFile } from '../read-regular.js';
+import { readRegularFile } from '@codechart/core';
 
 export const REMINDER =
   'Before summarizing or planning a change that touches 3+ files or adds behaviour with branches, use the codechart skill (skip it for small edits: typos, formatting, one-line fixes).';

@@ -1,11 +1,11 @@
 import { realpathSync, statSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
-import { readRegularFile } from '../../read-regular.js';
+import { readRegularFile } from '@codechart/core';
 import { gitFileAt, gitListFiles } from '../../rules/git-files.js';
-import { clip } from '../clip.js';
+import { clip } from '@codechart/core';
 import { cleanPath } from '../drift.js';
-import { looksSecret, PRIVATE_KEY } from '../secret.js';
-import { hasHiddenChars } from '../strip.js';
+import { looksSecret, PRIVATE_KEY } from '@codechart/core';
+import { hasHiddenChars } from '@codechart/core';
 
 const MAX_BYTES = 5 * 1024 * 1024;
 // 200 anchored 5 MB files took 4 GB and 20 s before this cap.

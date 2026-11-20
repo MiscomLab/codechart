@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import * as readRegular from '../../src/read-regular.js';
+import * as readRegular from '@codechart/core';
 import { checkExplain } from '../../src/render/explain-flows.js';
 import { checkHeadline, checkTag } from '../../src/render/terminal/check-lines.js';
 import { validateSpec } from '../../src/spec/schema.js';

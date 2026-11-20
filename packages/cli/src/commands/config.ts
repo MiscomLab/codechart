@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { GLOBAL_ONLY, loadConfigWithSources, type ConfigWithSources } from '../config/load.js';
 import type { CommandOptions } from '../program.js';
-import { escapeJsonControls } from '../render/strip.js';
+import { escapeJsonControls } from '@codechart/core';
 import { flat } from '../render/terminal/wrap.js';
 
 function formatText({ config, sources, ruleSources }: ConfigWithSources): string {

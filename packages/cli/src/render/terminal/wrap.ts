@@ -1,4 +1,4 @@
-import { stripInvisible } from '../strip.js';
+import { stripInvisible } from '@codechart/core';
 
 // Any control char would break the line-based drawing.
 export const flat = (s: string): string => stripInvisible(s).replace(/[\u0000-\u001f\u007f-\u009f]+/g, ' ');

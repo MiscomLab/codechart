@@ -2,7 +2,7 @@ import { existsSync, lstatSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { packageFile } from '../assets.js';
 import type { CommandOptions } from '../program.js';
-import { readRegularFile } from '../read-regular.js';
+import { readRegularFile } from '@codechart/core';
 import { opencodeConfigDir } from './agents.js';
 import { installPairs, sameFile } from './copy-file.js';
 

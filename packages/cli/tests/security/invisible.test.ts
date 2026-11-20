@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { esc } from '../../src/render/web/page.js';
 import { flat } from '../../src/render/terminal/wrap.js';
-import { escapeJsonControls, hasHiddenChars, sanitizeText } from '../../src/render/strip.js';
+import { escapeJsonControls, hasHiddenChars, sanitizeText } from '@codechart/core';
 import { makeSandbox, removeSandbox } from '../../../../tests/helpers/sandbox.js';
 import { runCli } from '../../../../tests/helpers/cli.js';
 

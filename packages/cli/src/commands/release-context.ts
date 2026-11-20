@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { findRepoRoot } from '../config/load.js';
 import { changeTitle, fetchPr, originRemote, prNumber, runTool, type PrInfo } from '../pr/merged.js';
 import type { CommandOptions } from '../program.js';
-import { escapeJsonControls, sanitizeText } from '../render/strip.js';
+import { escapeJsonControls, sanitizeText } from '@codechart/core';
 import { gitCommitFiles, gitFileAt, resolveCommit } from '../rules/git-files.js';
 import { gitFirstParentLog, gitIsShallow, gitLatestTag, gitTagNames } from '../rules/git-log.js';
 

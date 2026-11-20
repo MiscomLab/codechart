@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { win32 } from 'node:path';
-import { hasHiddenChars } from '../render/strip.js';
+import { hasHiddenChars } from '@codechart/core';
 
 const MAX_REF = 200;
 

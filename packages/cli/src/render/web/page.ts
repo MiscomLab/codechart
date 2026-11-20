@@ -3,7 +3,7 @@ import { THEMES, type Theme } from '../../config/schema.js';
 import { CSS } from './styles.js';
 import { CLIENT_JS } from './client.js';
 import type { Point } from './layout.js';
-import { stripInvisible } from '../strip.js';
+import { stripInvisible } from '@codechart/core';
 
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 

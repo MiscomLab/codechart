@@ -1,6 +1,6 @@
 import { realpathSync } from 'node:fs';
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
-import { readRegularBytes } from '../../read-regular.js';
+import { readRegularBytes } from '@codechart/core';
 
 const MAX_LOGO_BYTES = 200 * 1024;
 const TYPES: Record<string, string> = { '.svg': 'image/svg+xml', '.png': 'image/png' };
