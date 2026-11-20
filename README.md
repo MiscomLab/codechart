@@ -258,6 +258,17 @@ Not because of codechart. The diagram is built from what your agent already read
 
 More questions (permissions prompts, editors that open HTML as text, agents not on the list): [Install and agents](docs/install.md). All docs: [docs/](docs/README.md).
 
+## Packages
+
+This repo is an npm workspaces monorepo with two packages:
+
+| Package | Path | What |
+|---|---|---|
+| [`codechart`](packages/cli) | `packages/cli` | The CLI: commands, terminal and HTML renderers, PR maps, update check and the OpenCode plugin. |
+| [`@codechart/core`](packages/core) | `packages/core` | The MIT engine: specs, truth checks, layout, git rules, review notes, config and agent presets. |
+
+The desktop app depends on a pinned core version, `"@codechart/core": "0.1.x"`, so app releases are independent of CLI releases. To test unreleased core from the app, build it (`npm run build -w @codechart/core`) and either `npm link` it or point the app at `file:../codechart/packages/core`.
+
 ## License
 
-MIT. Depends on elkjs (EPL-2.0): see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+MIT. Depends on elkjs (EPL-2.0): see [THIRD_PARTY_NOTICES.md](packages/cli/THIRD_PARTY_NOTICES.md).
