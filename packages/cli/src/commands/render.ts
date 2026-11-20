@@ -1,8 +1,8 @@
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { Command, Option } from 'commander';
-import { findRepoRoot, globalConfigPath, loadConfig } from '../config/load.js';
-import { THEMES, type Config, type Diagram, type Output, type Theme } from '../config/schema.js';
+import { findRepoRoot, globalConfigPath, loadConfig } from '@codechart/core';
+import { THEMES, type Config, type Diagram, type Output, type Theme } from '@codechart/core';
 import type { CommandOptions } from '../program.js';
 import { diffOf, type Diff } from '../render/check.js';
 import type { Drift } from '../render/drift.js';
@@ -13,9 +13,9 @@ import { loadPlan, savePlan, type PlanStoreOptions, type StoredPlan } from '../r
 import { flagged, type CheckSummary } from '../render/terminal/check-lines.js';
 import { defaultWidth } from '../render/terminal/render.js';
 import { privateDir, writeReviewOnly } from '../render/web/write.js';
-import { gitHead, gitMergeBase, gitParent, resolveCommit } from '../rules/git-files.js';
-import { unionOutputs, unmappedFiles } from '../rules/resolve.js';
-import { gitChanges, hasGitSelection, selectionError, type GitSelection } from '../rules/selection.js';
+import { gitHead, gitMergeBase, gitParent, resolveCommit } from '@codechart/core';
+import { unionOutputs, unmappedFiles } from '@codechart/core';
+import { gitChanges, hasGitSelection, selectionError, type GitSelection } from '@codechart/core';
 import type { FlowSpec } from '@codechart/core';
 import type { BusinessSpec } from '@codechart/core';
 import type { ReleaseSpec } from '@codechart/core';

@@ -5,8 +5,8 @@ import { parseRemote, repoArg, type Remote, type Tool } from './setup.js';
 import { BLOCK_END, BLOCK_START } from '../render/pr.js';
 import { sanitizeText } from '@codechart/core';
 import { toolEnv } from './tool-env.js';
-import { type LogEntry } from '../rules/git-log.js';
-import { trustedBinary } from '../rules/git-run.js';
+import { type LogEntry } from '@codechart/core';
+import { trustedBinary } from '@codechart/core';
 
 const MAX_DESCRIPTION = 1500;
 

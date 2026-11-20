@@ -1,12 +1,12 @@
 import path from 'node:path';
 import { Command } from 'commander';
-import { findRepoRoot, loadConfig } from '../config/load.js';
+import { findRepoRoot, loadConfig } from '@codechart/core';
 import type { CommandOptions } from '../program.js';
-import { type CheckResult, onlyBuiltinsToJudge, resolveRules } from '../rules/resolve.js';
+import { type CheckResult, onlyBuiltinsToJudge, resolveRules } from '@codechart/core';
 import { escapeJsonControls } from '@codechart/core';
 import { releaseHint, type ReleaseHint } from './release-branch.js';
-import { resolveCommit } from '../rules/git-files.js';
-import { csv, gitFiles, selectionError, type GitSelection } from '../rules/selection.js';
+import { resolveCommit } from '@codechart/core';
+import { csv, gitFiles, selectionError, type GitSelection } from '@codechart/core';
 
 type TerseResult = Partial<CheckResult> & { judgeBuiltins?: string[]; release?: ReleaseHint };
 

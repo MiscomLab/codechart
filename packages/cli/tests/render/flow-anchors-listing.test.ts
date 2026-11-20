@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let calls = 0;
 let list: () => string[] = () => [];
-vi.mock('../../src/rules/git-files.js', () => ({
+vi.mock('@codechart/core', async (orig) => ({
+  ...(await orig<typeof import('@codechart/core')>()),
   gitListFiles: () => {
     calls++;
     return list();

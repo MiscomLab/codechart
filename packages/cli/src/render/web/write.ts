@@ -1,7 +1,7 @@
 import { chmodSync, lstatSync, mkdirSync, writeFileSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
-import type { Config, Theme } from '../../config/schema.js';
-import { gitBranch } from '../../rules/git-files.js';
+import type { Config, Theme } from '@codechart/core';
+import { gitBranch } from '@codechart/core';
 import { saveReview, type ReviewSnapshot } from '../../review/store.js';
 import { htmlOutputPath, repoFolder, reviewFile } from '../output-path.js';
 import { pruneHtml } from '../prune.js';

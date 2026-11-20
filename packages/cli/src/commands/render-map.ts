@@ -17,7 +17,7 @@ import { renderHtml, withGhosts } from '../render/web/html.js';
 import { DESCRIPTION_CANVASES, layoutSpec, PANE_CANVASES } from '../render/web/layout.js';
 import { hasNowAfter } from '../render/web/states.js';
 import { mapSnapshot, rangeOf } from '../review/snapshot.js';
-import { diffRange } from '../rules/selection.js';
+import { diffRange } from '@codechart/core';
 import type { Spec } from '@codechart/core';
 import { chooseOutput, type RenderContext, type Rendered } from './choose-output.js';
 

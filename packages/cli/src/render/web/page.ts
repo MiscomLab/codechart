@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { THEMES, type Theme } from '../../config/schema.js';
+import { THEMES, type Theme } from '@codechart/core';
 import { CSS } from './styles.js';
 import { CLIENT_JS } from './client.js';
 import type { Point } from './layout.js';

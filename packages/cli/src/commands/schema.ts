@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { configJsonSchema } from '../config/schema.js';
+import { configJsonSchema } from '@codechart/core';
 import type { CommandOptions } from '../program.js';
 import { businessSpecJsonSchema } from '@codechart/core';
 import { flowJsonSchema } from '@codechart/core';

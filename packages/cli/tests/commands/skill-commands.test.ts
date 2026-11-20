@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { builtinRules } from '../../src/config/builtin-rules.js';
+import { builtinRules } from '@codechart/core';
 import { buildProgram } from '../../src/program.js';
 import { STEP_STATUSES } from '@codechart/core';
 import { EDGE_KINDS, NODE_KINDS, STATUSES } from '@codechart/core';

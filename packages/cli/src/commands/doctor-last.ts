@@ -1,8 +1,8 @@
 import { join } from 'node:path';
-import { findRepoRoot, loadConfig } from '../config/load.js';
+import { findRepoRoot, loadConfig } from '@codechart/core';
 import type { CommandOptions } from '../program.js';
 import { sanitizeText } from '@codechart/core';
-import { resolveRules } from '../rules/resolve.js';
+import { resolveRules } from '@codechart/core';
 import { MIN_FILES } from './hook-core.js';
 import { latestRecord, turnsDir, type Decision, type TurnRecord } from './hook-record.js';
 import { claudeHookEvents } from './nudges.js';

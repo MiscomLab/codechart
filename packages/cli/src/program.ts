@@ -16,7 +16,7 @@ import type { RunBrowser } from './commands/release-pdf.js';
 import { reviewCommand } from './commands/review.js';
 import { schemaCommand } from './commands/schema.js';
 import { uninstallCommand } from './commands/uninstall.js';
-import { loadConfig } from './config/load.js';
+import { loadConfig } from '@codechart/core';
 import { sanitizeText } from '@codechart/core';
 import { currentVersion, updateNotice } from './update/check.js';
 import { httpsFetch } from './update/http-get.js';

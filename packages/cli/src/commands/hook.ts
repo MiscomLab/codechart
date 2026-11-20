@@ -2,7 +2,7 @@ import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { Argument, Command } from 'commander';
-import { findRepoRoot } from '../config/load.js';
+import { findRepoRoot } from '@codechart/core';
 import type { CommandOptions } from '../program.js';
 import { judgeTurn, nudge, saveSnapshot, SESSION_ID, type Outcome } from './hook-core.js';
 import { recordPrompt, recordStop, turnsDir } from './hook-record.js';

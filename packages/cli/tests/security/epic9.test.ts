@@ -5,8 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openArgv } from '../../src/commands/open.js';
 import { buildProgram, runProgram } from '../../src/program.js';
 import { checkFlowAnchors } from '../../src/render/flow/anchors.js';
-import { gitChangedFiles, gitFileAt, gitSinceFiles } from '../../src/rules/git-files.js';
-import { gitBinary, trustedBinary } from '../../src/rules/git-run.js';
+import { gitChangedFiles, gitFileAt, gitSinceFiles } from '@codechart/core';
+import { gitBinary, trustedBinary } from '@codechart/core';
 import type { FlowSpec } from '@codechart/core';
 import { gitInit, makeTempDir, removeTempDir } from '../../../../tests/helpers/sandbox.js';
 

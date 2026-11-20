@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { checkMapNodes, diffOf } from '../../src/render/check.js';
 import { nodePreviews, parseDiff } from '../../src/render/preview.js';
-import { gitFileDiffs } from '../../src/rules/git-preview.js';
-import { diffRange, gitFiles } from '../../src/rules/selection.js';
+import { gitFileDiffs } from '@codechart/core';
+import { diffRange, gitFiles } from '@codechart/core';
 import type { Spec } from '@codechart/core';
 import { repoFromTemplate } from '../../../../tests/helpers/sandbox.js';
 

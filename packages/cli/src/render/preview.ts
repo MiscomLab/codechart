@@ -1,8 +1,8 @@
 import { lstatSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { readRegularFile } from '@codechart/core';
-import { gitBlob, gitBlobs, gitBlobSizes, gitFileDiff, gitFileDiffs, gitUntracked, plainDiffName, type DiffRange } from '../rules/git-preview.js';
-import { OutputTooLarge } from '../rules/git-run.js';
+import { gitBlob, gitBlobs, gitBlobSizes, gitFileDiff, gitFileDiffs, gitUntracked, plainDiffName, type DiffRange } from '@codechart/core';
+import { OutputTooLarge } from '@codechart/core';
 import type { Spec } from '@codechart/core';
 import { IN_DIFF, repoPath, type Diff } from './check.js';
 import { clip } from '@codechart/core';

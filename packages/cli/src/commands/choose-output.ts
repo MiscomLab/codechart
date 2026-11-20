@@ -1,11 +1,11 @@
-import type { Output } from '../config/schema.js';
+import type { Output } from '@codechart/core';
 import type { CheckSummary } from '../render/terminal/check-lines.js';
 import type { Diff } from '../render/check.js';
 import type { Drift } from '../render/drift.js';
 import type { StoredPlan } from '../render/plan-store.js';
 import type { WrittenHtml, WriteHtml } from '../render/web/write.js';
 import type { ReviewSnapshot } from '../review/store.js';
-import type { GitSelection } from '../rules/selection.js';
+import type { GitSelection } from '@codechart/core';
 
 /** What a render command needs besides the spec; the same for maps and flows. */
 export interface RenderContext {

@@ -1,10 +1,10 @@
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import picomatch from 'picomatch';
-import type { Config } from '../config/schema.js';
+import type { Config } from '@codechart/core';
 import { repoFolder } from '../render/output-path.js';
 import { versionSlug } from '../render/release/slug.js';
-import { gitBranch } from '../rules/git-files.js';
+import { gitBranch } from '@codechart/core';
 
 export interface ReleaseHint {
   action: 'suggest' | 'draw' | 'done';

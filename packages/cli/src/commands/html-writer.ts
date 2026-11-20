@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
-import { globalConfigPath } from '../config/load.js';
-import type { Config, Theme } from '../config/schema.js';
+import { globalConfigPath } from '@codechart/core';
+import type { Config, Theme } from '@codechart/core';
 import type { CommandOptions } from '../program.js';
 import { writeHtml, type WriteHtml } from '../render/web/write.js';
 import { checkAllowed, currentVersion, knownHighlights, knownUpdate, readState } from '../update/check.js';

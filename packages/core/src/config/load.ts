@@ -2,7 +2,7 @@ import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parse } from 'yaml';
-import { readRegularFile } from '@codechart/core';
+import { readRegularFile } from '../read-regular.js';
 import { findRepoRoot } from './repo-root.js';
 import { builtinRules } from './builtin-rules.js';
 import { DEFAULT_RELEASE_BRANCHES, parseConfigFile, type Config, type ConfigFile, type Rule } from './schema.js';
@@ -14,7 +14,6 @@ export const BUILTIN_DEFAULTS: Readonly<Config['defaults']> = { output: 'auto', 
 // A cloned repo must not choose where HTML lands or what gets pruned.
 export const GLOBAL_ONLY = ['web.outDir', 'web.keep', 'web.maxAgeDays', 'web.open', 'updateCheck', 'release.browser'] as const;
 
-export { findRepoRoot };
 
 interface LoadOptions {
   cwd: string;

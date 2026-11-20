@@ -1,7 +1,7 @@
 import { realpathSync, statSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { readRegularFile } from '@codechart/core';
-import { gitFileAt, gitListFiles } from '../../rules/git-files.js';
+import { gitFileAt, gitListFiles } from '@codechart/core';
 import { clip } from '@codechart/core';
 import { cleanPath } from '../drift.js';
 import { looksSecret, PRIVATE_KEY } from '@codechart/core';

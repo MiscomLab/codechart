@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildProgram, runProgram } from '../../src/program.js';
 import { repoFolder } from '../../src/render/output-path.js';
-import { gitChanges } from '../../src/rules/selection.js';
+import { gitChanges } from '@codechart/core';
 import { repoFromTemplate } from '../../../../tests/helpers/sandbox.js';
 
 let tmp: string;

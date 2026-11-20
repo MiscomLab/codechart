@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { parseConfigFile } from '../../src/config/schema.js';
+import { parseConfigFile } from '@codechart/core';
 import { wrapItems } from '../../src/render/terminal/wrap.js';
 import { buildProgram, runProgram } from '../../src/program.js';
 import { validateFlowSpec } from '@codechart/core';

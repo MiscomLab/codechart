@@ -6,7 +6,7 @@ import { validateSpec } from '@codechart/core';
 import { withFlows } from '../../../../tests/fixtures/explain.js';
 import { explainRepo } from '../../../../tests/helpers/explain-flows.js';
 
-vi.mock('../../src/read-regular.js', { spy: true });
+vi.mock('../../../core/src/read-regular.js', { spy: true });
 
 let repo: string;
 beforeAll(() => {

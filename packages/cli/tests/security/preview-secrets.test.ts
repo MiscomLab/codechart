@@ -6,7 +6,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { checkMapNodes, diffOf } from '../../src/render/check.js';
 import { nodePreviews } from '../../src/render/preview.js';
-import { diffRange, gitFiles } from '../../src/rules/selection.js';
+import { diffRange, gitFiles } from '@codechart/core';
 import type { Spec } from '@codechart/core';
 import { makeSandbox, removeSandbox, repoFromTemplate } from '../../../../tests/helpers/sandbox.js';
 import { runCli } from '../../../../tests/helpers/cli.js';

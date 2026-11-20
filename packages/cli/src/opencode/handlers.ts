@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { findRepoRoot } from '../config/repo-root.js';
+import { findRepoRoot } from '@codechart/core';
 import { judgeTurn, nudge, saveSnapshot, SESSION_ID } from '../commands/hook-core.js';
 import { recordPrompt, recordStop, turnsDir } from '../commands/hook-record.js';
 import { type Message, viewTurn } from './turn.js';

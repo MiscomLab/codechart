@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { Command } from 'commander';
 import { packageFile } from '../assets.js';
-import { loadConfig } from '../config/load.js';
+import { loadConfig } from '@codechart/core';
 import type { CommandOptions } from '../program.js';
 import { rememberSkillDir } from '../update/check.js';
 import { AGENTS, agentsFor, isCodechartSkill, shown, skillFolders, type AgentPreset } from './agents.js';

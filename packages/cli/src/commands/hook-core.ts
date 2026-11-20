@@ -1,6 +1,6 @@
 import { lstatSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { gitDiffFiles, gitDirtyHashes, gitHead, gitListFiles } from '../rules/git-files.js';
+import { gitDiffFiles, gitDirtyHashes, gitHead, gitListFiles } from '@codechart/core';
 import type { Decision } from './hook-record.js';
 import { DIAGRAM } from './transcript.js';
 

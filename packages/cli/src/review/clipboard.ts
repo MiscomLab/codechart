@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { trustedBinary } from '../rules/git-run.js';
+import { trustedBinary } from '@codechart/core';
 
 const READERS: Record<string, [string, string[]][]> = {
   darwin: [['pbpaste', []]],

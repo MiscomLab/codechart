@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ProgramOptions } from '../../src/program.js';
 import { repoFolder } from '../../src/render/output-path.js';
 import { defaultEditor } from '../../src/commands/review-editor.js';
-import { gitBranch } from '../../src/rules/git-files.js';
+import { gitBranch } from '@codechart/core';
 import { readReview, saveReview, writeReview } from '../../src/review/store.js';
 import { git, makeSandbox, removeSandbox } from '../../../../tests/helpers/sandbox.js';
 import { runCli } from '../../../../tests/helpers/cli.js';

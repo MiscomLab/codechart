@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
-import { findRepoRoot, loadConfig } from '../config/load.js';
-import type { Theme } from '../config/schema.js';
+import { findRepoRoot, loadConfig } from '@codechart/core';
+import type { Theme } from '@codechart/core';
 import type { CommandOptions } from '../program.js';
 import { renderBusiness } from '../render/business/render.js';
 import { openBlockedNote } from '../render/markdown.js';

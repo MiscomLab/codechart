@@ -1,8 +1,8 @@
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { loadConfig } from '../../src/config/load.js';
-import { configJsonSchema } from '../../src/config/schema.js';
+import { loadConfig } from '@codechart/core';
+import { configJsonSchema } from '@codechart/core';
 import { readState, skillDirs } from '../../src/update/check.js';
 import { STEP_STATUSES } from '@codechart/core';
 import { STATUSES } from '@codechart/core';

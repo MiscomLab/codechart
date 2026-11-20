@@ -1,4 +1,4 @@
-import { THEMES, type Theme } from '../../config/schema.js';
+import { THEMES, type Theme } from '@codechart/core';
 import { businessRev } from '../../review/snapshot.js';
 import { isExplain, itemGroups, type BusinessSpec, type ChangeSpec, type ExplainSpec } from '@codechart/core';
 import { CLIENT_JS } from '../web/client.js';

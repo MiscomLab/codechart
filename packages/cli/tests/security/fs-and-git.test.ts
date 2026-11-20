@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildProgram, runProgram } from '../../src/program.js';
 import { repoFolder } from '../../src/render/output-path.js';
-import { gitChangedFiles } from '../../src/rules/git-files.js';
+import { gitChangedFiles } from '@codechart/core';
 
 let tmp: string;
 

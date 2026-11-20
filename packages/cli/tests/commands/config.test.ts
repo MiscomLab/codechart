@@ -1,9 +1,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { builtinRules } from '../../src/config/builtin-rules.js';
-import { loadConfig, loadConfigWithSources } from '../../src/config/load.js';
-import { configJsonSchema } from '../../src/config/schema.js';
+import { builtinRules } from '@codechart/core';
+import { loadConfig, loadConfigWithSources } from '@codechart/core';
+import { configJsonSchema } from '@codechart/core';
 import { makeSandbox, removeSandbox } from '../../../../tests/helpers/sandbox.js';
 import { runCli } from '../../../../tests/helpers/cli.js';
 

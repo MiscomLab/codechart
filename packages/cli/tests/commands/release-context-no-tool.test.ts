@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const looked: string[] = [];
 
-vi.mock('../../src/rules/git-run.js', async (orig) => ({
-  ...(await orig<typeof import('../../src/rules/git-run.js')>()),
+vi.mock('@codechart/core', async (orig) => ({
+  ...(await orig<typeof import('@codechart/core')>()),
   trustedBinary: (name: string) => {
     looked.push(name);
     throw new Error(`${name} not found on PATH`);

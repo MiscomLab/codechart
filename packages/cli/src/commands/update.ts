@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { Command, Option } from 'commander';
 import { packageFile } from '../assets.js';
-import { loadConfig } from '../config/load.js';
+import { loadConfig } from '@codechart/core';
 import type { CommandOptions } from '../program.js';
 import { NOTES_URL, fetchHighlights, notesLines } from '../update/changelog.js';
 import { httpsFetch } from '../update/http-get.js';

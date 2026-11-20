@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { parseConfigFile } from '../../src/config/schema.js';
+import { parseConfigFile } from '@codechart/core';
 import { markdownBlock } from '../../src/render/markdown.js';
 import { FLOW_KEY, flowMarkdown } from '../../src/render/flow/tree.js';
 import { sanitizeText } from '@codechart/core';

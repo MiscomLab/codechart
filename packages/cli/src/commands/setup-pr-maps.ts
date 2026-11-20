@@ -3,13 +3,13 @@ import { closeSync, constants, lstatSync, mkdirSync, openSync, realpathSync, wri
 import { dirname, isAbsolute, join, relative } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { Command, Option } from 'commander';
-import { findRepoRoot } from '../config/load.js';
+import { findRepoRoot } from '@codechart/core';
 import type { CommandOptions } from '../program.js';
 import { readRegularFile } from '@codechart/core';
 import { sanitizeText } from '@codechart/core';
 import { gitRun } from '../pr/git.js';
 import { toolEnv } from '../pr/tool-env.js';
-import { trustedBinary } from '../rules/git-run.js';
+import { trustedBinary } from '@codechart/core';
 import { currentVersion } from '../update/check.js';
 import { buildPlan, existingSetupReview, hostUnrecognised, openSetupReview, parseRemote, prepareSetupReview, SETUP_BRANCH, type Host, type Plan, type Remote, type Tool } from '../pr/setup.js';
 

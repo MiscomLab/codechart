@@ -7,7 +7,7 @@ import { blockOf, type Block } from './block.js';
 import { stepLabel } from './flow/tree.js';
 import { arrowNames, loose, mentionsPath } from './check-mentions.js';
 import { explains } from './omitted.js';
-import type { ChangeStatus, FileChange } from '../rules/git-files.js';
+import type { ChangeStatus, FileChange } from '@codechart/core';
 import type { CheckSummary, Mismatch } from './terminal/check-lines.js';
 import { plainLabel } from './terminal/labels.js';
 

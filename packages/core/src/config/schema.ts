@@ -1,6 +1,6 @@
 import { isAbsolute, win32 } from 'node:path';
 import { z } from 'zod';
-import { formatIssues } from '@codechart/core';
+import { formatIssues } from '../spec/shared.js';
 
 const OUTPUTS = ['auto', 'cli', 'web', 'both', 'none'] as const;
 const CONTEXT_MODES = ['short', 'full'] as const;

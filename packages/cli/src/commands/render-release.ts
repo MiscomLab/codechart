@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
-import { findRepoRoot, loadConfig } from '../config/load.js';
-import type { Theme } from '../config/schema.js';
+import { findRepoRoot, loadConfig } from '@codechart/core';
+import type { Theme } from '@codechart/core';
 import { originRemote } from '../pr/merged.js';
 import type { CommandOptions } from '../program.js';
 import { markdownBlock, openBlockedNote } from '../render/markdown.js';

@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { Command } from 'commander';
 import { packageFile } from '../assets.js';
-import { findRepoRoot } from '../config/load.js';
+import { findRepoRoot } from '@codechart/core';
 import type { CommandOptions } from '../program.js';
 import { copyFiles } from './copy-file.js';
 
