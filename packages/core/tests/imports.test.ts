@@ -11,7 +11,7 @@ const walk = (dir: string): string[] =>
 const specifiers = (file: string): string[] => {
   const text = readFileSync(file, 'utf8');
   const found: string[] = [];
-  for (const m of text.matchAll(/(?:import|export)[^;]*?from\s+['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g)) found.push(m[1] ?? m[2]!);
+  for (const m of text.matchAll(/(?:import|export)[^;]*?from\s+['"]([^'"]+)['"]|\bimport\s*['"]([^'"]+)['"]|\b(?:import|require)\(\s*['"]([^'"]+)['"]\s*\)/g)) found.push(m[1] ?? m[2] ?? m[3]!);
   return found;
 };
 
