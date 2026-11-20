@@ -9,6 +9,7 @@ const config: Config = {
   useBuiltinRules: false,
   updateCheck: false,
   release: { branches: ['v[0-9]*', 'release-*', 'release/*'], auto: 'suggest' },
+  ignore: [],
   rules: [
     { name: 'typeorm', paths: ['src/entities/**'], output: 'none' },
     { name: 'db', paths: ['**/entities/**', 'migrations/**'], output: 'both', context: 'full' },

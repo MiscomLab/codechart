@@ -22,6 +22,8 @@
 #   auto: suggest             # suggest | draw | off: offer a release map, draw it, or stay quiet on those branches
 # Global only: release.browser: /path/to/chrome   # Chromium-based browser that prints the PDF (default: Chrome, Chromium, Edge or Brave where they are usually installed)
 
+# ignore: ["generated/**"]   # files the desktop app's live map never reads (the CLI doesn't use it)
+
 # useBuiltinRules: true   # common migration and model paths, "more than 2 changed files depend on each other", and behaviour-flow
 
 # Rules run top-down, before the built-in ones; per diagram type, for each file the first matching path rule wins.

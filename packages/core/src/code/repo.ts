@@ -29,7 +29,8 @@ const MAX_FILE_BYTES = 1024 * 1024;
 
 /**
  * Repo-relative paths of the files the code layer reads: tracked and untracked files git does not ignore
- * (`.gitignore`, `.git/info/exclude`, the global excludes file), in a v1 language, outside `DEFAULT_CODE_IGNORE` and `ignore`.
+ * (`.gitignore`, `.git/info/exclude`, the global excludes file), in a v1 language, outside `DEFAULT_CODE_IGNORE` and `ignore`
+ * (the config's `ignore`).
  */
 export function listCodeFiles(root: string, ignore: readonly string[] = []): string[] {
   const out = git(root, ['ls-files', '-z', '--cached', '--others', '--exclude-standard']);
