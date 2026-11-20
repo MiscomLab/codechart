@@ -1,3 +1,4 @@
+import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import picomatch from 'picomatch';
 import { readRegularFile } from '../read-regular.js';
@@ -40,7 +41,9 @@ export function listCodeFiles(root: string, ignore: readonly string[] = []): str
 export function readCodeFile(root: string, path: string): string | undefined {
   let text: string | undefined;
   try {
-    text = readRegularFile(join(root, path), (st) => st.isFile() && st.size <= MAX_FILE_BYTES);
+    const full = join(root, path);
+    // lstat: Windows has no O_NOFOLLOW, so the open alone follows a symlink.
+    text = readRegularFile(full, (st) => st.isFile() && st.size <= MAX_FILE_BYTES && lstatSync(full).isFile());
   } catch {
     // Deleted since git listed it, or a symlink, which O_NOFOLLOW refuses.
     return undefined;
