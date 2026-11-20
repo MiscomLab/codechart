@@ -11,7 +11,7 @@ export type CodeRange = z.infer<typeof codeRangeSchema>;
 export const fileInfoSchema = z.object({
   path: z.string().min(1),
   lang: z.enum(LANGS),
-  /** sha256 of the file's bytes, hex. */
+  /** sha256 of the file's text as UTF-8, hex. */
   hash: z.string().regex(/^[0-9a-f]{64}$/),
 });
 export type FileInfo = z.infer<typeof fileInfoSchema>;

@@ -46,6 +46,14 @@ describe('parseCode symbols', () => {
     expect((await parse('x.ts', text)).symbols.map((s) => s.id)).toEqual(['x.ts::f::function', 'x.ts::f.go::function', 'x.ts::f.go::function~2']);
   });
 
+  it('merges overload signatures only within one scope', async () => {
+    const modules = "declare module 'a' {\n  export function setup(): void;\n}\nconst z = 1;\ndeclare module 'b' {\n  export function setup(): void;\n}\n";
+    expect(await outline('x.d.ts', modules)).toEqual(['setup function 2-2', 'setup function 6-6']);
+    expect((await parse('x.d.ts', modules)).symbols.map((s) => s.id)).toEqual(['x.d.ts::setup::function', 'x.d.ts::setup::function~2']);
+    const interfaces = 'interface I {\n  m(): void;\n}\nfunction g() {}\ninterface I {\n  m(): void;\n}\n';
+    expect(await outline('y.ts', interfaces)).toEqual(['I interface 1-3', 'I.m method 2-2', 'g function 4-4', 'I interface 5-7', 'I.m method 6-6']);
+  });
+
   it('parses TSX and JavaScript with JSX', async () => {
     expect(await outline('src/ui/Button.tsx')).toEqual(['Button function 1-3']);
     expect(await outline('src/legacy/util.js')).toEqual(['legacy function 1-3', 'helper function 7-9']);
