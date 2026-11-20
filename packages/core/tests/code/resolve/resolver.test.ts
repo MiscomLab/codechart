@@ -33,6 +33,15 @@ describe('relative specifiers', () => {
     expect([r.resolve('src/x.js', './b'), r.resolve('src/x.js', './b.js')]).toEqual([to('src/b.js'), to('src/b.js')]);
   });
 
+  it('prefers the JavaScript a declaration file describes, for a TS importer too', () => {
+    const r = repo({ 'lib/x.js': '', 'lib/x.d.ts': '', 'lib/y.d.ts': '', 'a.ts': '' });
+    expect(['./lib/x.js', './lib/x', './lib/y.js', './lib/y'].map((s) => r.resolve('a.ts', s))).toEqual([to('lib/x.js'), to('lib/x.js'), to('lib/y.d.ts'), to('lib/y.d.ts')]);
+  });
+
+  it('drops a query (Vite ?raw, ?worker&url, cache busting) from relative specifiers', () => {
+    expect([r.resolve('src/a.ts', './c.js?worker&url'), r.resolve('src/a.ts', './data.json?raw'), r.resolve('src/a.ts', './nope?raw')]).toEqual([to('src/c.tsx'), to('src/data.json'), UNKNOWN]);
+  });
+
   it('marks missing files and paths leaving the repo unknown', () => {
     expect([r.resolve('src/a.ts', './nope'), r.resolve('src/a.ts', '../../a'), r.resolve('src/a.ts', '/abs/a')]).toEqual([UNKNOWN, UNKNOWN, UNKNOWN]);
   });
@@ -41,7 +50,7 @@ describe('relative specifiers', () => {
 describe('bare specifiers', () => {
   it('marks built-ins and other packages external, URLs and loader schemes unknown', () => {
     const r = repo({ 'a.ts': '' });
-    expect(['node:fs', 'fs', 'fs/promises', 'react', '@scope/pkg/sub'].map((s) => r.resolve('a.ts', s))).toEqual(Array(5).fill(EXTERNAL));
+    expect(['node:fs', 'fs', 'fs/promises', 'react', '@scope/pkg/sub', 'bun:test', 'npm:zod@4', 'jsr:@std/path'].map((s) => r.resolve('a.ts', s))).toEqual(Array(8).fill(EXTERNAL));
     expect(['https://x.dev/m.js', 'virtual:icons', ''].map((s) => r.resolve('a.ts', s))).toEqual(Array(3).fill(UNKNOWN));
   });
 

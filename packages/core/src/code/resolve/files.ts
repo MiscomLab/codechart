@@ -20,15 +20,16 @@ export const isRelative = (spec: string): boolean => spec === '.' || spec === '.
 
 export const isJsFile = (path: string): boolean => /\.[mc]?jsx?$/.test(path);
 
-// TypeScript's order for a TS importer; a JS importer looks for JavaScript first, as Node and bundlers run it.
-const TS_ORDER = ['.ts', '.tsx', '.d.ts', '.js', '.jsx', '.json'];
+// TypeScript's order for a TS importer, except that the JavaScript a `.d.ts` describes wins: its code is what runs.
+// A JS importer looks for JavaScript first, as Node and bundlers run it.
+const TS_ORDER = ['.ts', '.tsx', '.js', '.jsx', '.d.ts', '.json'];
 const JS_ORDER = ['.js', '.jsx', '.json', '.ts', '.tsx', '.d.ts'];
 /** ESM TypeScript names the emitted file: `./x.js` means `x.ts` when that exists. */
 const EMITTED: Record<string, string[]> = {
-  '.js': ['.ts', '.tsx', '.d.ts'],
+  '.js': ['.ts', '.tsx'],
   '.jsx': ['.tsx'],
-  '.mjs': ['.mts', '.d.mts'],
-  '.cjs': ['.cts', '.d.cts'],
+  '.mjs': ['.mts'],
+  '.cjs': ['.cts'],
 };
 
 /**
@@ -44,6 +45,10 @@ export function resolveFile(files: FileSet, path: string, fromJs: boolean): stri
     if (source) return source;
   }
   if (files.has(path)) return path;
+  if (sources) {
+    const declaration = `${path.slice(0, -ext.length)}.d${ext.replace('js', 'ts')}`;
+    if (files.has(declaration)) return declaration;
+  }
   const order = fromJs ? JS_ORDER : TS_ORDER;
   const prefix = path ? `${path}/` : '';
   return order.map((e) => path + e).find((p) => files.has(p)) ?? order.map((e) => `${prefix}index${e}`).find((p) => files.has(p));

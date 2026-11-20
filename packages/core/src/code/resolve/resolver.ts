@@ -17,6 +17,8 @@ export interface Resolver {
 const BUILTINS = new Set(builtinModules);
 const UNKNOWN: Resolution = { status: 'unknown' };
 const EXTERNAL: Resolution = { status: 'external' };
+/** Runtime built-in schemes; other schemes (`virtual:`, URLs) are a bundler's or the network's. */
+const RUNTIME_SCHEMES = /^(node|bun|npm|jsr):/;
 const found = (file: string | undefined): Resolution => (file ? { status: 'resolved', resolved: file } : UNKNOWN);
 
 /**
@@ -77,9 +79,10 @@ export function createResolver(files: Iterable<string>, read: (path: string) => 
 
   return {
     resolve(from, spec) {
-      if (spec.startsWith('node:')) return EXTERNAL;
+      if (RUNTIME_SCHEMES.test(spec)) return EXTERNAL;
       if (isRelative(spec)) {
-        const path = joinRepo(dirOf(from), spec);
+        // A query (`?raw`, `?worker&url`) changes how a bundler loads the file, not which file.
+        const path = joinRepo(dirOf(from), spec.replace(/\?.*$/, ''));
         return found(path === undefined ? undefined : resolveFile(listed, path, isJsFile(from)));
       }
       if (spec.startsWith('#')) return fromPackageImports(from, spec);
