@@ -2,12 +2,15 @@
 
 What's new in each codechart release. Update with `codechart update`; the [releases page](https://github.com/MiscomLab/codechart/releases) has the same notes.
 
-## Unreleased
+## 1.0.2 (2026-11-20)
+
+### New
+
+- `.codechart.yaml` takes an `ignore` list of paths, such as `generated/**`, for the coming codechart desktop app's live map to leave out. Add it to your repo now and the app will use it.
 
 ### Changed
 
-- The engine shared with the desktop app now lives in the MIT package [`@codechart/core`](packages/core): specs, truth checks, layout, git rules, review notes, config and agent presets. The CLI behaves the same; it consumes the package.
-- `@codechart/core` 0.2.0 reads a repo's TypeScript and JavaScript symbols with tree-sitter, for the desktop app's live map. 0.3.0 also resolves their imports to repo files (tsconfig paths, package exports, workspaces, barrel files), or marks them unknown or external. The CLI doesn't use it yet. `.codechart.yaml` accepts `ignore` globs for the same live map.
+- codechart's engine is now its own open-source package, [`@codechart/core`](https://www.npmjs.com/package/@codechart/core) (MIT), shared with the desktop app. Maps, flows and checks work as before.
 
 ## 1.0.1 (2026-11-19)
 
