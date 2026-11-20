@@ -103,9 +103,9 @@ function makeEnvironment(work: string) {
   const plugin = join(work, 'plugin');
   mkdirSync(join(plugin, '.claude-plugin'), { recursive: true });
   writeFileSync(join(plugin, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'codechart-bench', version: '0.0.0', description: 'bench' }));
-  cpSync(join(root, 'skills', 'codechart'), join(plugin, 'skills', 'codechart'), { recursive: true });
+  cpSync(join(root, 'packages', 'cli', 'skills', 'codechart'), join(plugin, 'skills', 'codechart'), { recursive: true });
 
-  const cli = join(root, 'dist', 'cli.js');
+  const cli = join(root, 'packages', 'cli', 'dist', 'cli.js');
   if (!existsSync(cli)) throw new Error('dist/cli.js missing: run npm run build');
   const shim = (dir: string, body: string) => {
     mkdirSync(dir, { recursive: true });

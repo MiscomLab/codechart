@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { join } from 'node:path';
 
 const ALLOWED = [
   /^dist\/(cli|server)\.js$/,
@@ -8,12 +9,12 @@ const ALLOWED = [
   /^package\.json$/,
   /^LICENSE$/,
   /^README\.md$/,
-  /^CHANGELOG\.md$/,
   /^THIRD_PARTY_NOTICES\.md$/,
 ];
 
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const out = execFileSync(npm, ['pack', '--dry-run', '--json', '--ignore-scripts'], { encoding: 'utf8', shell: process.platform === 'win32' });
+const cwd = join(import.meta.dirname, '..', 'packages', 'cli');
+const out = execFileSync(npm, ['pack', '--dry-run', '--json', '--ignore-scripts'], { encoding: 'utf8', shell: process.platform === 'win32', cwd });
 const files = JSON.parse(out)[0].files.map((f) => f.path);
 const unexpected = files.filter((f) => !ALLOWED.some((re) => re.test(f)));
 const missing = ['dist/cli.js', 'dist/server.js', 'config.schema.json', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'skills/codechart/SKILL.md', 'skills/codechart/flow-guide.md', 'skills/codechart/spec-guide.md', 'skills/codechart/business-guide.md', 'skills/codechart/release-guide.md', 'skills/codechart/explain-guide.md', 'templates/codechart.yaml'].filter((f) => !files.includes(f));

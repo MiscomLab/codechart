@@ -8,7 +8,7 @@ mkdir -p "$work/bin"
 
 cat > "$work/bin/codechart" <<EOF
 #!/usr/bin/env bash
-HOME="$work" exec node "$root/dist/cli.js" "\$@"
+HOME="$work" exec node "$root/packages/cli/dist/cli.js" "\$@"
 EOF
 chmod +x "$work/bin/codechart"
 

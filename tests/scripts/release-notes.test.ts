@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { currentVersion } from '../../src/update/check.js';
+import { currentVersion } from '../../packages/cli/src/update/check.js';
 
 const notes = (version: string) => spawnSync(process.execPath, ['scripts/release-notes.mjs', version], { encoding: 'utf8' });
 

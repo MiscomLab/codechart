@@ -93,7 +93,8 @@ function measure(sf) {
 const all = [];
 const problems = [];
 const ratcheted = [];
-for (const file of files(join(root, 'src'))) {
+const roots = [join(root, 'packages', 'core', 'src'), join(root, 'packages', 'cli', 'src')];
+for (const file of roots.flatMap(files)) {
   const text = readFileSync(file, 'utf8');
   const lines = text.split('\n');
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true);

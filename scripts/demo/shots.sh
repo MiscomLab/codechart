@@ -7,7 +7,7 @@
 set -euo pipefail
 demo="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$demo/../.." && pwd)"
-cli="$root/dist/cli.js"
+cli="$root/packages/cli/dist/cli.js"
 work="$(mktemp -d /tmp/codechart-shots.XXXXXX)"
 mkdir -p "$work/pw"
 
