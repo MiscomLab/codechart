@@ -6,7 +6,7 @@ import { ghostsFor } from '../../src/render/web/drift-html.js';
 import { FINISH_LIMIT } from '../../src/render/web/browser/finish.js';
 import { MAX_IMPORT_BYTES, parseReviewText } from '../../src/review/import.js';
 import { renderHtml } from '../../src/render/web/html.js';
-import { layoutSpec } from '../../src/render/web/layout.js';
+import { layoutSpec } from '@codechart/core';
 import { change, click, flowNotes, key, mount, node, panesNotes, q, qa, shopNotes, shopPage, usePages } from '../../../../tests/helpers/page.js';
 
 usePages();

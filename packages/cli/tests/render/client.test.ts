@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { layoutSpec } from '../../src/render/web/layout.js';
+import { layoutSpec } from '@codechart/core';
 import { renderHtml } from '../../src/render/web/html.js';
 import { validateSpec } from '@codechart/core';
 

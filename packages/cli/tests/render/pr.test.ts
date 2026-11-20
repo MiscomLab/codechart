@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { MapCheck } from '@codechart/core';
 import { prBlock, renderSvg } from '../../src/render/pr.js';
 import { viewport } from '../../src/render/web/html.js';
-import { layoutSpec } from '../../src/render/web/layout.js';
+import { layoutSpec } from '@codechart/core';
 import { validateSpec, type Spec } from '@codechart/core';
 
 const shop = (): Spec => {

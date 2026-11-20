@@ -4,7 +4,7 @@ import { checkNote, checkSection } from './check-html.js';
 import { driftNote } from './drift-html.js';
 import { esc, list, midpoint, num, renderPage, type HtmlMeta, type KeyPart } from './page.js';
 import { SIDE_TITLE, SIDES, type Side } from './states.js';
-import type { Point } from './layout.js';
+import type { Point } from '@codechart/core';
 import { COMPONENTS_VIEW, reviewControls, statusChips } from './tools.js';
 
 /** The nodes an edge joins, for focus and the hover title. */

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { layoutSpec } from '../../src/render/web/layout.js';
+import { layoutSpec } from '@codechart/core';
 import { CSS } from '../../src/render/web/styles.js';
 import { renderHtml, type Theme } from '../../src/render/web/html.js';
 import { gapBoxes, withGaps } from '../../src/render/web/gaps.js';

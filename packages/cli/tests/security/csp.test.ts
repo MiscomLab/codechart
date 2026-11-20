@@ -7,7 +7,7 @@ import { layoutFlow } from '../../src/render/flow/layout.js';
 import { businessPage } from '../../src/render/business/html.js';
 import { releasePage } from '../../src/render/release/html.js';
 import { renderHtml } from '../../src/render/web/html.js';
-import { layoutSpec } from '../../src/render/web/layout.js';
+import { layoutSpec } from '@codechart/core';
 import { validateBusinessSpec } from '@codechart/core';
 import { validateReleaseSpec } from '@codechart/core';
 import { validateSpec } from '@codechart/core';

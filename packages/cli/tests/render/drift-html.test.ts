@@ -6,7 +6,7 @@ import { compareMaps } from '../../src/render/map-drift.js';
 import { ghostsFor, sentence } from '../../src/render/web/drift-html.js';
 import type { DriftItem } from '../../src/render/drift.js';
 import { renderHtml, withGhosts } from '../../src/render/web/html.js';
-import { layoutSpec } from '../../src/render/web/layout.js';
+import { layoutSpec } from '@codechart/core';
 import type { FlowSpec, FlowStep } from '@codechart/core';
 import type { Spec, SpecNode } from '@codechart/core';
 import { sampleSnippets } from '../../../../tests/fixtures/flow.js';

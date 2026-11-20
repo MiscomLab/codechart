@@ -4,7 +4,7 @@ import { renderFlowHtml } from '../../packages/cli/src/render/flow/html.js';
 import { layoutFlow } from '../../packages/cli/src/render/flow/layout.js';
 import type { Preview } from '../../packages/cli/src/render/preview.js';
 import { renderHtml } from '../../packages/cli/src/render/web/html.js';
-import { layoutSpec, PANE_CANVASES } from '../../packages/cli/src/render/web/layout.js';
+import { layoutSpec, PANE_CANVASES } from '@codechart/core';
 import { validateSpec, type Spec } from '@codechart/core';
 import { sampleFlow, sampleSnippets } from '../fixtures/flow.js';
 

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { THEMES, type Theme } from '@codechart/core';
 import { CSS } from './styles.js';
 import { CLIENT_JS } from './client.js';
-import type { Point } from './layout.js';
+import type { Point } from '@codechart/core';
 import { stripInvisible } from '@codechart/core';
 
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

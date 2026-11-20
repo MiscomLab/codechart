@@ -3,7 +3,7 @@ import type { Box } from './shapes.js';
 import type { MapCheck } from '@codechart/core';
 import { entryPaths, entryProse, entryWords } from '@codechart/core';
 import { cardShape } from './shapes.js';
-import { headerHeight, KIND_ROW, LABEL_LINE_HEIGHT, labelLines, LINE_HEIGHT, wrapSummary } from './layout.js';
+import { headerHeight, KIND_ROW, LABEL_LINE_HEIGHT, labelLines, LINE_HEIGHT, wrapSummary } from '@codechart/core';
 import { esc } from './page.js';
 import { panelShell, panelTitle } from './tools.js';
 

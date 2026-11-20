@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BLOCK_MAX, blockOf } from '@codechart/core';
 import { checkMapNodes } from '@codechart/core';
 import { renderHtml } from '../../src/render/web/html.js';
-import { layoutSpec } from '../../src/render/web/layout.js';
+import { layoutSpec } from '@codechart/core';
 import { validateSpec, type Spec } from '@codechart/core';
 import { click, mount, node, q, qa, usePages } from '../../../../tests/helpers/page.js';
 

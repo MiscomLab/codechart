@@ -5,7 +5,7 @@ import { marker } from './terminal/labels.js';
 import { flat } from './terminal/wrap.js';
 import { MEANING, UNCHECKED_WHY, UNCOVERED_WHY } from './web/check-html.js';
 import { fieldText, nodeWhat, viewport } from './web/html.js';
-import type { Layout } from './web/layout.js';
+import type { Layout } from '@codechart/core';
 import { arrowMarker, CHANGE_ARROWS, esc, num } from './web/page.js';
 import { CSS } from './web/styles.js';
 

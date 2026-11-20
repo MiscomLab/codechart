@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Preview } from '../../src/render/preview.js';
 import { renderHtml } from '../../src/render/web/html.js';
-import { layoutSpec } from '../../src/render/web/layout.js';
+import { layoutSpec } from '@codechart/core';
 import { ghostsFor } from '../../src/render/web/drift-html.js';
 import { compareMaps } from '../../src/render/map-drift.js';
 import { click, flowPage, mount, node, panesPage, q, qa, shopPage, shopWith, usePages } from '../../../../tests/helpers/page.js';

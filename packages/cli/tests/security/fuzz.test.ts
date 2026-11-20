@@ -8,7 +8,7 @@ import { flat } from '../../src/render/terminal/wrap.js';
 import { renderTerminal } from '../../src/render/terminal/render.js';
 import { businessPage } from '../../src/render/business/html.js';
 import { esc, renderHtml } from '../../src/render/web/html.js';
-import { layoutSpec } from '../../src/render/web/layout.js';
+import { layoutSpec } from '@codechart/core';
 import { validateBusinessSpec, type ChangeSpec } from '@codechart/core';
 import { validateSpec, type Spec } from '@codechart/core';
 import { business } from '../../../../tests/fixtures/business.js';

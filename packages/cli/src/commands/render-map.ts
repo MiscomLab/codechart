@@ -14,7 +14,7 @@ import { nodePreviews } from '../render/preview.js';
 import { ghostsFor } from '../render/web/drift-html.js';
 import { gapBoxes, withGaps } from '../render/web/gaps.js';
 import { renderHtml, withGhosts } from '../render/web/html.js';
-import { DESCRIPTION_CANVASES, layoutSpec, PANE_CANVASES } from '../render/web/layout.js';
+import { DESCRIPTION_CANVASES, layoutSpec, PANE_CANVASES } from '@codechart/core';
 import { hasNowAfter } from '../render/web/states.js';
 import { mapSnapshot, rangeOf } from '../review/snapshot.js';
 import { diffRange } from '@codechart/core';

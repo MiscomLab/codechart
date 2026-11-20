@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeAll, describe, expect, it } from 'vitest';
 import { renderHtml } from '../../src/render/web/html.js';
-import { layoutSpec } from '../../src/render/web/layout.js';
+import { layoutSpec } from '@codechart/core';
 import { validateSpec } from '@codechart/core';
 import { explain, withFlows } from '../../../../tests/fixtures/explain.js';
 import { explainFlowsPage, explainRepo } from '../../../../tests/helpers/explain-flows.js';
