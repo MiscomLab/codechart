@@ -101,6 +101,11 @@ describe('tsconfig extends', () => {
     expect([r.resolve('b/b.ts', 'vitest'), r.resolve('b/b.ts', 'fs'), r.resolve('b/b.ts', 'left-pad')]).toEqual([EXTERNAL, EXTERNAL, UNKNOWN]);
   });
 
+  it('leaves the options unproven when baseUrl points outside the repo', () => {
+    const r = repo({ 'tsconfig.json': json({ compilerOptions: { baseUrl: '..' } }), 'a.ts': '' });
+    expect(r.resolve('a.ts', 'left-pad')).toEqual(UNKNOWN);
+  });
+
   it('stops at a cycle', () => {
     const r = repo({ 'tsconfig.json': json({ extends: './b.json' }), 'b.json': json({ extends: './tsconfig.json' }), 'a.ts': '' });
     expect(r.resolve('a.ts', 'left-pad')).toEqual(UNKNOWN);
@@ -134,7 +139,9 @@ describe('workspace packages', () => {
       'pkgs/skip/b/package.json': json({ name: 'b' }),
       'pkgs/skip/b/index.ts': '',
       'pkgs/c1/package.json': json({ name: 'c' }),
+      'pkgs/c1/index.ts': '',
       'pkgs/c2/package.json': json({ name: 'c' }),
+      'pkgs/c2/index.ts': '',
       'x.ts': '',
     });
     expect(['a', 'b', 'c'].map((s) => r.resolve('x.ts', s))).toEqual([to('pkgs/a/index.ts'), EXTERNAL, UNKNOWN]);

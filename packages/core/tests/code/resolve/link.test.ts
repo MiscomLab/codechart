@@ -52,13 +52,16 @@ describe('linkImports', () => {
 
   it('proves nothing past CommonJS, export =, or a file without exports info', async () => {
     const found = await definitions({
-      'app.ts': "import { a } from './cjs-star';\nimport { b } from './eq';\nimport { c } from './data.json';\nimport * as all from './data.json';",
+      'app.ts': "import { a } from './cjs-star';\nimport { b } from './eq';\nimport { m } from './mixed';\nimport { c } from './data.json';\nimport * as all from './data.json';",
       'cjs-star.ts': "export * from './cjs';",
       'cjs.js': 'module.exports.a = 1;',
+      // cjs.js may export m as well, so has-m.ts can't be proven the one.
+      'mixed.ts': "export * from './cjs';\nexport * from './has-m';",
+      'has-m.ts': 'export const m = 1;',
       'eq.ts': 'export = { b: 1 };',
       'data.json': '{}',
     });
-    expect(found).toEqual({ a: undefined, b: undefined, c: undefined, all: 'data.json' });
+    expect(found).toEqual({ a: undefined, b: undefined, m: undefined, c: undefined, all: 'data.json' });
   });
 
   it('drops a stale resolution when linked again', async () => {

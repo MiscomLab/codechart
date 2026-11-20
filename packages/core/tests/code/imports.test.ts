@@ -40,7 +40,7 @@ describe('import extraction', () => {
   });
 
   it('skips specifiers decided at run time, other calls and statements inside blocks or syntax errors', async () => {
-    const { imports } = await parse("import ok from './ok';\nimport(name);\nrequire(`./${x}`);\nrequire.resolve('./q');\nfoo('./f');\ndeclare module 'm' { import { a } from './in-module'; }\nimport { from './broken';");
+    const { imports } = await parse("import ok from './ok';\nimport(name);\nrequire(`./${x}`);\nrequire.resolve('./q');\nfoo('./f');\ndeclare module 'm' { import { a } from './in-module'; }\nimport { a b } from './broken';");
     expect(imports.map((i) => i.spec)).toEqual(['./ok']);
   });
 
