@@ -1,0 +1,48 @@
+{
+  "name": "@codechart/core",
+  "version": "0.1.0",
+  "description": "Shared engine for codechart: map and flow schemas, truth checks, layout, git rules, review notes, config, agent presets",
+  "type": "module",
+  "license": "MIT",
+  "author": "MiscomLab",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MiscomLab/codechart.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/MiscomLab/codechart/issues"
+  },
+  "homepage": "https://github.com/MiscomLab/codechart/tree/main/packages/core#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "tsup",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "elkjs": "0.12.1",
+    "picomatch": "4.0.7",
+    "yaml": "2.9.1",
+    "zod": "4.6.7"
+  }
+}

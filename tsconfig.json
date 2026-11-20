@@ -9,7 +9,10 @@
     "skipLibCheck": true,
     "noEmit": true,
     "resolveJsonModule": true,
-    "types": ["node"]
+    "types": ["node"],
+    "paths": {
+      "@codechart/core": ["./packages/core/src/index.ts"]
+    }
   },
-  "include": ["src", "tests", "scripts", "*.config.ts"]
+  "include": ["packages/*/src", "packages/*/tests", "tests", "scripts", "*.config.ts", "packages/*/*.config.ts"]
 }

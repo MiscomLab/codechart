@@ -1,5 +1,5 @@
 import { writeFileSync } from 'node:fs';
-import type { ProgramOptions } from '../../src/program.js';
+import type { ProgramOptions } from '../../packages/cli/src/program.js';
 
 export const printTarget = (args: string[]): string => args.find((a) => a.startsWith('--print-to-pdf='))!.slice('--print-to-pdf='.length);
 

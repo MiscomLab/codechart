@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      - run: test "v$(node -p "require('./packages/cli/package.json').version")" = "$GITHUB_REF_NAME"
       - run: node scripts/release-notes.mjs "${GITHUB_REF_NAME#v}" > /dev/null
       - run: npm install -g npm@11.21.1
       - run: npm ci --ignore-scripts
@@ -29,7 +29,15 @@ jobs:
       - run: npm run build
       - run: node scripts/check-pack.mjs
       # Stage-only trusted publisher: the release waits for a maintainer's 2FA approval on npmjs.com.
-      - run: npm stage publish --access public
+      # The CLI depends on @codechart/core, so core goes first, unless this version of core is already on npm (a CLI-only release).
+      - run: |
+          V="$(node -p "require('./packages/core/package.json').version")"
+          if [ "$(npm view "@codechart/core@$V" version 2>/dev/null)" = "$V" ]; then
+            echo "@codechart/core@$V is already on npm, skipping"
+          else
+            npm stage publish --workspace @codechart/core --access public
+          fi
+      - run: npm stage publish --workspace codechart --access public
 
   github-release:
     needs: publish

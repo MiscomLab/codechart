@@ -4,11 +4,11 @@ import tseslint from 'typescript-eslint';
 // `// eslint-disable-next-line <rule> -- ratchet: <reason>`, but the list may only shrink,
 // and stale entries fail lint (reportUnusedDisableDirectives).
 export default tseslint.config(
-  { ignores: ['dist/', 'node_modules/', '.*/', 'src/render/web/client.ts'] },
+  { ignores: ['dist/', 'packages/*/dist/', 'node_modules/', '.*/', 'packages/cli/src/render/web/client.ts'] },
   ...tseslint.configs.recommended,
   { linterOptions: { reportUnusedDisableDirectives: 'error' } },
   {
-    files: ['src/**/*.ts'],
+    files: ['packages/*/src/**/*.ts'],
     rules: {
       complexity: ['error', 20],
       'max-lines-per-function': ['error', { max: 60, skipBlankLines: true, skipComments: true }],
@@ -19,7 +19,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['tests/**/*.ts'],
+    files: ['packages/*/tests/**/*.ts', 'tests/**/*.ts'],
     rules: {
       'max-lines': ['error', { max: 650, skipBlankLines: true, skipComments: true }],
     },

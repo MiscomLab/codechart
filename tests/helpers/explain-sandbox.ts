@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from 'node:path';
 import { afterEach, beforeEach } from 'vitest';
 import { EXPLAIN_FILES } from '../fixtures/explain.js';
-import { git, makeSandbox, removeSandbox, repoFromTemplate, runCli, type Sandbox } from './sandbox.js';
+import { runCli } from './cli.js';
+import { git, makeSandbox, removeSandbox, repoFromTemplate, type Sandbox } from './sandbox.js';
 
 function seed(dir: string) {
   for (const [file, text] of Object.entries(EXPLAIN_FILES)) {

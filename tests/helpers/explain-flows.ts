@@ -1,10 +1,10 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll } from 'vitest';
-import { checkExplain, layOutFlows } from '../../src/render/explain-flows.js';
-import { renderHtml } from '../../src/render/web/html.js';
-import { layoutSpec } from '../../src/render/web/layout.js';
-import { validateSpec } from '../../src/spec/schema.js';
+import { checkExplain, layOutFlows } from '../../packages/cli/src/render/explain-flows.js';
+import { renderHtml } from '../../packages/cli/src/render/web/html.js';
+import { layoutSpec } from '@codechart/core';
+import { validateSpec } from '@codechart/core';
 import { EXPLAIN_FILES, withFlows } from '../fixtures/explain.js';
 import { makeTempDir, removeTempDir } from './sandbox.js';
 

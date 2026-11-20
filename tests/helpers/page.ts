@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach } from 'vitest';
-import { renderFlowHtml } from '../../src/render/flow/html.js';
-import { layoutFlow } from '../../src/render/flow/layout.js';
-import type { Preview } from '../../src/render/preview.js';
-import { renderHtml } from '../../src/render/web/html.js';
-import { layoutSpec, PANE_CANVASES } from '../../src/render/web/layout.js';
-import { validateSpec, type Spec } from '../../src/spec/schema.js';
-import { sampleFlow, sampleSnippets } from '../render/flow-fixture.js';
+import { renderFlowHtml } from '../../packages/cli/src/render/flow/html.js';
+import { layoutFlow } from '../../packages/cli/src/render/flow/layout.js';
+import type { Preview } from '../../packages/cli/src/render/preview.js';
+import { renderHtml } from '../../packages/cli/src/render/web/html.js';
+import { layoutSpec, PANE_CANVASES } from '@codechart/core';
+import { validateSpec, type Spec } from '@codechart/core';
+import { sampleFlow, sampleSnippets } from '../fixtures/flow.js';
 
 function mapSpec(raw: unknown): Spec {
   const r = validateSpec(raw);

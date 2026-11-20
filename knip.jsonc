@@ -1,9 +1,18 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  // src/cli.ts is picked up from tsup.config.ts
-  // browser/client.ts is compiled by scripts/gen-client.ts, not imported
-  "entry": ["scripts/*.ts", "scripts/*.mjs", "scripts/demo/*.mjs", "src/render/web/browser/client.ts"],
-  "project": ["src/**/*.ts", "scripts/**/*.{ts,mjs}"],
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.ts", "scripts/*.mjs", "scripts/demo/*.mjs"],
+      "project": ["scripts/**/*.{ts,mjs}"]
+    },
+    "packages/cli": {
+      "entry": ["src/render/web/browser/client.ts"],
+      "project": "src/**/*.ts"
+    },
+    "packages/core": {
+      "project": "src/**/*.ts"
+    }
+  },
   // demo scripts run from a temp dir where playwright is installed on the fly (scripts/demo/*.sh)
   "ignoreDependencies": ["playwright"],
   // mkfifo: tests exercise non-regular-file handling; openssl: tests make a throwaway TLS certificate (skipped when absent)

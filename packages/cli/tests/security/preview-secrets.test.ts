@@ -1,0 +1,253 @@
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { checkMapNodes, diffOf } from '@codechart/core';
+import { nodePreviews } from '../../src/render/preview.js';
+import { diffRange, gitFiles } from '@codechart/core';
+import type { Spec } from '@codechart/core';
+import { makeSandbox, removeSandbox, repoFromTemplate } from '../../../../tests/helpers/sandbox.js';
+import { runCli } from '../../../../tests/helpers/cli.js';
+
+let tmp: string;
+let repo: string;
+
+const git = (...args: string[]) => execFileSync('git', args, { cwd: repo, stdio: 'pipe' }).toString().trim();
+
+function seed(dir: string) {
+  writeFileSync(join(dir, 'seed'), 'x');
+  execFileSync('git', ['add', '-A'], { cwd: dir });
+  execFileSync('git', ['commit', '-q', '-m', 'seed'], { cwd: dir });
+}
+
+beforeEach(() => {
+  tmp = mkdtempSync(join(tmpdir(), 'codechart-secret-'));
+  repo = join(tmp, 'repo');
+  mkdirSync(repo);
+  repoFromTemplate(repo, seed);
+});
+afterEach(() => rmSync(tmp, { recursive: true, force: true }));
+
+const previewOf = (path: string) => {
+  const spec: Spec = { title: 't', kind: 'summary', edges: [], nodes: [{ id: 'n', label: 'n', kind: 'file', layer: 'l', status: 'new', path }] };
+  const sel = { git: true };
+  return nodePreviews(spec, repo, diffOf(gitFiles(repo, sel, true)), diffRange(repo, sel), checkMapNodes(spec, repo, {}).found).get('n');
+};
+
+describe('S-34 secret files in the preview', () => {
+  it.each(['.env', '.env.local', 'cfg/server.pem', 'a.key', 'x.p12', 'x.pfx', 'id_rsa', 'id_ed25519.pub', '.npmrc', '.netrc', '.pypirc', 'aws-credentials.json'])(
+    'hides %s by name',
+    (name) => {
+      mkdirSync(join(repo, 'cfg'), { recursive: true });
+      writeFileSync(join(repo, name), 'TOKEN=hunter2\n');
+      const p = previewOf(name);
+      expect(p?.note).toBe('not shown: looks like a secret');
+      expect(p?.lines).toEqual([]);
+    },
+  );
+
+  it.each(['.env.example', '.env.sample', '.env.template'])('still shows %s', (name) => {
+    writeFileSync(join(repo, name), 'TOKEN=\n');
+    expect(previewOf(name)?.lines.length).toBeGreaterThan(0);
+  });
+
+  it('hides a file holding a private key block', () => {
+    writeFileSync(join(repo, 'notes.txt'), '-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n-----END OPENSSH PRIVATE KEY-----\n');
+    expect(previewOf('notes.txt')).toMatchObject({ note: 'not shown: looks like a secret', lines: [] });
+  });
+
+  it('hides a tracked file whose diff adds a private key block', () => {
+    writeFileSync(join(repo, 'k.txt'), 'one\n');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'k');
+    writeFileSync(join(repo, 'k.txt'), 'one\n-----BEGIN RSA PRIVATE KEY-----\n');
+    expect(previewOf('k.txt')?.note).toBe('not shown: looks like a secret');
+  });
+
+  it('hides an edit deep inside a key block, with BEGIN outside the hunk', () => {
+    const body = Array.from({ length: 20 }, (_, i) => `KEYLINE${i}`);
+    const key = (lines: string[]) => `-----BEGIN OPENSSH PRIVATE KEY-----\n${lines.join('\n')}\n-----END OPENSSH PRIVATE KEY-----\n`;
+    writeFileSync(join(repo, 'notes.txt'), key(body));
+    git('add', '-A');
+    git('commit', '-q', '-m', 'k');
+    writeFileSync(join(repo, 'notes.txt'), key(body.map((l, i) => (i === 10 ? 'EDITED' : l))));
+    expect(git('diff', '-U3', '--', 'notes.txt')).not.toContain('BEGIN');
+    expect(previewOf('notes.txt')).toMatchObject({ note: 'not shown: looks like a secret', lines: [] });
+  });
+
+  it('hides an edit deep inside a key block in a commit', () => {
+    const body = Array.from({ length: 20 }, (_, i) => `KEYLINE${i}`);
+    const key = (lines: string[]) => `-----BEGIN RSA PRIVATE KEY-----\n${lines.join('\n')}\n-----END RSA PRIVATE KEY-----\n`;
+    writeFileSync(join(repo, 'notes.txt'), key(body));
+    git('add', '-A');
+    git('commit', '-q', '-m', 'k');
+    writeFileSync(join(repo, 'notes.txt'), key(body.map((l, i) => (i === 10 ? 'EDITED' : l))));
+    git('commit', '-q', '-am', 'edit');
+    const spec: Spec = { title: 't', kind: 'summary', edges: [], nodes: [{ id: 'n', label: 'n', kind: 'file', layer: 'l', status: 'changed', path: 'notes.txt' }] };
+    const sel = { commit: 'HEAD' };
+    const p = nodePreviews(spec, repo, diffOf(gitFiles(repo, sel, true)), diffRange(repo, sel), checkMapNodes(spec, repo, {}).found).get('n');
+    expect(p?.note).toBe('not shown: looks like a secret');
+  });
+});
+
+describe('S-34 follow-up: encoded files and the read budget', () => {
+  it('hides a key in a UTF-16 working-tree-encoding file (git decodes it, the raw read does not)', () => {
+    writeFileSync(join(repo, '.gitattributes'), 'notes.txt working-tree-encoding=UTF-16LE\n');
+    const key = '-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----\n';
+    writeFileSync(join(repo, 'notes.txt'), Buffer.from(key, 'utf16le'));
+    git('add', '-A');
+    expect(previewOf('notes.txt')?.note).toBe('not shown: looks like a secret');
+  });
+
+  it('whole-file reads count against the 25 MB render budget', () => {
+    const files = ['a.txt', 'b.txt', 'c.txt'];
+    for (const f of files) writeFileSync(join(repo, f), 'a\n'.repeat(2_250_000));
+    git('add', '-A');
+    git('commit', '-q', '-m', 'big');
+    for (const f of files) writeFileSync(join(repo, f), `b\n${'a\n'.repeat(2_249_999)}`);
+    const spec: Spec = {
+      title: 't',
+      kind: 'summary',
+      edges: [],
+      nodes: files.map((f, i) => ({ id: `n${i}`, label: f, kind: 'file', layer: 'l', status: 'changed', path: f })),
+    };
+    const sel = { git: true };
+    const p = nodePreviews(spec, repo, diffOf(gitFiles(repo, sel, true)), diffRange(repo, sel), checkMapNodes(spec, repo, {}).found);
+    expect(p.get('n0')?.lines.length).toBeGreaterThan(0);
+    expect(p.get('n2')?.note).toBe('not shown: the diffs pass 25 MB together');
+  });
+});
+
+describe('S-30 follow-up: a diff attribute does not lift the size cap', () => {
+  it('a big file marked `diff` in .gitattributes is not diffed', () => {
+    writeFileSync(join(repo, '.gitattributes'), '*.txt diff\n');
+    writeFileSync(join(repo, 'big.txt'), 'a\n'.repeat(3_000_000));
+    git('add', '-A');
+    git('commit', '-q', '-m', 'big');
+    writeFileSync(join(repo, 'big.txt'), `b\n${'a\n'.repeat(2_999_999)}`);
+    const p = previewOf('big.txt');
+    expect(p?.note).toBe('diff is too large (over 5 MB)');
+    expect(p?.lines).toEqual([]);
+  });
+});
+
+describe('anchor snippets of a secret file', () => {
+  const VALUE = 'sk-live-AAAABBBBCCCCDDDD1234';
+  const NOTE = 'not shown: looks like a secret';
+
+  async function pageOf(spec: unknown, files: Record<string, string> = { '.env': `SECRET_KEY=${VALUE}\n` }): Promise<string> {
+    const sb = makeSandbox('anchor-secret', { htmlOut: true, git: 'init' });
+    try {
+      for (const [name, text] of Object.entries(files)) {
+        mkdirSync(dirname(join(sb.repo, name)), { recursive: true });
+        writeFileSync(join(sb.repo, name), text);
+      }
+      writeFileSync(join(sb.tmp, 'spec.json'), JSON.stringify(spec));
+      const r = await runCli({ cwd: sb.repo, home: sb.home, isTTY: false }, ['render', join(sb.tmp, 'spec.json'), '--output', 'web']);
+      expect(r.err).toBe('');
+      const dir = join(sb.out, readdirSync(sb.out)[0]!);
+      return readFileSync(join(dir, readdirSync(dir).find((n) => n.endsWith('.html'))!), 'utf8');
+    } finally {
+      removeSandbox(sb.tmp);
+    }
+  }
+
+  it('a flow step source keeps the anchor but hides the line', async () => {
+    const page = await pageOf({
+      diagram: 'flow',
+      kind: 'plan',
+      title: 'f',
+      start: 'a',
+      steps: [{ id: 'a', label: 'read the key', type: 'end', status: 'existing', source: '.env:1' }],
+      links: [],
+    });
+    expect(page).not.toContain(VALUE);
+    expect(page).toContain(NOTE);
+  });
+
+  it('an explain box match keeps the anchor but hides the line', async () => {
+    const page = await pageOf({
+      title: 'e',
+      kind: 'explain',
+      nodes: [{ id: 'a', label: 'Env', kind: 'config', status: 'existing', layer: 'l', path: '.env', match: 'SECRET_KEY' }],
+      edges: [],
+    });
+    expect(page).not.toContain(VALUE);
+    expect(page).toContain(NOTE);
+  });
+
+  describe.skipIf(process.platform === 'win32')('a symlink with an ordinary name to a secret file', () => {
+    const pageViaLink = async (spec: unknown) => {
+      const sb = makeSandbox('anchor-secret-link', { htmlOut: true, git: 'init' });
+      try {
+        writeFileSync(join(sb.repo, '.env'), `SECRET_KEY=${VALUE}\n`);
+        symlinkSync('.env', join(sb.repo, 'config.txt'));
+        writeFileSync(join(sb.tmp, 'spec.json'), JSON.stringify(spec));
+        const r = await runCli({ cwd: sb.repo, home: sb.home, isTTY: false }, ['render', join(sb.tmp, 'spec.json'), '--output', 'web']);
+        expect(r.err).toBe('');
+        const dir = join(sb.out, readdirSync(sb.out)[0]!);
+        return readFileSync(join(dir, readdirSync(dir).find((n) => n.endsWith('.html'))!), 'utf8');
+      } finally {
+        removeSandbox(sb.tmp);
+      }
+    };
+
+    it('a flow step source hides the line', async () => {
+      const page = await pageViaLink({
+        diagram: 'flow',
+        kind: 'plan',
+        title: 'f',
+        start: 'a',
+        steps: [{ id: 'a', label: 'read the key', type: 'end', status: 'existing', source: 'config.txt:1' }],
+        links: [],
+      });
+      expect(page).not.toContain(VALUE);
+      expect(page).toContain(NOTE);
+    });
+
+    it('an explain box match hides the line and the block', async () => {
+      const page = await pageViaLink({
+        title: 'e',
+        kind: 'explain',
+        nodes: [{ id: 'a', label: 'Cfg', kind: 'config', status: 'existing', layer: 'l', path: 'config.txt', match: 'SECRET_KEY' }],
+        edges: [],
+      });
+      expect(page).not.toContain(VALUE);
+      expect(page).toContain(NOTE);
+    });
+
+    it('an explain box without match hides the block', async () => {
+      const page = await pageViaLink({
+        title: 'e',
+        kind: 'explain',
+        nodes: [{ id: 'a', label: 'Cfg', kind: 'config', status: 'existing', layer: 'l', path: 'config.txt' }],
+        edges: [],
+      });
+      expect(page).not.toContain(VALUE);
+    });
+  });
+
+  describe('a key body line of a PEM block in an ordinarily named file', () => {
+    const BODY = 'MIIEowIBAAKCAQEAsecretbody';
+    const notes = { 'docs/notes.txt': `# notes\n-----BEGIN RSA PRIVATE KEY-----\n${BODY}\n-----END RSA PRIVATE KEY-----\n` };
+    const stepOf = (anchor: { source: string; match?: string }) => ({
+      diagram: 'flow',
+      kind: 'plan',
+      title: 'f',
+      start: 'a',
+      steps: [{ id: 'a', label: 'read the key', type: 'end', status: 'existing', ...anchor }],
+      links: [],
+    });
+
+    it.each([
+      ['match', { source: 'docs/notes.txt', match: 'MIIEow' }],
+      ['source line', { source: 'docs/notes.txt:3' }],
+    ])('hides the body when anchored by %s', async (_, anchor) => {
+      const page = await pageOf(stepOf(anchor), notes);
+      expect(page).not.toContain(BODY);
+      expect(page).toContain(NOTE);
+    });
+  });
+});

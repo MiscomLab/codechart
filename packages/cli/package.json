@@ -1,0 +1,63 @@
+{
+  "name": "codechart",
+  "version": "1.0.1",
+  "description": "Agent skill + CLI: maps and flowcharts of code changes, and of how existing code works, for AI coding agents, in terminal, chat and HTML",
+  "keywords": [
+    "agent-skills",
+    "ai-coding-agent",
+    "claude-code",
+    "codex",
+    "gemini-cli",
+    "cursor",
+    "diagram",
+    "code-review",
+    "change-map",
+    "flowchart",
+    "ai-agent",
+    "cli"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "author": "MiscomLab",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MiscomLab/codechart.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/MiscomLab/codechart/issues"
+  },
+  "homepage": "https://github.com/MiscomLab/codechart#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "bin": {
+    "codechart": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "templates",
+    "config.schema.json",
+    "LICENSE",
+    "README.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "tsup",
+    "prepack": "npm run build && node ../../scripts/pack-readme.mjs"
+  },
+  "dependencies": {
+    "@codechart/core": "0.1.0",
+    "commander": "15.1.0",
+    "elkjs": "0.12.1",
+    "picomatch": "4.0.7",
+    "zod": "4.6.7",
+    "yaml": "2.9.1"
+  },
+  "devDependencies": {}
+}

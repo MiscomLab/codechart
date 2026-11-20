@@ -76,11 +76,13 @@ function measure(): { version: string; body: string } {
     mkdirSync(project);
 
     sh(npm, ['run', 'build'], root);
-    const packOut = sh(npm, ['pack', '--ignore-scripts', '--json', '--pack-destination', packDir], root);
-    const pack = JSON.parse(packOut)[0] as { filename: string; size: number; unpackedSize: number; entryCount: number };
+    const packArgs = ['pack', '--ignore-scripts', '--json', '--pack-destination', packDir];
+    const cliPack = JSON.parse(sh(npm, packArgs, join(root, 'packages', 'cli')))[0] as { filename: string; size: number; unpackedSize: number; entryCount: number };
+    const corePack = JSON.parse(sh(npm, packArgs, join(root, 'packages', 'core')))[0] as { filename: string };
+    const pack = cliPack;
     writeFileSync(join(project, 'package.json'), '{"name":"measure-project","version":"0.0.0","private":true}\n');
     writeFileSync(join(project, 'anchors.txt'), 'line\n'.repeat(10));
-    sh(npm, ['i', '--prefer-offline', '--no-audit', '--no-fund', '--ignore-scripts', join(packDir, pack.filename)], project);
+    sh(npm, ['i', '--prefer-offline', '--no-audit', '--no-fund', '--ignore-scripts', join(packDir, corePack.filename), join(packDir, pack.filename)], project);
 
     const modules = join(project, 'node_modules');
     const pkg = JSON.parse(readFileSync(join(modules, 'codechart', 'package.json'), 'utf8')) as { version: string; dependencies: Record<string, string> };
@@ -90,9 +92,9 @@ function measure(): { version: string; body: string } {
       sizes.set(e.name, dirSize(join(modules, e.name)));
     }
     const runtime = [...sizes.values()].reduce((a, b) => a + b, 0);
-    const skillBytes = readdirSync(join(root, 'skills', 'codechart'))
+    const skillBytes = readdirSync(join(root, 'packages', 'cli', 'skills', 'codechart'))
       .filter((f) => f.endsWith('.md'))
-      .reduce((n, f) => n + statSync(join(root, 'skills', 'codechart', f)).size, 0);
+      .reduce((n, f) => n + statSync(join(root, 'packages', 'cli', 'skills', 'codechart', f)).size, 0);
 
     const bin = join(modules, 'codechart', 'dist', 'cli.js');
     const home = join(tmp, 'home');

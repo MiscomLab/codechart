@@ -1,24 +1,8 @@
 {
-  "name": "codechart",
-  "version": "1.0.1",
-  "description": "Agent skill + CLI: maps and flowcharts of code changes, and of how existing code works, for AI coding agents, in terminal, chat and HTML",
-  "keywords": [
-    "agent-skills",
-    "ai-coding-agent",
-    "claude-code",
-    "codex",
-    "gemini-cli",
-    "cursor",
-    "diagram",
-    "code-review",
-    "change-map",
-    "flowchart",
-    "ai-agent",
-    "cli"
-  ],
-  "type": "module",
-  "license": "MIT",
-  "author": "MiscomLab",
+  "name": "codechart-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "codechart: the CLI and the shared engine it runs on",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/MiscomLab/codechart.git"
@@ -27,26 +11,15 @@
     "url": "https://github.com/MiscomLab/codechart/issues"
   },
   "homepage": "https://github.com/MiscomLab/codechart#readme",
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
-  },
-  "bin": {
-    "codechart": "dist/cli.js"
-  },
-  "files": [
-    "dist",
-    "skills",
-    "templates",
-    "config.schema.json",
-    "CHANGELOG.md",
-    "THIRD_PARTY_NOTICES.md"
+  "type": "module",
+  "workspaces": [
+    "packages/*"
   ],
   "engines": {
     "node": ">=22.12"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "npm run build -w @codechart/core && npm run build -w codechart",
     "prepack": "npm run build",
     "typecheck": "tsc --noEmit",
     "test": "tsc --noEmit && vitest run",
@@ -55,16 +28,9 @@
     "bench:tokens": "tsx scripts/token-bench.ts",
     "gen:config-schema": "tsx scripts/gen-config-schema.ts",
     "complexity": "node scripts/complexity.mjs",
-    "dup": "jscpd src --threshold 1 && jscpd tests --threshold 3",
+    "dup": "jscpd packages --threshold 1 --ignore \"**/tests/**\" && jscpd packages --threshold 3 --ignore \"**/src/**\"",
     "knip": "knip",
     "gen:client": "tsx scripts/gen-client.ts"
-  },
-  "dependencies": {
-    "commander": "15.1.0",
-    "elkjs": "0.12.1",
-    "picomatch": "4.0.7",
-    "yaml": "2.9.1",
-    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
