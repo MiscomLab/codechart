@@ -7,13 +7,19 @@ For the maintainer. The workflow is `.github/workflows/publish.yml`; the notes c
 1. Open a PR that bumps `version` in `packages/cli/package.json` and renames `## Unreleased` in `CHANGELOG.md` to `## X.Y.Z (date)`. CI checks that the section exists.
 2. Merge it.
 3. Tag the merge commit and push the tag: `git tag -a vX.Y.Z -m vX.Y.Z && git push origin vX.Y.Z`.
-4. Approve the `npm` environment when GitHub asks. The `publish` job then checks that the tag matches `packages/cli/package.json`, runs the tests, builds, checks the package contents and stages `@codechart/core` first, then `codechart`. Nothing is public yet.
-5. On npmjs.com, approve the staged publish with 2FA.
+4. Approve the `npm` environment when GitHub asks. The `publish` job then checks that the tag matches `packages/cli/package.json`, runs the tests, builds, checks the package contents and stages `@codechart/core`, then `codechart`. Core is skipped when its version in `packages/core/package.json` is already on npm, which is the case for a CLI-only release. Nothing is public yet.
+5. On npmjs.com, approve the staged publishes with 2FA: `@codechart/core` first (if it was staged), then `codechart`, which depends on it.
 6. The `github-release` job has already made a draft GitHub Release from the changelog section. It checks npm once a minute and makes the draft public once npm serves the version. It waits up to 350 minutes (just under 6 hours). If that runs out, publish the draft by hand, or re-run the failed jobs only. Never re-run the `publish` job: that stages the package a second time.
 
 ## Core releases
 
-`@codechart/core` has its own version in `packages/core/package.json`. Bump it when core changes, note it in the changelog, and stage both packages in the same tag: the CLI depends on the core version pinned in `packages/cli/package.json`. The app pins a core range (`0.1.x`), so a core patch does not require an app release. Core does not need a GitHub Release of its own; the CLI's release notes describe what changed for users.
+`@codechart/core` has its own version in `packages/core/package.json`. Bump it when core changes, note it in the changelog, and release both in the same tag: the CLI depends on the core version pinned in `packages/cli/package.json`, so approve the staged core before the CLI. A tag that doesn't bump core stages only the CLI. The app pins a core range (`0.1.x`), so a core patch does not require an app release. Core does not need a GitHub Release of its own; the CLI's release notes describe what changed for users.
+
+### First core publish
+
+`@codechart/core` 0.1.0 is published once by hand, after the PR that adds it is merged: `npm publish -w @codechart/core --access public --provenance=false`, with 2FA (provenance needs a CI provider). Then set the package's Publishing access to "Require 2FA and disallow tokens".
+
+Add the trusted publisher (MiscomLab / codechart / `publish.yml` / environment `npm`, stage-only) on the day of the first tag that bumps core, not before: npm expires a trusted publisher that goes unused for 2 days.
 
 ## A step failed
 

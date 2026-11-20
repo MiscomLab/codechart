@@ -29,8 +29,14 @@ jobs:
       - run: npm run build
       - run: node scripts/check-pack.mjs
       # Stage-only trusted publisher: the release waits for a maintainer's 2FA approval on npmjs.com.
-      # The CLI depends on @codechart/core, so core goes first.
-      - run: npm stage publish --workspace @codechart/core --access public
+      # The CLI depends on @codechart/core, so core goes first, unless this version of core is already on npm (a CLI-only release).
+      - run: |
+          V="$(node -p "require('./packages/core/package.json').version")"
+          if [ "$(npm view "@codechart/core@$V" version 2>/dev/null)" = "$V" ]; then
+            echo "@codechart/core@$V is already on npm, skipping"
+          else
+            npm stage publish --workspace @codechart/core --access public
+          fi
       - run: npm stage publish --workspace codechart --access public
 
   github-release:
