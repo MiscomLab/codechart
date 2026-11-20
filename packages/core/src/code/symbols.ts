@@ -18,7 +18,7 @@ export interface Extracted {
 
 const KINDS = new Set<string>(SYMBOL_KINDS);
 
-const nodeRange = (node: Node): CodeRange => ({
+export const nodeRange = (node: Node): CodeRange => ({
   start: { line: node.startPosition.row + 1, column: node.startPosition.column },
   end: { line: node.endPosition.row + 1, column: node.endPosition.column },
 });

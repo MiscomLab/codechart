@@ -9,7 +9,7 @@ It is the part both products must agree on:
 - **Git rules** — changed files, log, preview and diff, and which diagram a change should produce.
 - **Review notes** — the note format, parser, merge, carry-over and storage, plus shared page and review file naming.
 - **Config** — the `.codechart.yaml` schema, loader and repo-root lookup.
-- **Code layer** — reads a repo's files and their symbols (classes, functions, methods, types) with tree-sitter, for TypeScript and JavaScript so far. `parseRepo` reads a whole repo, `parseCode` one file; a file with a syntax error keeps its last good symbols.
+- **Code layer** — reads a repo's files and their symbols (classes, functions, methods, types) with tree-sitter, for TypeScript and JavaScript so far. `parseRepo` reads a whole repo, `parseCode` one file; a file with a syntax error keeps its last good symbols. Imports resolve to repo files (relative paths, tsconfig `paths`, package `exports` and `imports`, npm, yarn and pnpm workspaces mapped to their source) and imported names are followed through barrel files to where they're defined; an import nothing proves is `unknown`, a package outside the repo `external`. `createResolver` and `linkImports` re-resolve without re-parsing.
 - **Agent presets** — the agents codechart knows, their skill folders, and commander-free helpers to install and remove the skill.
 
 The CLI owns everything that talks to a user or an agent: commands, terminal and HTML renderers, PR maps, the update check and the OpenCode plugin.

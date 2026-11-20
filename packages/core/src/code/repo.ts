@@ -5,6 +5,8 @@ import { readRegularFile } from '../read-regular.js';
 import { git } from '../rules/git-run.js';
 import { langOf } from './languages.js';
 import { parseCode, type ParsedFile } from './parse.js';
+import { linkImports } from './resolve/link.js';
+import { createResolver } from './resolve/resolver.js';
 
 /** Dependencies, build output and minified bundles: never source a map should point at. */
 export const DEFAULT_CODE_IGNORE = [
@@ -52,13 +54,14 @@ export function readCodeFile(root: string, path: string): string | undefined {
   return text?.includes('\0') ? undefined : text;
 }
 
-/** The code layer of the repo at `root`, one entry per readable file of `listCodeFiles`. */
+/** The code layer of the repo at `root`, one entry per readable file of `listCodeFiles`, imports resolved. */
 export async function parseRepo(root: string, opts: { ignore?: readonly string[] } = {}): Promise<ParsedFile[]> {
+  const paths = listCodeFiles(root, opts.ignore);
   const parsed: ParsedFile[] = [];
-  for (const path of listCodeFiles(root, opts.ignore)) {
+  for (const path of paths) {
     const text = readCodeFile(root, path);
     const file = text === undefined ? undefined : await parseCode(path, text);
     if (file) parsed.push(file);
   }
-  return parsed;
+  return linkImports(parsed, createResolver(paths, (path) => readCodeFile(root, path)));
 }

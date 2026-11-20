@@ -30,11 +30,31 @@ export const codeSymbolSchema = z.object({
 });
 export type CodeSymbol = z.infer<typeof codeSymbolSchema>;
 
+export const importedNameSchema = z.object({
+  /** The name the other module exports: `default`, `*` for the whole module, or the export's name. */
+  imported: z.string().min(1),
+  /** The binding in this file; for a re-export, the name this file exports it as (`*` for `export *`). */
+  local: z.string().min(1),
+  typeOnly: z.boolean().optional(),
+  /** The repo file that defines it, barrels followed; absent when not proven. */
+  definedIn: z.string().min(1).optional(),
+});
+export type ImportedName = z.infer<typeof importedNameSchema>;
+
+export const IMPORT_KINDS = ['import', 'export', 'require', 'dynamic'] as const;
+
 export const importSchema = z.object({
   file: z.string().min(1),
   spec: z.string(),
   resolved: z.string().min(1).optional(),
   status: z.enum(['resolved', 'unknown', 'external']),
+  /** `export` is a re-export (`export … from`); `require` and `dynamic` (`import()`) name no bindings. */
+  kind: z.enum(IMPORT_KINDS),
+  /** `import type`, `export type`, `typeof import()`. */
+  typeOnly: z.boolean().optional(),
+  /** Absent for `require` and `import()`; empty for a side-effect `import 'x'`. */
+  names: z.array(importedNameSchema).optional(),
+  range: codeRangeSchema,
 });
 export type Import = z.infer<typeof importSchema>;
 
