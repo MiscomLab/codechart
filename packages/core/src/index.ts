@@ -45,3 +45,6 @@ export * from './code/model.js';
 export * from './code/languages.js';
 export * from './code/parse.js';
 export * from './code/repo.js';
+export type { ExportName, ModuleExports } from './code/imports.js';
+export { createResolver, type Resolver, type Resolution } from './code/resolve/resolver.js';
+export { linkImports } from './code/resolve/link.js';

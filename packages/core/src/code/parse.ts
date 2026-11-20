@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { loadGrammar } from './grammars.js';
 import { grammarOf, langOf } from './languages.js';
-import type { CodeSymbol, FileInfo, CodeRange } from './model.js';
+import { extractImports, type ModuleExports } from './imports.js';
+import type { CodeSymbol, FileInfo, CodeRange, Import } from './model.js';
 import { extractSymbols, type Extracted } from './symbols.js';
 
 /** One file of the code layer. */
@@ -12,6 +13,9 @@ export interface ParsedFile {
   parseErrors: CodeRange[];
   /** Ids of symbols carried over from the last good parse with their old range, since the broken text no longer shows them. */
   kept: string[];
+  /** `unknown` until `linkImports` resolves them against the rest of the repo. */
+  imports: Import[];
+  exports: ModuleExports;
 }
 
 /**
@@ -36,13 +40,20 @@ export async function parseCode(path: string, text: string, lastGood?: readonly 
   if (!lang) return undefined;
   const file: FileInfo = { path, lang, hash: createHash('sha256').update(text).digest('hex') };
   const grammar = grammarOf(path);
-  if (!grammar) return { file, symbols: [], parseErrors: [], kept: [] };
-  const { parser, tags } = await loadGrammar(grammar);
+  if (!grammar) return { file, symbols: [], parseErrors: [], kept: [], imports: [], exports: { names: [], complete: false } };
+  const { parser, tags, imports: query } = await loadGrammar(grammar);
   const tree = parser.parse(text);
   if (!tree) throw new Error(`tree-sitter returned no tree for ${path}`);
   try {
     const extracted = extractSymbols(path, tree, tags);
-    return { file, ...keepLastGood(extracted, lastGood), parseErrors: extracted.errors };
+    const { imports, exports } = extractImports(path, tree, query);
+    return {
+      file,
+      ...keepLastGood(extracted, lastGood),
+      parseErrors: extracted.errors,
+      imports: imports.map((i) => ({ ...i, status: 'unknown' as const })),
+      exports,
+    };
   } finally {
     tree.delete();
   }

@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import type { Language, Parser, Query } from 'web-tree-sitter';
 import { GRAMMAR_ASSETS, type GrammarAsset } from './grammar-assets.js';
+import { IMPORTS_QUERY } from './imports.js';
 import type { Grammar } from './languages.js';
 
 /** Definitions the upstream `tags.scm` files leave out. */
@@ -40,10 +41,11 @@ function tagsSource(grammar: Grammar): string {
   return js + readFileSync(assetPath('typescript-tags.scm'), 'utf8') + EXTRA_TS;
 }
 
-/** One loaded grammar: a parser set to it and its definitions query. */
+/** One loaded grammar: a parser set to it, its definitions query and its imports query. */
 export interface LoadedGrammar {
   parser: Parser;
   tags: Query;
+  imports: Query;
 }
 
 let runtime: Promise<typeof import('web-tree-sitter')> | undefined;
@@ -61,7 +63,7 @@ async function load(grammar: Grammar): Promise<LoadedGrammar> {
   const language: Language = await ts.Language.load(assetPath(WASM[grammar]));
   const parser = new ts.Parser();
   parser.setLanguage(language);
-  return { parser, tags: new ts.Query(language, tagsSource(grammar)) };
+  return { parser, tags: new ts.Query(language, tagsSource(grammar)), imports: new ts.Query(language, IMPORTS_QUERY) };
 }
 
 /** The grammar, loaded once per process. */
