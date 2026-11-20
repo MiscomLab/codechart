@@ -1,6 +1,6 @@
 {
   "name": "@codechart/core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Shared engine for codechart: map and flow schemas, truth checks, layout, git rules, review notes, config, agent presets, code layer parsing",
   "type": "module",
   "license": "MIT",
