@@ -9,7 +9,7 @@ import type { CommandOptions } from '../program.js';
 import { NOTES_URL, fetchHighlights, notesLines } from '../update/changelog.js';
 import { httpsFetch } from '../update/http-get.js';
 import { currentVersion, fetchLatest, isNewer, readState, skillDirs, withHighlights, writeState } from '../update/check.js';
-import { agentsFor, isCodechartSkill, legacyAgentsFor } from './agents.js';
+import { agentsFor, isCodechartSkill, legacyAgentsFor } from '@codechart/core';
 import { installCopy, skillFiles } from './install-skill.js';
 import { refreshReminder } from './nudges.js';
 import { installPlugin, pluginFile, pluginState } from './opencode-plugin.js';

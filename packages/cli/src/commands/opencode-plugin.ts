@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { packageFile } from '../assets.js';
 import type { CommandOptions } from '../program.js';
 import { readRegularFile } from '@codechart/core';
-import { opencodeConfigDir } from './agents.js';
+import { opencodeConfigDir } from '@codechart/core';
 import { installPairs, sameFile } from './copy-file.js';
 
 // Built into dist/server.js by the legal comment in src/opencode/server.ts.

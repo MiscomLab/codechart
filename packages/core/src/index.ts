@@ -39,3 +39,5 @@ export * from './render/flow/anchor-files.js';
 export * from './render/flow/anchors.js';
 export * from './render/omitted.js';
 export * from './render/web/layout.js';
+export * from './agents.js';
+export * from './install.js';

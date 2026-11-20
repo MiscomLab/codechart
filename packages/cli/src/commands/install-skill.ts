@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { Command } from 'commander';
@@ -6,8 +6,8 @@ import { packageFile } from '../assets.js';
 import { loadConfig } from '@codechart/core';
 import type { CommandOptions } from '../program.js';
 import { rememberSkillDir } from '../update/check.js';
-import { AGENTS, agentsFor, isCodechartSkill, shown, skillFolders, type AgentPreset } from './agents.js';
-import { hasAny, installPairs, sameFile } from './copy-file.js';
+import { AGENTS, agentsFor, installCopy as coreInstallCopy, shown, skillFiles as coreSkillFiles, skillFolders, type AgentPreset } from '@codechart/core';
+import { hasAny, installIO, sameFile } from './copy-file.js';
 import { addReminder, installClaudeHooks } from './nudges.js';
 import { installPlugin, pluginFile } from './opencode-plugin.js';
 import { pluginBlocker } from './opencode-version.js';
@@ -18,7 +18,7 @@ const NAMES = AGENTS.map((a) => a.name).join(', ');
 const terminalChoose = () => (process.stdin.isTTY && process.stdout.isTTY ? terminalPicker : undefined);
 
 /** The skill's files, SKILL.md first; it links to the other files. */
-export const skillFiles = (): string[] => readdirSync(packageFile('skills/codechart')).sort((a, b) => Number(b === 'SKILL.md') - Number(a === 'SKILL.md'));
+export const skillFiles = (): string[] => coreSkillFiles(packageFile('skills/codechart'));
 
 /** Whether `dir` holds every file of this version's skill, byte for byte. */
 export const skillIsCurrent = (dir: string, files: string[]): boolean =>
@@ -125,8 +125,7 @@ function rememberOwn(installed: { dir: string; who: string }[], opts: CommandOpt
 // An older codechart copy is updated so description fixes reach users; a folder that isn't ours needs --force.
 // True when the folder ends up holding this version of the skill.
 export function installCopy(dir: string, who: string, files: string[], force: boolean, opts: CommandOptions): boolean {
-  const pairs = files.map((f) => ({ source: packageFile(`skills/codechart/${f}`), target: join(dir, f) }));
-  return installPairs(pairs, dir, who, () => isCodechartSkill(dir), force, opts);
+  return coreInstallCopy(packageFile('skills/codechart'), dir, who, files, force, installIO(opts));
 }
 
 /** The agents to install for; undefined when the run ends here (nothing to install, or an error already reported). */

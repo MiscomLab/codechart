@@ -1,26 +1,13 @@
-import { lstatSync, readdirSync, rmdirSync, unlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { Command } from 'commander';
 import { packageFile } from '../assets.js';
 import type { CommandOptions } from '../program.js';
 import { readState, skillDirs, writeState } from '../update/check.js';
-import { agentsFor, isCodechartSkill, legacyAgentsFor } from './agents.js';
+import { agentsFor, legacyAgentsFor, removeSkill, skillFiles } from '@codechart/core';
 import { removeClaudeHooks, removeReminder } from './nudges.js';
 import { pluginFile, removePlugin } from './opencode-plugin.js';
 import { cacheDirOf } from './update.js';
-
-/** Deletes only the skill's own files, and the folder if that empties it. */
-function removeSkill(dir: string, files: string[]): string | undefined {
-  const st = lstatSync(dir, { throwIfNoEntry: false });
-  if (!st) return undefined;
-  if (!st.isDirectory()) return `left ${dir}: not a folder`;
-  if (!isCodechartSkill(dir)) return `left ${dir}: not the codechart skill`;
-  for (const f of files) if (lstatSync(join(dir, f), { throwIfNoEntry: false })?.isFile()) unlinkSync(join(dir, f));
-  if (readdirSync(dir).length > 0) return `removed skill files from ${dir} (kept your other files there)`;
-  rmdirSync(dir);
-  return `removed skill: ${dir}`;
-}
 
 /** The skill copies `install-skill --dir` recorded in the update state; the ones removed are forgotten. */
 function removeRecordedSkills(files: string[], opts: CommandOptions, step: (run: () => string | undefined) => void): undefined {
@@ -42,7 +29,7 @@ function removeRecordedSkills(files: string[], opts: CommandOptions, step: (run:
 const withLegacy = (opts: CommandOptions) => [...agentsFor(opts.env ?? process.env), ...legacyAgentsFor(opts.env ?? process.env)];
 
 function removeSkills(home: string, opts: CommandOptions, step: (run: () => string | undefined) => void): void {
-  const files = readdirSync(packageFile('skills/codechart'));
+  const files = skillFiles(packageFile('skills/codechart'));
   for (const folder of new Set(withLegacy(opts).flatMap((a) => [a.skills, ...a.reads]))) step(() => removeSkill(join(resolve(home, folder), 'codechart'), files));
   step(() => removeRecordedSkills(files, opts, step));
 }

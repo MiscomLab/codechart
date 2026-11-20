@@ -2,7 +2,7 @@ import { accessSync, constants, existsSync, lstatSync, statSync } from 'node:fs'
 import { join, posix, resolve, win32 } from 'node:path';
 import type { CommandOptions } from '../program.js';
 import { currentVersion, isNewer, readState } from '../update/check.js';
-import { agentsFor, isCodechartSkill, skillFolders, type AgentPreset } from './agents.js';
+import { agentsFor, isCodechartSkill, skillFolders, type AgentPreset } from '@codechart/core';
 import { installCopy, skillFiles, skillIsCurrent } from './install-skill.js';
 import { addReminder, claudeHookEvents, installClaudeHooks, reminderState } from './nudges.js';
 import { installPlugin, pluginFile, pluginState } from './opencode-plugin.js';

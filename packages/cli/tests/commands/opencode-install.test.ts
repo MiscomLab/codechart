@@ -17,7 +17,7 @@ afterEach(() => removeSandbox(sb.tmp));
 
 const dir = () => join(sb.home, '.config', 'opencode');
 const plugin = () => join(dir(), 'plugins', 'codechart.js');
-const built = () => readFileSync(join(process.cwd(), 'dist', 'server.js'), 'utf8');
+const built = () => readFileSync(join(process.cwd(), 'packages', 'cli', 'dist', 'server.js'), 'utf8');
 const norm = (s: string) => s.split(sb.home).join('~').replaceAll('\\', '/');
 const run = async (args: string[], extra: Parameters<typeof runCli>[0] = {}) => {
   const bin = join(sb.tmp, 'bin');
