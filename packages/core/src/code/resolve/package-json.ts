@@ -34,7 +34,7 @@ export function toPackageJson(raw: unknown): PackageJson | undefined {
  * Conditions tried in `exports` and `imports`, best first: source-ish ones lead to the file a repo edits, `types` comes
  * last because it usually names a declaration file. Other conditions (`browser`, `worker`, custom ones) are not followed.
  */
-export const CONDITIONS = ['source', 'development', 'import', 'module', 'node', 'default', 'require', 'types'] as const;
+const CONDITIONS = ['source', 'development', 'import', 'module', 'node', 'default', 'require', 'types'] as const;
 
 function targets(target: unknown, star: string | undefined, depth = 0): string[] {
   if (typeof target === 'string') return [star === undefined ? target : target.replaceAll('*', star)];

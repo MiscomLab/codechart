@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { parseCode } from '../src/code/parse.js';
 
 const CORE = resolve('packages/core/src');
 const ALLOWED = new Set(['elkjs', 'picomatch', 'web-tree-sitter', 'yaml', 'zod']);
@@ -8,18 +9,13 @@ const ALLOWED = new Set(['elkjs', 'picomatch', 'web-tree-sitter', 'yaml', 'zod']
 const walk = (dir: string): string[] =>
   readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.ts') ? [join(dir, e.name)] : []));
 
-const specifiers = (file: string): string[] => {
-  const text = readFileSync(file, 'utf8');
-  const found: string[] = [];
-  for (const m of text.matchAll(/(?:import|export)[^;]*?from\s+['"]([^'"]+)['"]|\bimport\s*['"]([^'"]+)['"]|\b(?:import|require)\(\s*['"]([^'"]+)['"]\s*\)/g)) found.push(m[1] ?? m[2] ?? m[3]!);
-  return found;
-};
+const specifiers = async (file: string): Promise<string[]> => (await parseCode(file, readFileSync(file, 'utf8')))!.imports.map((i) => i.spec);
 
 describe('@codechart/core independence', () => {
-  it('imports no CLI module or commander', () => {
+  it('imports no CLI module or commander', async () => {
     const bad: string[] = [];
     for (const file of walk(CORE)) {
-      for (const spec of specifiers(file)) {
+      for (const spec of await specifiers(file)) {
         if (spec === 'commander' || spec.includes('@codechart/cli') || spec.includes('packages/cli')) bad.push(`${relative(CORE, file)}: ${spec}`);
         if (spec.startsWith('.')) {
           const target = resolve(dirname(file), spec.replace(/\.js$/, '.ts'));

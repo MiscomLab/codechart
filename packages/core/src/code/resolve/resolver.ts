@@ -21,6 +21,65 @@ const EXTERNAL: Resolution = { status: 'external' };
 const RUNTIME_SCHEMES = /^(node|bun|npm|jsr):/;
 const found = (file: string | undefined): Resolution => (file ? { status: 'resolved', resolved: file } : UNKNOWN);
 
+interface Repo {
+  listed: FileSet;
+  readPackage: (dir: string) => PackageJson | undefined;
+  workspaces: () => Map<string, string | undefined>;
+  tsconfigs: ReturnType<typeof createTsconfigs>;
+}
+
+/** Package folders from `dir` up to the root, nearest first. */
+function packageDirs(repo: Repo, dir: string): string[] {
+  const dirs: string[] = [];
+  for (let d: string | undefined = dir; d !== undefined; d = d ? dirOf(d) : undefined) if (repo.readPackage(d)) dirs.push(d);
+  return dirs;
+}
+
+const declared = (repo: Repo, from: string, name: string) => BUILTINS.has(name) || packageDirs(repo, dirOf(from)).some((d) => repo.readPackage(d)!.deps.has(name));
+
+function fromPackageImports(repo: Repo, from: string, spec: string): Resolution {
+  const dir = packageDirs(repo, dirOf(from))[0];
+  const pkg = dir === undefined ? undefined : repo.readPackage(dir);
+  for (const target of pkg?.imports ? mapTargets(pkg.imports, spec) : []) {
+    const hit = target.startsWith('./') ? found(inPackage(repo.listed, dir!, target)) : bare(repo, from, target);
+    if (hit.status !== 'unknown') return hit;
+  }
+  return UNKNOWN;
+}
+
+function bare(repo: Repo, from: string, spec: string): Resolution {
+  const fromJs = isJsFile(from);
+  const ts = repo.tsconfigs.forFile(from);
+  const { name, subpath } = splitPackageSpec(spec);
+  const alias = ts && matchAlias(repo.listed, ts, spec, fromJs);
+  if (alias === 'no-file') return declared(repo, from, name) ? EXTERNAL : UNKNOWN;
+  if (alias) return found(alias.file);
+  const viaBaseUrl = ts?.baseUrl === undefined ? undefined : joinRepo(ts.baseUrl, spec);
+  const file = viaBaseUrl === undefined ? undefined : resolveFile(repo.listed, viaBaseUrl, fromJs);
+  if (file) return found(file);
+  if (BUILTINS.has(spec)) return EXTERNAL;
+  if (repo.workspaces().has(name)) {
+    const dir = repo.workspaces().get(name);
+    return dir === undefined ? UNKNOWN : found(packageEntry(repo.listed, dir, repo.readPackage(dir)!, subpath));
+  }
+  // A base config outside the repo may set `paths`: only a declared dependency is surely external then.
+  if (ts && !ts.complete && !declared(repo, from, name)) return UNKNOWN;
+  return EXTERNAL;
+}
+
+function resolveSpec(repo: Repo, from: string, spec: string): Resolution {
+  if (RUNTIME_SCHEMES.test(spec)) return EXTERNAL;
+  if (isRelative(spec)) {
+    // A query (`?raw`, `?worker&url`) changes how a bundler loads the file, not which file.
+    const path = joinRepo(dirOf(from), spec.replace(/\?.*$/, ''));
+    return found(path === undefined ? undefined : resolveFile(repo.listed, path, isJsFile(from)));
+  }
+  if (spec.startsWith('#')) return fromPackageImports(repo, from, spec);
+  // Absolute paths, URLs and bundler schemes (`virtual:`) are outside what the repo proves.
+  if (!spec || spec.startsWith('/') || /^[a-z][a-z\d+.-]*:/i.test(spec)) return UNKNOWN;
+  return bare(repo, from, spec);
+}
+
 /**
  * A resolver over `files` (repo paths with `/`, as `listCodeFiles` gives them); `read` returns a repo file's text.
  * Only listed files count, so nothing resolves into `node_modules` or ignored build output.
@@ -35,60 +94,8 @@ export function createResolver(files: Iterable<string>, read: (path: string) => 
     }
     return packages.get(dir);
   };
-  let workspaces: Map<string, string | undefined> | undefined;
-  const workspaceMap = () => (workspaces ??= workspacePackages(listed, readPackage, read));
-  const tsconfigs = createTsconfigs(listed, read, (name) => workspaceMap().get(name));
-
-  /** Package folders from `dir` up to the root, nearest first. */
-  const packageDirs = (dir: string): string[] => {
-    const dirs: string[] = [];
-    for (let d: string | undefined = dir; d !== undefined; d = d ? dirOf(d) : undefined) if (readPackage(d)) dirs.push(d);
-    return dirs;
-  };
-  const declared = (from: string, name: string) => BUILTINS.has(name) || packageDirs(dirOf(from)).some((d) => readPackage(d)!.deps.has(name));
-
-  const fromPackageImports = (from: string, spec: string): Resolution => {
-    const dir = packageDirs(dirOf(from))[0];
-    const pkg = dir === undefined ? undefined : readPackage(dir);
-    for (const target of pkg?.imports ? mapTargets(pkg.imports, spec) : []) {
-      const hit = target.startsWith('./') ? found(inPackage(listed, dir!, target)) : bare(from, target);
-      if (hit.status !== 'unknown') return hit;
-    }
-    return UNKNOWN;
-  };
-
-  const bare = (from: string, spec: string): Resolution => {
-    const fromJs = isJsFile(from);
-    const ts = tsconfigs.forFile(from);
-    const { name, subpath } = splitPackageSpec(spec);
-    const alias = ts && matchAlias(listed, ts, spec, fromJs);
-    if (alias === 'no-file') return declared(from, name) ? EXTERNAL : UNKNOWN;
-    if (alias) return found(alias.file);
-    const viaBaseUrl = ts?.baseUrl === undefined ? undefined : joinRepo(ts.baseUrl, spec);
-    const file = viaBaseUrl === undefined ? undefined : resolveFile(listed, viaBaseUrl, fromJs);
-    if (file) return found(file);
-    if (BUILTINS.has(spec)) return EXTERNAL;
-    if (workspaceMap().has(name)) {
-      const dir = workspaceMap().get(name);
-      return dir === undefined ? UNKNOWN : found(packageEntry(listed, dir, readPackage(dir)!, subpath));
-    }
-    // A base config outside the repo may set `paths`: only a declared dependency is surely external then.
-    if (ts && !ts.complete && !declared(from, name)) return UNKNOWN;
-    return EXTERNAL;
-  };
-
-  return {
-    resolve(from, spec) {
-      if (RUNTIME_SCHEMES.test(spec)) return EXTERNAL;
-      if (isRelative(spec)) {
-        // A query (`?raw`, `?worker&url`) changes how a bundler loads the file, not which file.
-        const path = joinRepo(dirOf(from), spec.replace(/\?.*$/, ''));
-        return found(path === undefined ? undefined : resolveFile(listed, path, isJsFile(from)));
-      }
-      if (spec.startsWith('#')) return fromPackageImports(from, spec);
-      // Absolute paths, URLs and loader schemes (`virtual:`, `bun:`) are outside what the repo proves.
-      if (!spec || spec.startsWith('/') || /^[a-z][a-z\d+.-]*:/i.test(spec)) return UNKNOWN;
-      return bare(from, spec);
-    },
-  };
+  let map: Map<string, string | undefined> | undefined;
+  const workspaces = () => (map ??= workspacePackages(listed, readPackage, read));
+  const repo: Repo = { listed, readPackage, workspaces, tsconfigs: createTsconfigs(listed, read, (name) => workspaces().get(name)) };
+  return { resolve: (from, spec) => resolveSpec(repo, from, spec) };
 }
