@@ -8,15 +8,15 @@ import type { Grammar } from './languages.js';
 /** Definitions the upstream `tags.scm` files leave out. */
 const EXTRA_JS = `
 (field_definition
-  property: (property_identifier) @name
+  property: [(property_identifier) (private_property_identifier)] @name
   value: [(arrow_function) (function_expression)]) @definition.method
 `;
 const EXTRA_TS = `
 (type_alias_declaration name: (type_identifier) @name) @definition.type
 (enum_declaration name: (identifier) @name) @definition.enum
-(internal_module name: (identifier) @name) @definition.module
+(internal_module name: [(identifier) (nested_identifier)] @name) @definition.module
 (public_field_definition
-  name: (property_identifier) @name
+  name: [(property_identifier) (private_property_identifier)] @name
   value: [(arrow_function) (function_expression)]) @definition.method
 `;
 

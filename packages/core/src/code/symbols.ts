@@ -36,8 +36,14 @@ function errorNodes(node: Node, out: Node[] = []): Node[] {
   return out;
 }
 
-// Overloads share a scope; `export` wraps each declaration on its own.
-const scopeOf = (node: Node): number | undefined => (node.parent?.type === 'export_statement' ? node.parent.parent : node.parent)?.id;
+const WRAPPERS = new Set(['export_statement', 'ambient_declaration']);
+
+// Overloads share a scope; `export` and `declare` wrap each declaration on its own.
+function scopeOf(node: Node): number | undefined {
+  let parent = node.parent;
+  while (parent && WRAPPERS.has(parent.type)) parent = parent.parent;
+  return parent?.id;
+}
 
 // A MISSING node is zero-width: it breaks the definitions it sits in or at the edge of.
 const touches = (def: Node, err: Node) =>
@@ -63,7 +69,8 @@ function nest(defs: Omit<Def, 'path' | 'broken'>[], errors: Node[]): Def[] {
   return defs.map((d) => {
     while (stack.length && stack[stack.length - 1]!.node.endIndex < d.node.endIndex) stack.pop();
     const parent = stack[stack.length - 1];
-    const nested: Def = { ...d, path: [...(parent?.path ?? []), d.name], broken: (parent?.broken ?? false) || errors.some((e) => touches(d.node, e)) };
+    // `namespace A.B` is `namespace A { namespace B }`.
+    const nested: Def = { ...d, path: [...(parent?.path ?? []), ...d.name.split('.')], broken: (parent?.broken ?? false) || errors.some((e) => touches(d.node, e)) };
     stack.push(nested);
     return nested;
   });

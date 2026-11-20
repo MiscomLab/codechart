@@ -64,6 +64,22 @@ describe('parseCode symbols', () => {
     ]);
   });
 
+  it('merges ambient overloads, which declare wraps one by one', async () => {
+    const text = 'declare function f(): void;\ndeclare function f(a: string): void;\nexport declare function g(): void;\nexport declare function g(a: string): void;\n';
+    expect(await outline('x.d.ts', text)).toEqual(['f function 1-2', 'g function 3-4']);
+  });
+
+  it('reads namespaces, dotted ones as nested', async () => {
+    const text = 'namespace A {\n  export function f() {}\n}\nnamespace B.C {\n  export function g() {}\n}\n';
+    expect(await outline('n.ts', text)).toEqual(['A module 1-3', 'A.f function 2-2', 'B.C module 4-6', 'B.C.g function 5-5']);
+  });
+
+  it('reads private arrow-function fields', async () => {
+    const text = 'class K {\n  #p = () => 1;\n}\n';
+    expect(await outline('k.ts', text)).toEqual(['K class 1-3', 'K.#p method 2-2']);
+    expect(await outline('k.js', text)).toEqual(['K class 1-3', 'K.#p method 2-2']);
+  });
+
   it('parses TSX and JavaScript with JSX', async () => {
     expect(await outline('src/ui/Button.tsx')).toEqual(['Button function 1-3']);
     expect(await outline('src/legacy/util.js')).toEqual(['legacy function 1-3', 'helper function 7-9']);
