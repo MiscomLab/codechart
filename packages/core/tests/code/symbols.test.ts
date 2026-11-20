@@ -54,6 +54,16 @@ describe('parseCode symbols', () => {
     expect(await outline('y.ts', interfaces)).toEqual(['I interface 1-3', 'I.m method 2-2', 'g function 4-4', 'I interface 5-7', 'I.m method 6-6']);
   });
 
+  it('merges each later group of overloads too', async () => {
+    const text = 'interface I {\n  m(a: string): void;\n  m(a: number): void;\n}\ninterface I {\n  m(a: string): void;\n  m(a: number): void;\n}\n';
+    expect((await parse('z.ts', text)).symbols.map((s) => `${s.id} ${s.range.start.line}-${s.range.end.line}`)).toEqual([
+      'z.ts::I::interface 1-4',
+      'z.ts::I.m::method 2-3',
+      'z.ts::I::interface~2 5-8',
+      'z.ts::I.m::method~2 6-7',
+    ]);
+  });
+
   it('parses TSX and JavaScript with JSX', async () => {
     expect(await outline('src/ui/Button.tsx')).toEqual(['Button function 1-3']);
     expect(await outline('src/legacy/util.js')).toEqual(['legacy function 1-3', 'helper function 7-9']);

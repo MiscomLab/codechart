@@ -89,8 +89,8 @@ export function extractSymbols(file: string, tree: Tree, tags: Query): Extracted
     }
     const id = prev ? `${base}~${++prev.count}` : base;
     const symbol: CodeSymbol = { id, file, path: def.path, kind: def.kind, range: nodeRange(def.node) };
-    if (prev) prev.signature = false;
-    else byId.set(base, { symbol, signature: def.node.type.endsWith('_signature'), scope: scopeOf(def.node), count: 1 });
+    // The latest group with this identity is the one a following overload can join.
+    byId.set(base, { symbol, signature: def.node.type.endsWith('_signature'), scope: scopeOf(def.node), count: prev?.count ?? 1 });
     symbols.push(symbol);
     if (def.broken) broken.add(id);
   }
