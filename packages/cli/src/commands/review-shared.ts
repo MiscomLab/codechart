@@ -1,9 +1,9 @@
 import { join, resolve } from 'node:path';
 import { findRepoRoot, loadConfig } from '@codechart/core';
 import type { CommandOptions } from '../program.js';
-import { repoFolder } from '../render/output-path.js';
+import { repoFolder } from '@codechart/core';
 import { gitBranch } from '@codechart/core';
-import { findChange, type Found, type Which } from '../review/store.js';
+import { findChange, type Found, type Which } from '@codechart/core';
 
 export interface Located extends Found {
   root: string;

@@ -2,10 +2,10 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, st
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ProgramOptions } from '../../src/program.js';
-import { repoFolder } from '../../src/render/output-path.js';
+import { repoFolder } from '@codechart/core';
 import { defaultEditor } from '../../src/commands/review-editor.js';
 import { gitBranch } from '@codechart/core';
-import { readReview, saveReview, writeReview } from '../../src/review/store.js';
+import { readReview, saveReview, writeReview } from '@codechart/core';
 import { git, makeSandbox, removeSandbox } from '../../../../tests/helpers/sandbox.js';
 import { runCli } from '../../../../tests/helpers/cli.js';
 

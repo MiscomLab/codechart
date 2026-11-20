@@ -2,9 +2,9 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Config } from '@codechart/core';
-import { repoFolder } from '../../src/render/output-path.js';
+import { repoFolder } from '@codechart/core';
 import { writeHtml, writeReviewOnly } from '../../src/render/web/write.js';
-import { readReview, saveReview } from '../../src/review/store.js';
+import { readReview, saveReview } from '@codechart/core';
 import { makeTempDir, removeTempDir } from '../../../../tests/helpers/sandbox.js';
 import { api, note } from '../../../../tests/fixtures/review.js';
 

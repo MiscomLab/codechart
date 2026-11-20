@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { placeText } from '../../src/render/web/browser/targets.js';
 import { importNotes, parseReviewText, type ImportPayload } from '../../src/review/import.js';
-import type { Review } from '../../src/review/schema.js';
+import type { Review } from '@codechart/core';
 import { api, note, review } from '../../../../tests/fixtures/review.js';
 
 const payload = (notes: ImportPayload['notes'] = [{ t: { node: 'api' }, r: 'rev-api', k: 'comment', b: 'check this' }]): ImportPayload => ({ v: 1, slug: 'invites', branch: 'feat/invites', at: '2026-10-28T08:05:03.000Z', notes });

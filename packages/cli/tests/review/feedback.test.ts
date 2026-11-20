@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildDoc } from '../../src/review/doc.js';
+import { buildDoc } from '@codechart/core';
 import { feedbackText } from '../../src/review/feedback.js';
-import { mergeNotes } from '../../src/review/merge.js';
-import { parseDoc } from '../../src/review/parse.js';
-import type { Note } from '../../src/review/schema.js';
+import { mergeNotes } from '@codechart/core';
+import { parseDoc } from '@codechart/core';
+import type { Note } from '@codechart/core';
 import { note, review } from '../../../../tests/fixtures/review.js';
 
 const on = (id: string, target: Note['target'], body: string, over: Partial<Note> = {}): Note => note(id, { node: undefined, rev: undefined, target, body, ...over });

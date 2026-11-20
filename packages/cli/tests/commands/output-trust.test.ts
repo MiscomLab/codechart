@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, symlinkSync, writeFileSync } from '
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadConfigWithSources } from '@codechart/core';
-import { repoFolder } from '../../src/render/output-path.js';
+import { repoFolder } from '@codechart/core';
 import { pruneHtml } from '../../src/render/prune.js';
 import { makeSandbox, removeSandbox } from '../../../../tests/helpers/sandbox.js';
 import { runCli } from '../../../../tests/helpers/cli.js';

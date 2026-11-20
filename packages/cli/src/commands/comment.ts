@@ -1,9 +1,9 @@
 import { Command, Option } from 'commander';
 import type { CommandOptions } from '../program.js';
 import { sanitizeText } from '@codechart/core';
-import { isAt, lastNoteNumber } from '../review/doc.js';
-import type { Note, NoteKind, Review, ReviewNode } from '../review/schema.js';
-import { updateReview } from '../review/store.js';
+import { isAt, lastNoteNumber } from '@codechart/core';
+import type { Note, NoteKind, Review, ReviewNode } from '@codechart/core';
+import { updateReview } from '@codechart/core';
 import { guarded, locateChange } from './review-shared.js';
 
 interface CommentFlags {

@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from 'vitest';
 import { businessPage } from '../../src/render/business/html.js';
-import { carryNotes } from '../../src/review/carry.js';
+import { carryNotes } from '@codechart/core';
 import { importNotes, parseReviewText } from '../../src/review/import.js';
-import type { Note, Review, ReviewNode } from '../../src/review/schema.js';
+import type { Note, Review, ReviewNode } from '@codechart/core';
 import { businessSnapshot } from '../../src/review/snapshot.js';
 import { validateBusinessSpec, type ChangeSpec } from '@codechart/core';
 import { business } from '../../../../tests/fixtures/business.js';

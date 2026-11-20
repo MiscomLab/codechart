@@ -1,7 +1,7 @@
 import { mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { repoFolder } from '../../src/render/output-path.js';
+import { repoFolder } from '@codechart/core';
 import { release } from '../../../../tests/fixtures/release.js';
 import { fakeBrowser } from '../../../../tests/helpers/fake-browser.js';
 import { git, makeSandbox, removeSandbox, repoFromTemplate, type Sandbox } from '../../../../tests/helpers/sandbox.js';

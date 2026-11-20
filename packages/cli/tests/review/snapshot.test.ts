@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Preview } from '../../src/render/preview.js';
-import { buildDoc } from '../../src/review/doc.js';
+import { buildDoc } from '@codechart/core';
 import { feedbackText } from '../../src/review/feedback.js';
-import { carryNotes } from '../../src/review/carry.js';
+import { carryNotes } from '@codechart/core';
 import { flowSnapshot, mapSnapshot } from '../../src/review/snapshot.js';
 import type { Spec } from '@codechart/core';
 import { sampleFlow, sampleSnippets } from '../../../../tests/fixtures/flow.js';

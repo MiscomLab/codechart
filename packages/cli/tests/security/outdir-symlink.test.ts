@@ -2,7 +2,7 @@ import { mkdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildProgram, runProgram } from '../../src/program.js';
-import { repoFolder } from '../../src/render/output-path.js';
+import { repoFolder } from '@codechart/core';
 import { makeSandbox, removeSandbox } from '../../../../tests/helpers/sandbox.js';
 
 let tmp: string;

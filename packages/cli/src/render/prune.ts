@@ -1,7 +1,7 @@
 import { lstatSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { readReview } from '../review/store.js';
-import { HTML_NAME, parseStamp, REVIEW_NAME, stamp } from './output-path.js';
+import { readReview } from '@codechart/core';
+import { HTML_NAME, parseStamp, REVIEW_NAME, stamp } from '@codechart/core';
 
 const DAY_MS = 86_400_000;
 const BUSINESS_KEEP_DAYS = 30;

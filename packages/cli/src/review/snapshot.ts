@@ -11,8 +11,8 @@ import { hasGitSelection, type GitSelection } from '@codechart/core';
 import type { ChangeSpec } from '@codechart/core';
 import type { FlowSpec, FlowStep } from '@codechart/core';
 import type { Spec } from '@codechart/core';
-import type { Range, ReviewNode } from './schema.js';
-import type { ReviewSnapshot } from './store.js';
+import type { Range, ReviewNode } from '@codechart/core';
+import type { ReviewSnapshot } from '@codechart/core';
 
 const MAX_DIRTY = 2000;
 

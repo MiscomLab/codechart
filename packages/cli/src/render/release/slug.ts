@@ -1,4 +1,4 @@
-import { fileSlug } from '../output-path.js';
+import { fileSlug } from '@codechart/core';
 
 /** "v1.2.0-beta.1" and "1.2.0-beta.1" both give "1-2-0-beta-1". */
 export const versionSlug = (version: string): string =>

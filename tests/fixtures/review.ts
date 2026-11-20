@@ -1,4 +1,4 @@
-import type { Note, Review, ReviewNode } from '../../packages/cli/src/review/schema.js';
+import type { Note, Review, ReviewNode } from '@codechart/core';
 
 export const api: ReviewNode = {
   id: 'api',

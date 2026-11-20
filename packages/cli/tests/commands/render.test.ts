@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type ProgramOptions } from '../../src/program.js';
 import { FLOW_KEY } from '../../src/render/flow/tree.js';
-import { repoFolder } from '../../src/render/output-path.js';
+import { repoFolder } from '@codechart/core';
 import { sampleFlow } from '../../../../tests/fixtures/flow.js';
 import { makeSandbox, removeSandbox } from '../../../../tests/helpers/sandbox.js';
 import { runCli } from '../../../../tests/helpers/cli.js';

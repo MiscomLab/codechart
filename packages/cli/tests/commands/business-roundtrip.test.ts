@@ -2,8 +2,8 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { repoFolder } from '../../src/render/output-path.js';
-import { readReview } from '../../src/review/store.js';
+import { repoFolder } from '@codechart/core';
+import { readReview } from '@codechart/core';
 import { business, businessExplain, TECH } from '../../../../tests/fixtures/business.js';
 import { EXPLAIN_FILES, withFlows } from '../../../../tests/fixtures/explain.js';
 import { click, mount, q, usePages } from '../../../../tests/helpers/page.js';

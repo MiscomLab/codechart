@@ -2,7 +2,7 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import picomatch from 'picomatch';
 import type { Config } from '@codechart/core';
-import { repoFolder } from '../render/output-path.js';
+import { repoFolder } from '@codechart/core';
 import { versionSlug } from '../render/release/slug.js';
 import { gitBranch } from '@codechart/core';
 

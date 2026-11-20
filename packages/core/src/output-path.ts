@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { basename, join } from 'node:path';
-import type { Config } from '@codechart/core';
+import type { Config } from './config/schema.js';
 
 export const HTML_NAME = /^(\d{8}-\d{6})-([a-z0-9-]+(?:\.flow|\.business|\.release|\.explain)?)\.html$/;
 

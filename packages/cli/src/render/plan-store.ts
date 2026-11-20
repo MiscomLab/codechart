@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { gitBranch, gitHead, gitIsAncestor } from '@codechart/core';
 import type { FlowSpec } from '@codechart/core';
 import { validateSpec, type Spec } from '@codechart/core';
-import { repoFolder } from './output-path.js';
+import { repoFolder } from '@codechart/core';
 import { privateDir } from './web/write.js';
 
 const MAX_AGE_MS = 7 * 86_400_000;

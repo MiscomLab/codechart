@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { closeSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { REVIEW_NAME } from '../render/output-path.js';
+import { REVIEW_NAME } from '../output-path.js';
 import { carryNotes } from './carry.js';
 import { reviewSchema, type Range, type Review, type ReviewNode } from './schema.js';
 

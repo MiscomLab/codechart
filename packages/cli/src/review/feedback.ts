@@ -1,6 +1,6 @@
 import { sanitizeText } from '@codechart/core';
-import { changeTitle, oneLine } from './doc.js';
-import type { Note, NoteKind, Review, ReviewNode, Target } from './schema.js';
+import { changeTitle, oneLine } from '@codechart/core';
+import type { Note, NoteKind, Review, ReviewNode, Target } from '@codechart/core';
 
 const LABEL: Record<NoteKind, string> = { comment: 'Comment', question: 'Question', delete: 'Delete', answer: 'Answer', confirm: 'Confirmed', reject: 'Rejected' };
 

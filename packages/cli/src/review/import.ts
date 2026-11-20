@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { sanitizeText } from '@codechart/core';
 import { LONG, SHORT } from '@codechart/core';
-import { targetExists } from './carry.js';
-import { isAt, lastNoteNumber } from './doc.js';
-import { sameNote } from './parse.js';
-import type { Note, Review, Target } from './schema.js';
+import { targetExists } from '@codechart/core';
+import { isAt, lastNoteNumber } from '@codechart/core';
+import { sameNote } from '@codechart/core';
+import type { Note, Review, Target } from '@codechart/core';
 
 export const MAX_IMPORT_BYTES = 512 * 1024;
 const MAX_NOTES = 500;

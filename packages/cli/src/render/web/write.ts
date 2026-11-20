@@ -2,8 +2,8 @@ import { chmodSync, lstatSync, mkdirSync, writeFileSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
 import type { Config, Theme } from '@codechart/core';
 import { gitBranch } from '@codechart/core';
-import { saveReview, type ReviewSnapshot } from '../../review/store.js';
-import { htmlOutputPath, repoFolder, reviewFile } from '../output-path.js';
+import { saveReview, type ReviewSnapshot } from '@codechart/core';
+import { htmlOutputPath, repoFolder, reviewFile } from '@codechart/core';
 import { pruneHtml } from '../prune.js';
 import type { HtmlMeta } from './page.js';
 

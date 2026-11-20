@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readdirSync, rmSync, statSync, utimesSync, write
 import { basename, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { pruneHtml } from '../../src/render/prune.js';
-import type { Review } from '../../src/review/schema.js';
-import { findChange, listReviews, readReview, reviewLock, saveReview, updateReview, writeReview, type Found } from '../../src/review/store.js';
+import type { Review } from '@codechart/core';
+import { findChange, listReviews, readReview, reviewLock, saveReview, updateReview, writeReview, type Found } from '@codechart/core';
 import { makeTempDir, removeTempDir } from '../../../../tests/helpers/sandbox.js';
 import { api, mailer, note } from '../../../../tests/fixtures/review.js';
 

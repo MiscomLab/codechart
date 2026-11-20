@@ -1,9 +1,9 @@
 import { existsSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { stamp } from '../../src/render/output-path.js';
+import { stamp } from '@codechart/core';
 import { pruneHtml } from '../../src/render/prune.js';
-import { writeReview } from '../../src/review/store.js';
+import { writeReview } from '@codechart/core';
 import { makeTempDir, removeTempDir } from '../../../../tests/helpers/sandbox.js';
 
 const DAY = 86_400_000;

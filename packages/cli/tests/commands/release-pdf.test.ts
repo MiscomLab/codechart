@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { browserArgs, findBrowser, pdfFlagPath, printPdf } from '../../src/commands/release-pdf.js';
-import { repoFolder } from '../../src/render/output-path.js';
+import { repoFolder } from '@codechart/core';
 import { release } from '../../../../tests/fixtures/release.js';
 import { fakeBrowser, printTarget } from '../../../../tests/helpers/fake-browser.js';
 import { makeSandbox, removeSandbox, repoFromTemplate, type Sandbox } from '../../../../tests/helpers/sandbox.js';

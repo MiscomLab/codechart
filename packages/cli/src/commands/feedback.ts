@@ -3,10 +3,10 @@ import { Command, Option } from 'commander';
 import type { CommandOptions } from '../program.js';
 import { sanitizeText } from '@codechart/core';
 import { readClipboard } from '../review/clipboard.js';
-import { changeTitle } from '../review/doc.js';
+import { changeTitle } from '@codechart/core';
 import { countsLine, feedbackText, osc52 } from '../review/feedback.js';
 import { importNotes, MAX_IMPORT_BYTES, parseReviewText } from '../review/import.js';
-import { updateReview, type Found, type Which } from '../review/store.js';
+import { updateReview, type Found, type Which } from '@codechart/core';
 import { guarded, locateChange } from './review-shared.js';
 import { readStdin } from './stdin.js';
 

@@ -4,12 +4,12 @@ import { join } from 'node:path';
 import { Command } from 'commander';
 import type { CommandOptions } from '../program.js';
 import { colorDoc } from '../review/color.js';
-import { buildDoc } from '../review/doc.js';
+import { buildDoc } from '@codechart/core';
 import { countsLine } from '../review/feedback.js';
-import { mergeNotes } from '../review/merge.js';
-import { normalizeEol, parseDoc } from '../review/parse.js';
+import { mergeNotes } from '@codechart/core';
+import { normalizeEol, parseDoc } from '@codechart/core';
 import { isStale } from '../review/snapshot.js';
-import { updateReview } from '../review/store.js';
+import { updateReview } from '@codechart/core';
 import { defaultEditor, runEditor } from './review-editor.js';
 import { guarded, locateChange } from './review-shared.js';
 

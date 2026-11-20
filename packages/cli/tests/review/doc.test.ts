@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildDoc } from '../../src/review/doc.js';
+import { buildDoc } from '@codechart/core';
 import { countsLine, feedbackText, osc52 } from '../../src/review/feedback.js';
-import { mergeNotes } from '../../src/review/merge.js';
-import { parseDoc } from '../../src/review/parse.js';
+import { mergeNotes } from '@codechart/core';
+import { parseDoc } from '@codechart/core';
 import { api, note, review } from '../../../../tests/fixtures/review.js';
 
 const now = new Date('2026-10-28T09:10:00.000Z');

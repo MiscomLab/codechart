@@ -1,8 +1,8 @@
 import { readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { repoFolder } from '../../src/render/output-path.js';
-import { readReview, updateReview } from '../../src/review/store.js';
+import { repoFolder } from '@codechart/core';
+import { readReview, updateReview } from '@codechart/core';
 import { business, TECH } from '../../../../tests/fixtures/business.js';
 import { git, makeSandbox, removeSandbox, repoFromTemplate, type Sandbox } from '../../../../tests/helpers/sandbox.js';
 import { runCli } from '../../../../tests/helpers/cli.js';

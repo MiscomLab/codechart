@@ -8,7 +8,7 @@ import { diffOf, type Diff } from '../render/check.js';
 import type { Drift } from '../render/drift.js';
 import { checkFlowAnchors, type FlowSnippets } from '../render/flow/anchors.js';
 import { openBlockedNote } from '../render/markdown.js';
-import { fileSlug, repoFolder } from '../render/output-path.js';
+import { fileSlug, repoFolder } from '@codechart/core';
 import { loadPlan, savePlan, type PlanStoreOptions, type StoredPlan } from '../render/plan-store.js';
 import { flagged, type CheckSummary } from '../render/terminal/check-lines.js';
 import { defaultWidth } from '../render/terminal/render.js';

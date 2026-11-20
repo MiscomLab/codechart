@@ -4,7 +4,7 @@ import type { Theme } from '@codechart/core';
 import type { CommandOptions } from '../program.js';
 import { renderBusiness } from '../render/business/render.js';
 import { openBlockedNote } from '../render/markdown.js';
-import { fileSlug } from '../render/output-path.js';
+import { fileSlug } from '@codechart/core';
 import { isExplain, type BusinessSpec } from '@codechart/core';
 import { businessLinkIssues } from '@codechart/core';
 import { loadTechBoxes } from './business-tech.js';

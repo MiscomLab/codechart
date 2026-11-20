@@ -3,9 +3,9 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ProgramOptions } from '../../src/program.js';
 import { carriesData } from '../../src/commands/feedback.js';
-import { repoFolder } from '../../src/render/output-path.js';
+import { repoFolder } from '@codechart/core';
 import { gitBranch } from '@codechart/core';
-import { readReview, writeReview } from '../../src/review/store.js';
+import { readReview, writeReview } from '@codechart/core';
 import { git, makeSandbox, removeSandbox } from '../../../../tests/helpers/sandbox.js';
 import { runCli } from '../../../../tests/helpers/cli.js';
 
