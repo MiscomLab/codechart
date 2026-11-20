@@ -54,7 +54,7 @@ function bare(repo: Repo, from: string, spec: string): Resolution {
   const alias = ts && matchAlias(repo.listed, ts, spec, fromJs);
   if (alias === 'no-file') return declared(repo, from, name) ? EXTERNAL : UNKNOWN;
   if (alias) return found(alias.file);
-  const viaBaseUrl = ts?.baseUrl === undefined ? undefined : joinRepo(ts.baseUrl, spec);
+  const viaBaseUrl = typeof ts?.baseUrl === 'string' ? joinRepo(ts.baseUrl, spec) : undefined;
   const file = viaBaseUrl === undefined ? undefined : resolveFile(repo.listed, viaBaseUrl, fromJs);
   if (file) return found(file);
   if (BUILTINS.has(spec)) return EXTERNAL;
@@ -67,13 +67,22 @@ function bare(repo: Repo, from: string, spec: string): Resolution {
   return EXTERNAL;
 }
 
+/** A file first; a folder by its package.json entry, else its `index`, as Node loads them. */
+function relative(repo: Repo, from: string, spec: string): Resolution {
+  // A query (`?raw`, `?worker&url`) changes how a bundler loads the file, not which file.
+  const query = spec.indexOf('?');
+  const path = joinRepo(dirOf(from), query < 0 ? spec : spec.slice(0, query));
+  if (path === undefined) return UNKNOWN;
+  const file = resolveFile(repo.listed, path, isJsFile(from));
+  const pkg = !file || file.startsWith(path ? `${path}/index.` : 'index.') ? repo.readPackage(path) : undefined;
+  // `exports` applies to imports by package name only.
+  if (pkg?.entries.length) return found(packageEntry(repo.listed, path, { ...pkg, exports: undefined }, '.'));
+  return found(file);
+}
+
 function resolveSpec(repo: Repo, from: string, spec: string): Resolution {
   if (RUNTIME_SCHEMES.test(spec)) return EXTERNAL;
-  if (isRelative(spec)) {
-    // A query (`?raw`, `?worker&url`) changes how a bundler loads the file, not which file.
-    const path = joinRepo(dirOf(from), spec.replace(/\?.*$/, ''));
-    return found(path === undefined ? undefined : resolveFile(repo.listed, path, isJsFile(from)));
-  }
+  if (isRelative(spec)) return relative(repo, from, spec);
   if (spec.startsWith('#')) return fromPackageImports(repo, from, spec);
   // Absolute paths, URLs and bundler schemes (`virtual:`) are outside what the repo proves.
   if (!spec || spec.startsWith('/') || /^[a-z][a-z\d+.-]*:/i.test(spec)) return UNKNOWN;

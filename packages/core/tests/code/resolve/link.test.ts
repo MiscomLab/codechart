@@ -39,6 +39,17 @@ describe('linkImports', () => {
     expect(found).toEqual({ x: undefined, y: undefined, z: 'open.ts', def: undefined });
   });
 
+  it('proves nothing for one name two stars bind to different exports of the same file', async () => {
+    const found = await definitions({
+      'app.ts': "import { x } from './barrel';",
+      'barrel.ts': "export * from './p';\nexport * from './q';",
+      'p.ts': "export { a as x } from './origin';",
+      'q.ts': "export { b as x } from './origin';",
+      'origin.ts': 'export const a = 1, b = 2;',
+    });
+    expect(found).toEqual({ x: undefined });
+  });
+
   it('treats one definition reached twice as one, and survives star cycles', async () => {
     const found = await definitions({
       'app.ts': "import { x, none } from './a';",

@@ -42,6 +42,11 @@ describe('relative specifiers', () => {
     expect([r.resolve('src/a.ts', './c.js?worker&url'), r.resolve('src/a.ts', './data.json?raw'), r.resolve('src/a.ts', './nope?raw')]).toEqual([to('src/c.tsx'), to('src/data.json'), UNKNOWN]);
   });
 
+  it('loads a directory by its package.json entry before its index', () => {
+    const r = repo({ 'lib/package.json': json({ main: './entry.js' }), 'lib/entry.js': '', 'lib/index.js': '', 'only/package.json': json({ main: './dist/m.js' }), 'only/src/m.ts': '', 'plain/package.json': '{}', 'plain/index.js': '', 'a.js': '' });
+    expect(['./lib', './only', './plain'].map((s) => r.resolve('a.js', s))).toEqual([to('lib/entry.js'), to('only/src/m.ts'), to('plain/index.js')]);
+  });
+
   it('marks missing files and paths leaving the repo unknown', () => {
     expect([r.resolve('src/a.ts', './nope'), r.resolve('src/a.ts', '../../a'), r.resolve('src/a.ts', '/abs/a')]).toEqual([UNKNOWN, UNKNOWN, UNKNOWN]);
   });
@@ -110,9 +115,14 @@ describe('tsconfig extends', () => {
     expect([r.resolve('b/b.ts', 'vitest'), r.resolve('b/b.ts', 'fs'), r.resolve('b/b.ts', 'left-pad')]).toEqual([EXTERNAL, EXTERNAL, UNKNOWN]);
   });
 
-  it('leaves the options unproven when baseUrl points outside the repo', () => {
-    const r = repo({ 'tsconfig.json': json({ compilerOptions: { baseUrl: '..' } }), 'a.ts': '' });
-    expect(r.resolve('a.ts', 'left-pad')).toEqual(UNKNOWN);
+  it('leaves the options unproven when baseUrl points outside the repo, overriding an inherited one', () => {
+    const r = repo({
+      'base.json': json({ compilerOptions: { baseUrl: './src', paths: { '@/*': ['*'] } } }),
+      'tsconfig.json': json({ extends: './base.json', compilerOptions: { baseUrl: '../shared' } }),
+      'src/x.ts': '',
+      'a.ts': '',
+    });
+    expect([r.resolve('a.ts', 'left-pad'), r.resolve('a.ts', 'x'), r.resolve('a.ts', '@/x')]).toEqual([UNKNOWN, UNKNOWN, UNKNOWN]);
   });
 
   it('stops at a cycle', () => {

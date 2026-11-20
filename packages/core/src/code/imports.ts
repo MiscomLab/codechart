@@ -91,6 +91,8 @@ DECLARED_NAMES.variable_declaration = DECLARED_NAMES.lexical_declaration!;
 function bindings(node: Node | null): Node[] {
   if (!node) return [];
   if (node.type === 'identifier' || node.type === 'shorthand_property_identifier_pattern') return [node];
+  // `x = fallback`: only the left side binds.
+  if (node.type === 'assignment_pattern' || node.type === 'object_assignment_pattern') return bindings(node.childForFieldName('left'));
   const value = node.type === 'pair_pattern' ? node.childForFieldName('value') : undefined;
   if (value) return bindings(value);
   return node.namedChildren.flatMap((c) => (c && c.type !== 'property_identifier' ? bindings(c) : []));

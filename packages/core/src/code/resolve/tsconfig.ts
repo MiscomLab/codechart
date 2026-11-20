@@ -4,7 +4,8 @@ import { splitPackageSpec } from './packages.js';
 
 /** The module options of a tsconfig, its `extends` chain merged in. Directories are repo paths. */
 export interface TsOptions {
-  baseUrl?: string;
+  /** null when set to a folder outside the repo: lookups from it prove nothing. */
+  baseUrl?: string | null;
   /** `compilerOptions.paths`; `dir` is the folder of the config that set them, which targets are relative to without `baseUrl`. */
   paths?: { patterns: [string, string[]][]; dir: string };
   /** False when a config in the chain could not be read, so an option it sets is unknown. */
@@ -47,8 +48,7 @@ export function createTsconfigs(files: FileSet, read: (path: string) => string |
     const options = isObject(raw.compilerOptions) ? raw.compilerOptions : {};
     if (typeof options.baseUrl === 'string') {
       const baseUrl = joinRepo(dirOf(path), options.baseUrl);
-      if (baseUrl === undefined) merged = { ...merged, complete: false };
-      else merged = { ...merged, baseUrl };
+      merged = baseUrl === undefined ? { ...merged, baseUrl: null, complete: false } : { ...merged, baseUrl };
     }
     if (isObject(options.paths)) {
       const patterns = Object.entries(options.paths).map(([k, v]): [string, string[]] => [k, strings(v)]);
@@ -95,9 +95,10 @@ export function matchAlias(files: FileSet, opts: TsOptions, spec: string, fromJs
     best = { targets, star: spec.slice(prefix.length, spec.length - suffix.length), prefix: prefix.length };
   }
   if (!best) return undefined;
+  if (opts.baseUrl === null) return 'no-file';
   const base = opts.baseUrl ?? opts.paths.dir;
   for (const target of best.targets) {
-    const path = joinRepo(base, best.star === undefined ? target : target.replace('*', best.star));
+    const path = joinRepo(base, best.star === undefined ? target : target.replaceAll('*', best.star));
     const file = path === undefined ? undefined : resolveFile(files, path, fromJs);
     if (file) return { file };
   }

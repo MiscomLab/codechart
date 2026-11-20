@@ -56,6 +56,8 @@ describe('import extraction', () => {
       complete: true,
     });
     expect((await parse('export default class {}')).exports.names).toEqual([{ name: 'default' }]);
+    const defaults = await parse('export const [x = fallback, { y = other, k: z = more }] = values;');
+    expect(defaults.exports.names).toEqual([{ name: 'x' }, { name: 'y' }, { name: 'z' }]);
     const incomplete = await Promise.all([parse('export = x;'), parse('module.exports = {};', 'c.js'), parse('exports.a = 1;', 'c.js'), parse('export const a = ;')]);
     expect(incomplete.map((f) => f.exports.complete)).toEqual([false, false, false, false]);
   });
