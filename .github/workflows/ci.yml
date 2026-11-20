@@ -49,8 +49,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm pack --silent
-      - run: npm i --prefix "$RUNNER_TEMP/p" ./codechart-*.tgz
+      - run: npm run build
+      - run: npm pack --workspaces --pack-destination "$RUNNER_TEMP/pack" --silent
+        shell: bash
+      - run: npm i --prefix "$RUNNER_TEMP/p" "$RUNNER_TEMP/pack"/*.tgz
         shell: bash
       # The installed copy, run with every user-level folder pointed at an empty one.
       - shell: bash
