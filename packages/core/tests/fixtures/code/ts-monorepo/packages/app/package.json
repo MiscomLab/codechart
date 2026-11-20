@@ -1,0 +1,6 @@
+{
+  "name": "@mono/app",
+  "type": "module",
+  "dependencies": { "@mono/lib": "*", "zod": "^4.0.0" },
+  "imports": { "#config": "./src/config.ts" }
+}

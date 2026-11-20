@@ -58,7 +58,9 @@ function createTracer(byPath: ReadonlyMap<string, ParsedFile>) {
 
 function withDefinitions(imp: Import, trace: ReturnType<typeof createTracer>): Import {
   if (!imp.names) return imp;
-  const names = imp.names.map(({ definedIn: _, ...name }): ImportedName => {
+  const names = imp.names.map((stated): ImportedName => {
+    const name = { ...stated };
+    delete name.definedIn;
     if (imp.status !== 'resolved' || !imp.resolved || name.local === '*') return name;
     const found = name.imported === '*' ? { file: imp.resolved } : trace(imp.resolved, name.imported);
     return typeof found === 'object' ? { ...name, definedIn: found.file } : name;
@@ -73,7 +75,11 @@ function withDefinitions(imp: Import, trace: ReturnType<typeof createTracer>): I
 export function linkImports(files: readonly ParsedFile[], resolver: Resolver): ParsedFile[] {
   const resolved = files.map((f) => ({
     ...f,
-    imports: f.imports.map(({ resolved: _r, status: _s, ...imp }): Import => ({ ...imp, ...resolver.resolve(f.file.path, imp.spec) })),
+    imports: f.imports.map((stated): Import => {
+      const imp = { ...stated, ...resolver.resolve(f.file.path, stated.spec) };
+      if (imp.status !== 'resolved') delete imp.resolved;
+      return imp;
+    }),
   }));
   const trace = createTracer(new Map(resolved.map((f) => [f.file.path, f])));
   return resolved.map((f) => ({ ...f, imports: f.imports.map((i) => withDefinitions(i, trace)) }));

@@ -1,0 +1,9 @@
+{
+  "name": "@mono/lib",
+  "type": "module",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./utils/*": "./dist/utils/*.js",
+    "./internal/*": null
+  }
+}

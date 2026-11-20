@@ -1,0 +1,9 @@
+{
+  // Shared by every package.
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@app/*": ["packages/app/src/*"], /* aliases into the app */
+    },
+  },
+}

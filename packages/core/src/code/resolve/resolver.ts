@@ -45,17 +45,17 @@ export function createResolver(files: Iterable<string>, read: (path: string) => 
   };
   const declared = (from: string, name: string) => BUILTINS.has(name) || packageDirs(dirOf(from)).some((d) => readPackage(d)!.deps.has(name));
 
-  const fromPackageImports = (from: string, spec: string, depth: number): Resolution => {
+  const fromPackageImports = (from: string, spec: string): Resolution => {
     const dir = packageDirs(dirOf(from))[0];
     const pkg = dir === undefined ? undefined : readPackage(dir);
     for (const target of pkg?.imports ? mapTargets(pkg.imports, spec) : []) {
-      const hit = target.startsWith('./') ? found(inPackage(listed, dir!, target)) : depth < 4 ? bare(from, target, depth + 1) : UNKNOWN;
+      const hit = target.startsWith('./') ? found(inPackage(listed, dir!, target)) : bare(from, target);
       if (hit.status !== 'unknown') return hit;
     }
     return UNKNOWN;
   };
 
-  const bare = (from: string, spec: string, depth: number): Resolution => {
+  const bare = (from: string, spec: string): Resolution => {
     const fromJs = isJsFile(from);
     const ts = tsconfigs.forFile(from);
     const { name, subpath } = splitPackageSpec(spec);
@@ -82,10 +82,10 @@ export function createResolver(files: Iterable<string>, read: (path: string) => 
         const path = joinRepo(dirOf(from), spec);
         return found(path === undefined ? undefined : resolveFile(listed, path, isJsFile(from)));
       }
-      if (spec.startsWith('#')) return fromPackageImports(from, spec, 0);
+      if (spec.startsWith('#')) return fromPackageImports(from, spec);
       // Absolute paths, URLs and loader schemes (`virtual:`, `bun:`) are outside what the repo proves.
       if (!spec || spec.startsWith('/') || /^[a-z][a-z\d+.-]*:/i.test(spec)) return UNKNOWN;
-      return bare(from, spec, 0);
+      return bare(from, spec);
     },
   };
 }
