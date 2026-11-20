@@ -117,6 +117,26 @@ describe('bare specifiers', () => {
     expect(workspace.resolve('a.ts', 'bun')).toEqual(to('pkgs/bun/index.ts'));
   });
 
+  describe('solution-style configs', () => {
+    const at = (tree: Record<string, string>, spec = 'left-pad') => repo({ ...tree, 'src/a.ts': '', 'src/b.ts': '' }).resolve('src/a.ts', spec);
+    const refs = { references: [{ path: './other' }] };
+
+    it('a composite config with references and include owns its files', () => {
+      expect(at({ 'tsconfig.json': json({ compilerOptions: { composite: true }, include: ['src'], ...refs }) })).toEqual(EXTERNAL);
+    });
+
+    it('references are not inherited through extends, and an include, own or inherited, owns files', () => {
+      expect(at({ 'base.json': json(refs), 'tsconfig.json': json({ extends: './base.json' }) })).toEqual(EXTERNAL);
+      expect(at({ 'base.json': json({ files: [], ...refs }), 'tsconfig.json': json({ extends: './base.json', include: ['src'] }) })).toEqual(EXTERNAL);
+      expect(at({ 'base.json': json({ include: ['src'] }), 'tsconfig.json': json({ extends: './base.json', files: [], ...refs }) })).toEqual(EXTERNAL);
+    });
+
+    it('a root with files: [] and references owns no files: undeclared and alias imports stay unknown', () => {
+      const root = { 'tsconfig.json': json({ files: [], ...refs }) };
+      expect([at(root), at(root, '@/b')]).toEqual([UNKNOWN, UNKNOWN]);
+    });
+  });
+
   it('counts a declared @types package as declaring the package it types', () => {
     const r = repo({
       'tsconfig.json': json({ files: [], references: [{ path: './tsconfig.app.json' }] }),

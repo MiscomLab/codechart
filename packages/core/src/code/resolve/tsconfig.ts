@@ -9,11 +9,16 @@ export interface TsOptions {
   baseUrl?: string | null;
   /** `compilerOptions.paths`; `dir` is the folder of the config that set them, which targets are relative to without `baseUrl`. */
   paths?: { patterns: [string, string[]][]; dir: string };
-  /**
-   * False when a config in the chain could not be read, so an option it sets is unknown, or when the config is
-   * solution-style (`references`, `files: []`): the projects it points to, which hold the real options, aren't read.
-   */
+  /** False when a config in the chain could not be read, so an option it sets is unknown. */
   complete: boolean;
+  /** `files` and `include`, own or inherited, as TypeScript merges them: `files: []` without `include` owns no files. */
+  emptyFiles?: boolean;
+  include?: boolean;
+  /**
+   * The nearest config owns no files (a solution-style root): the projects it references, which hold the real options,
+   * aren't read. Set by `forFile` only; `references` themselves are never inherited.
+   */
+  solution?: boolean;
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -33,7 +38,6 @@ function packageConfig(files: FileSet, dir: string, pkg: PackageJson | undefined
   return firstListed(files, joinRepo(dir, pkg?.tsconfig ?? 'tsconfig.json'));
 }
 
-const isSolution = (raw: Record<string, unknown>) => (Array.isArray(raw.references) && raw.references.length > 0) || (Array.isArray(raw.files) && raw.files.length === 0);
 
 interface Packages {
   dir: (name: string) => string | undefined;
@@ -62,12 +66,14 @@ export function createTsconfigs(files: FileSet, read: (path: string) => string |
     seen.add(path);
     const raw = parseJsonc(read(path) ?? '');
     if (!isObject(raw)) return { complete: false };
-    let merged: TsOptions = { complete: !isSolution(raw) };
+    let merged: TsOptions = { complete: true };
     for (const spec of typeof raw.extends === 'string' ? [raw.extends] : strings(raw.extends)) {
       const base = extendsPath(path, spec);
       const opts = base ? load(base, seen) : { complete: false };
       merged = { ...merged, ...opts, complete: merged.complete && opts.complete };
     }
+    if (Array.isArray(raw.files)) merged = { ...merged, emptyFiles: raw.files.length === 0 };
+    if (Array.isArray(raw.include)) merged = { ...merged, include: true };
     const options = isObject(raw.compilerOptions) ? raw.compilerOptions : {};
     if (typeof options.baseUrl === 'string') {
       const baseUrl = joinRepo(dirOf(path), options.baseUrl);
@@ -94,7 +100,8 @@ export function createTsconfigs(files: FileSet, read: (path: string) => string |
     /** Options of the tsconfig.json or jsconfig.json nearest to `file`, walking up; undefined when there is none. */
     forFile: (file: string): TsOptions | undefined => {
       const config = configFor(dirOf(file));
-      return config === undefined ? undefined : load(config, new Set());
+      const opts = config === undefined ? undefined : load(config, new Set());
+      return opts && { ...opts, solution: opts.emptyFiles === true && !opts.include };
     },
   };
 }
