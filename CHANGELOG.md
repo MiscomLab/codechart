@@ -7,6 +7,7 @@ What's new in each codechart release. Update with `codechart update`; the [relea
 ### Changed
 
 - The engine shared with the desktop app now lives in the MIT package [`@codechart/core`](packages/core): specs, truth checks, layout, git rules, review notes, config and agent presets. The CLI behaves the same; it consumes the package.
+- `@codechart/core` 0.2.0 reads a repo's TypeScript and JavaScript symbols with tree-sitter, for the desktop app's live map. The CLI doesn't use it yet.
 
 ## 1.0.1 (2026-11-19)
 

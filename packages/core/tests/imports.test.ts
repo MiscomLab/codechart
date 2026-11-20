@@ -3,7 +3,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const CORE = resolve('packages/core/src');
-const ALLOWED = new Set(['elkjs', 'picomatch', 'yaml', 'zod']);
+const ALLOWED = new Set(['elkjs', 'picomatch', 'web-tree-sitter', 'yaml', 'zod']);
 
 const walk = (dir: string): string[] =>
   readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(dir, e.name)) : e.name.endsWith('.ts') ? [join(dir, e.name)] : []));
