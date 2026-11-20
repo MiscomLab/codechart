@@ -14,5 +14,7 @@
       "@codechart/core": ["./packages/core/src/index.ts"]
     }
   },
-  "include": ["packages/*/src", "packages/*/tests", "tests", "scripts", "*.config.ts", "packages/*/*.config.ts"]
+  "include": ["packages/*/src", "packages/*/tests", "tests", "scripts", "*.config.ts", "packages/*/*.config.ts"],
+  // Code layer fixtures are sample repos to parse, not part of the build.
+  "exclude": ["packages/core/tests/fixtures/code"]
 }

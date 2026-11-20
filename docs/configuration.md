@@ -50,6 +50,7 @@ Repo `.codechart.yaml` and global `~/.config/codechart/config.yaml`. Editor sche
 | `release.logo` | repo-relative `.svg` or `.png` of at most 200 KB, shown on that cover; a bad one is skipped with a warning | none |
 | `release.branches` | globs (same rules as `paths`) of the branches that are release branches; on one, `codechart check` adds a `release` hint for the agent | `["v[0-9]*", "release-*", "release/*"]` |
 | `release.auto` | on a release branch: `suggest` a release map, `draw` it, or `off` | `suggest` |
+| `ignore` | globs (same rules as `paths`) of files the desktop app's live map never reads, on top of `.gitignore`, dependencies and build output; the global and repo lists add up. The CLI doesn't use it | none |
 | `useBuiltinRules` | built-in migration/model/infrastructure path rules, `related-files`, `behaviour-flow` | `true` |
 | `rules` | your own, run before the built-ins | none |
 

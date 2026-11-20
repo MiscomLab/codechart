@@ -41,3 +41,7 @@ export * from './render/omitted.js';
 export * from './render/web/layout.js';
 export * from './agents.js';
 export * from './install.js';
+export * from './code/model.js';
+export * from './code/languages.js';
+export * from './code/parse.js';
+export * from './code/repo.js';

@@ -13,7 +13,7 @@ For the maintainer. The workflow is `.github/workflows/publish.yml`; the notes c
 
 ## Core releases
 
-`@codechart/core` has its own version in `packages/core/package.json`. Bump it when core changes, note it in the changelog, and release both in the same tag: the CLI depends on the core version pinned in `packages/cli/package.json`, so approve the staged core before the CLI. A tag that doesn't bump core stages only the CLI. The app pins a core range (`0.1.x`), so a core patch does not require an app release. CI fails a PR that changes core's code (`src`, `package.json`, `tsup.config.ts`) without bumping its version, or whose CLI pin doesn't match it. Core does not need a GitHub Release of its own; the CLI's release notes describe what changed for users.
+`@codechart/core` has its own version in `packages/core/package.json`. Bump it when core changes, note it in the changelog, and release both in the same tag: the CLI depends on the core version pinned in `packages/cli/package.json`, so approve the staged core before the CLI. A tag that doesn't bump core stages only the CLI. The app pins a core range (`0.1.x`), so a core patch does not require an app release. CI fails a PR that changes core's code (`src`, `package.json`, `tsup.config.ts`) without bumping its version, or whose CLI pin doesn't match it. A PR is compared with `main`, so one bump per PR is enough, also for a PR stacked on another. Core does not need a GitHub Release of its own; the CLI's release notes describe what changed for users.
 
 ### First core publish
 

@@ -179,8 +179,10 @@ export function loadConfigWithSources(opts: LoadOptions): ConfigWithSources {
   ]);
 
   const release = releaseOf(files, sources);
+  const ignore = [...(global?.ignore ?? []), ...(repo?.ignore ?? [])];
+  sources.ignore = files.filter((f) => f.file?.ignore?.length).map((f) => f.source).join(' + ') || BUILTIN;
   return {
-    config: { defaults, web, useBuiltinRules, updateCheck: global?.updateCheck !== false, release, rules: tagged.map((t) => t.rule) },
+    config: { defaults, web, useBuiltinRules, updateCheck: global?.updateCheck !== false, release, ignore, rules: tagged.map((t) => t.rule) },
     sources,
     ruleSources: tagged.map((t) => t.source),
   };

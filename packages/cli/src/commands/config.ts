@@ -11,6 +11,7 @@ function formatText({ config, sources, ruleSources }: ConfigWithSources): string
     useBuiltinRules: config.useBuiltinRules,
     updateCheck: config.updateCheck,
     ...Object.fromEntries(Object.entries(config.release).map(([k, v]) => [`release.${k}`, Array.isArray(v) ? v.join(', ') : v])),
+    ignore: config.ignore.join(', ') || 'none',
   };
   if (!config.useBuiltinRules) values['defaults.flows'] = 'inactive (built-in rules off)';
   const globalOnly = (key: string) => ((GLOBAL_ONLY as readonly string[]).includes(key) ? '; global-only' : '');

@@ -97,6 +97,59 @@ describe('scripts/check-core-version.mjs', () => {
     expect(r.stdout).toContain('core version ok: 0.1.1');
   });
 
+  it('passes when core changes after a bump made on the branch, not yet in main', () => {
+    const cwd = repo();
+    git(cwd, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    write(cwd, 'packages/core/package.json', corePkg('0.2.0'));
+    write(cwd, 'packages/cli/package.json', cliPkg('0.2.0'));
+    commit(cwd, 'bump');
+    write(cwd, 'packages/core/src/index.ts', 'export const a = 2;\n');
+    commit(cwd, 'fix');
+    expect(check(cwd).status).toBe(0);
+  });
+
+  it('still checks the CLI pin after a bump made on the branch', () => {
+    const cwd = repo();
+    git(cwd, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    write(cwd, 'packages/core/package.json', corePkg('0.2.0'));
+    commit(cwd, 'bump core only');
+    write(cwd, 'packages/core/src/index.ts', 'export const a = 2;\n');
+    commit(cwd, 'fix');
+    const r = check(cwd);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('depends on @codechart/core 0.1.0, but core is 0.2.0');
+  });
+
+  it('fails when core changes after a bump that is already in main', () => {
+    const cwd = repo();
+    write(cwd, 'packages/core/package.json', corePkg('0.2.0'));
+    write(cwd, 'packages/cli/package.json', cliPkg('0.2.0'));
+    commit(cwd, 'bump');
+    git(cwd, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    write(cwd, 'packages/core/src/index.ts', 'export const a = 2;\n');
+    commit(cwd, 'change');
+    expect(check(cwd).status).toBe(1);
+  });
+
+  it('fails a branch stacked on a squash-merged bump that changes core again', () => {
+    const cwd = repo();
+    const init = execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).trim();
+    write(cwd, 'packages/core/package.json', corePkg('0.2.0'));
+    write(cwd, 'packages/cli/package.json', cliPkg('0.2.0'));
+    write(cwd, 'packages/core/src/index.ts', 'export const a = 2;\n');
+    commit(cwd, 'branch A: bump and change');
+    const tipA = execFileSync('git', ['rev-parse', 'HEAD'], { cwd, encoding: 'utf8' }).trim();
+    write(cwd, 'packages/core/src/b.ts', 'export const b = 1;\n');
+    commit(cwd, 'branch B on A: change core without a bump');
+    // Squash A onto main: one new commit with A's tree, not an ancestor of B.
+    const tree = execFileSync('git', ['rev-parse', `${tipA}^{tree}`], { cwd, encoding: 'utf8' }).trim();
+    const squash = execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit-tree', tree, '-p', init, '-m', 'squash A'], { cwd, encoding: 'utf8' }).trim();
+    git(cwd, 'update-ref', 'refs/remotes/origin/main', squash);
+    const r = check(cwd);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('packages/core/src/b.ts');
+  });
+
   it("fails when the CLI's dependency differs from core's version", () => {
     const cwd = repo();
     write(cwd, 'packages/core/package.json', corePkg('0.1.1'));

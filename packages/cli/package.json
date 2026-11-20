@@ -52,7 +52,7 @@
     "prepack": "npm run build && node ../../scripts/pack-readme.mjs"
   },
   "dependencies": {
-    "@codechart/core": "0.1.0",
+    "@codechart/core": "0.2.0",
     "commander": "15.1.0",
     "elkjs": "0.12.1",
     "picomatch": "4.0.7",

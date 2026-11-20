@@ -45,6 +45,8 @@ export interface Config {
   /** Look up the newest codechart once a day and say when there is one. */
   updateCheck: boolean;
   release: ReleaseConfig;
+  /** Paths the desktop app's code layer never reads, from both config files. */
+  ignore: string[];
   rules: Rule[];
 }
 
@@ -109,6 +111,7 @@ const configFileSchema = z.strictObject({
     })
     .optional(),
   useBuiltinRules: z.boolean().optional(),
+  ignore: z.array(glob).optional().describe("Paths the desktop app's live map never reads, as globs, on top of .gitignore, dependencies and build output. The CLI doesn't use it."),
   updateCheck: z.boolean().optional().describe('Global only: look up the newest codechart on npm at most once a day and say when there is one (default true)'),
   rules: z.array(ruleSchema).optional(),
 });

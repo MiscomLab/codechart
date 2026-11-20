@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadConfig } from '../../src/config/load.js';
+import { loadConfig, loadConfigWithSources } from '../../src/config/load.js';
 import { builtinRules } from '../../src/config/builtin-rules.js';
 import { makeSandbox, removeSandbox } from '../../../../tests/helpers/sandbox.js';
 
@@ -44,7 +44,22 @@ describe('loadConfig', () => {
       open: 'auto',
     });
     expect(c.useBuiltinRules).toBe(true);
+    expect(c.ignore).toEqual([]);
     expect(c.rules).toEqual(BUILTIN_RULES);
+  });
+
+  it('adds up the global and repo ignore globs', () => {
+    globalCfg('ignore: ["**/*.snap"]\n');
+    repoCfg('ignore: ["generated/**"]\n');
+    expect(loadConfigWithSources({ cwd: repo, home, env: {} })).toMatchObject({
+      config: { ignore: ['**/*.snap', 'generated/**'] },
+      sources: { ignore: expect.stringMatching(/^global: .* \+ repo: /) },
+    });
+  });
+
+  it('rejects an ignore glob with braces', () => {
+    repoCfg('ignore: ["{a,b}/**"]\n');
+    expect(() => loadConfig({ cwd: repo, home, env: {} })).toThrow("braces and extglobs aren't supported");
   });
 
   it('repo defaults override global', () => {
