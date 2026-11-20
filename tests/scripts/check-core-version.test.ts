@@ -97,6 +97,28 @@ describe('scripts/check-core-version.mjs', () => {
     expect(r.stdout).toContain('core version ok: 0.1.1');
   });
 
+  it('passes when core changes after a bump made on the branch, not yet in main', () => {
+    const cwd = repo();
+    git(cwd, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    write(cwd, 'packages/core/package.json', corePkg('0.2.0'));
+    write(cwd, 'packages/cli/package.json', cliPkg('0.2.0'));
+    commit(cwd, 'bump');
+    write(cwd, 'packages/core/src/index.ts', 'export const a = 2;\n');
+    commit(cwd, 'fix');
+    expect(check(cwd).status).toBe(0);
+  });
+
+  it('fails when core changes after a bump that is already in main', () => {
+    const cwd = repo();
+    write(cwd, 'packages/core/package.json', corePkg('0.2.0'));
+    write(cwd, 'packages/cli/package.json', cliPkg('0.2.0'));
+    commit(cwd, 'bump');
+    git(cwd, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    write(cwd, 'packages/core/src/index.ts', 'export const a = 2;\n');
+    commit(cwd, 'change');
+    expect(check(cwd).status).toBe(1);
+  });
+
   it("fails when the CLI's dependency differs from core's version", () => {
     const cwd = repo();
     write(cwd, 'packages/core/package.json', corePkg('0.1.1'));
