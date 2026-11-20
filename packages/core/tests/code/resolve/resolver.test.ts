@@ -108,6 +108,15 @@ describe('bare specifiers', () => {
     expect(['@/b', 'react', 'fs', 'left-pad'].map((s) => r.resolve('src/a.ts', s))).toEqual([UNKNOWN, EXTERNAL, EXTERNAL, UNKNOWN]);
   });
 
+  it('counts a declared @types package as declaring the package it types', () => {
+    const r = repo({
+      'tsconfig.json': json({ files: [], references: [{ path: './tsconfig.app.json' }] }),
+      'package.json': json({ devDependencies: { '@types/mdast': '1', '@types/babel__core': '1' } }),
+      'a.ts': '',
+    });
+    expect(['mdast', '@babel/core', '@babel/core/sub', 'hast', '@types/mdast'].map((s) => r.resolve('a.ts', s))).toEqual([EXTERNAL, EXTERNAL, EXTERNAL, UNKNOWN, EXTERNAL]);
+  });
+
   it('resolves through baseUrl before packages', () => {
     const r = repo({ 'tsconfig.json': json({ compilerOptions: { baseUrl: 'src' } }), 'src/utils/x.ts': '', 'a.ts': '' });
     expect([r.resolve('a.ts', 'utils/x'), r.resolve('a.ts', 'utils/y')]).toEqual([to('src/utils/x.ts'), EXTERNAL]);

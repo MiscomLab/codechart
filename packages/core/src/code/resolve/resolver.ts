@@ -35,7 +35,11 @@ function packageDirs(repo: Repo, dir: string): string[] {
   return dirs;
 }
 
-const declared = (repo: Repo, from: string, name: string) => BUILTINS.has(name) || packageDirs(repo, dirOf(from)).some((d) => repo.readPackage(d)!.deps.has(name));
+/** `@types/x` for `x`, `@types/scope__name` for `@scope/name`: where TypeScript looks for a package's types. */
+const typesPackage = (name: string) => `@types/${name.startsWith('@') ? name.slice(1).replace('/', '__') : name}`;
+
+const declared = (repo: Repo, from: string, name: string) =>
+  BUILTINS.has(name) || packageDirs(repo, dirOf(from)).some((d) => repo.readPackage(d)!.deps.has(name) || repo.readPackage(d)!.deps.has(typesPackage(name)));
 
 function fromPackageImports(repo: Repo, from: string, spec: string, load: LoadKind): Resolution {
   const dir = packageDirs(repo, dirOf(from))[0];
