@@ -1,4 +1,4 @@
-import type { ReleaseSpec } from '../../spec/release.js';
+import type { ReleaseSpec } from '@codechart/core';
 import { esc } from '../web/page.js';
 
 type Section = ReleaseSpec['sections'][number];

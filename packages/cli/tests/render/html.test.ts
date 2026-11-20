@@ -5,7 +5,7 @@ import { CSS } from '../../src/render/web/styles.js';
 import { renderHtml, type Theme } from '../../src/render/web/html.js';
 import { gapBoxes, withGaps } from '../../src/render/web/gaps.js';
 import { prettyDate } from '../../src/render/web/page.js';
-import { validateSpec, type Spec } from '../../src/spec/schema.js';
+import { validateSpec, type Spec } from '@codechart/core';
 
 function loadFixture(): Spec {
   const raw = JSON.parse(readFileSync('tests/fixtures/shop.spec.json', 'utf8'));

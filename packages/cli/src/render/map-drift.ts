@@ -1,4 +1,4 @@
-import type { Field, Spec, SpecNode } from '../spec/schema.js';
+import type { Field, Spec, SpecNode } from '@codechart/core';
 import { cleanPath, detailOf, noteDifference, pairItems, withReasons, type Drift, type DriftChange, type DriftItem, type Note } from './drift.js';
 
 type Items = Map<string, DriftItem<SpecNode>>;

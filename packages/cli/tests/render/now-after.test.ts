@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { layoutSpec, PANE_CANVASES } from '../../src/render/web/layout.js';
 import { renderHtml } from '../../src/render/web/html.js';
 import { edgeChange, edgeOn, fieldsOn, hasNowAfter, nodeOn } from '../../src/render/web/states.js';
-import { validateSpec, type Spec } from '../../src/spec/schema.js';
+import { validateSpec, type Spec } from '@codechart/core';
 
 const raw = {
   title: 'Users join teams',

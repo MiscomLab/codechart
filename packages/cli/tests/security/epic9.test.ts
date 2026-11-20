@@ -7,7 +7,7 @@ import { buildProgram, runProgram } from '../../src/program.js';
 import { checkFlowAnchors } from '../../src/render/flow/anchors.js';
 import { gitChangedFiles, gitFileAt, gitSinceFiles } from '../../src/rules/git-files.js';
 import { gitBinary, trustedBinary } from '../../src/rules/git-run.js';
-import type { FlowSpec } from '../../src/spec/flow.js';
+import type { FlowSpec } from '@codechart/core';
 import { gitInit, makeTempDir, removeTempDir } from '../../../../tests/helpers/sandbox.js';
 
 let tmp: string;

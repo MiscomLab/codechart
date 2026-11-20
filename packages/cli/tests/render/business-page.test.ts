@@ -5,7 +5,7 @@ import { carryNotes } from '../../src/review/carry.js';
 import { importNotes, parseReviewText } from '../../src/review/import.js';
 import type { Note, Review, ReviewNode } from '../../src/review/schema.js';
 import { businessSnapshot } from '../../src/review/snapshot.js';
-import { validateBusinessSpec, type ChangeSpec } from '../../src/spec/business.js';
+import { validateBusinessSpec, type ChangeSpec } from '@codechart/core';
 import { business } from '../../../../tests/fixtures/business.js';
 import { review } from '../../../../tests/fixtures/review.js';
 import { click, mount, q, qa, usePages } from '../../../../tests/helpers/page.js';

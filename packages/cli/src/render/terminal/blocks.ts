@@ -1,4 +1,4 @@
-import type { Field, Spec, SpecEdge, SpecNode } from '../../spec/schema.js';
+import type { Field, Spec, SpecEdge, SpecNode } from '@codechart/core';
 import type { TermCtx } from './ctx.js';
 import { gutter, kindLabel, paint } from './labels.js';
 import { columns, fit, flat, truncate, wrapItems, type Segment } from './wrap.js';

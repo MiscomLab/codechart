@@ -1,5 +1,5 @@
 import type { FlowSnippets } from '../../packages/cli/src/render/flow/anchors.js';
-import type { FlowSpec } from '../../packages/cli/src/spec/flow.js';
+import type { FlowSpec } from '@codechart/core';
 
 export function sampleFlow(): FlowSpec {
   return {

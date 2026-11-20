@@ -1,6 +1,6 @@
 import { relative, resolve, sep } from 'node:path';
-import type { FlowSpec } from '../spec/flow.js';
-import type { Spec, SpecNode } from '../spec/schema.js';
+import type { FlowSpec } from '@codechart/core';
+import type { Spec, SpecNode } from '@codechart/core';
 import { anchorContext, likelyPath, load, locate, type AnchorCtx } from './flow/anchor-files.js';
 import { findMatch, type FlowSnippets, type Snippet } from './flow/anchors.js';
 import { blockOf, type Block } from './block.js';

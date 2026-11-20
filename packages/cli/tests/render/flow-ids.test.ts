@@ -6,7 +6,7 @@ import { checkFlowAnchors } from '../../src/render/flow/anchors.js';
 import { renderFlowHtml } from '../../src/render/flow/html.js';
 import { layoutFlow } from '../../src/render/flow/layout.js';
 import { renderFlowTree } from '../../src/render/flow/tree.js';
-import { validateFlowSpec } from '../../src/spec/flow.js';
+import { validateFlowSpec } from '@codechart/core';
 import { repoFromTemplate } from '../../../../tests/helpers/sandbox.js';
 
 let repo: string;

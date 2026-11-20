@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 import { releasePage } from '../../src/render/release/html.js';
-import { validateReleaseSpec } from '../../src/spec/release.js';
+import { validateReleaseSpec } from '@codechart/core';
 import { release } from '../../../../tests/fixtures/release.js';
 import { mount, q, qa, usePages } from '../../../../tests/helpers/page.js';
 

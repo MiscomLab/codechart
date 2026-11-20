@@ -2,8 +2,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { readdirSync, readFileSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitBranch, gitHead, gitIsAncestor } from '../rules/git-files.js';
-import type { FlowSpec } from '../spec/flow.js';
-import { validateSpec, type Spec } from '../spec/schema.js';
+import type { FlowSpec } from '@codechart/core';
+import { validateSpec, type Spec } from '@codechart/core';
 import { repoFolder } from './output-path.js';
 import { privateDir } from './web/write.js';
 

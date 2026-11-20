@@ -1,4 +1,4 @@
-import type { Spec, SpecNode, Status } from '../spec/schema.js';
+import type { Spec, SpecNode, Status } from '@codechart/core';
 import type { MapCheck } from './check.js';
 import { checkHeadline, type Mismatch } from './terminal/check-lines.js';
 import { marker } from './terminal/labels.js';

@@ -1,4 +1,4 @@
-import type { ReleaseSpec } from '../../spec/release.js';
+import type { ReleaseSpec } from '@codechart/core';
 import { esc, MONTHS, type HtmlMeta } from '../web/page.js';
 import { dataCard, journeyCard, ruleCard } from './cards.js';
 import { RELEASE_CSS } from './styles.js';

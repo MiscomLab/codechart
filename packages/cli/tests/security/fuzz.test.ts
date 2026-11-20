@@ -9,8 +9,8 @@ import { renderTerminal } from '../../src/render/terminal/render.js';
 import { businessPage } from '../../src/render/business/html.js';
 import { esc, renderHtml } from '../../src/render/web/html.js';
 import { layoutSpec } from '../../src/render/web/layout.js';
-import { validateBusinessSpec, type ChangeSpec } from '../../src/spec/business.js';
-import { validateSpec, type Spec } from '../../src/spec/schema.js';
+import { validateBusinessSpec, type ChangeSpec } from '@codechart/core';
+import { validateSpec, type Spec } from '@codechart/core';
 import { business } from '../../../../tests/fixtures/business.js';
 
 const RUNS = { numRuns: 150, interruptAfterTimeLimit: 20_000, markInterruptAsFailure: true };

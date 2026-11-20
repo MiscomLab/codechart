@@ -1,4 +1,4 @@
-import type { NodeKind } from '../../spec/schema.js';
+import type { NodeKind } from '@codechart/core';
 
 export const ICON: Partial<Record<NodeKind, string>> = {
   endpoint: '⇄',

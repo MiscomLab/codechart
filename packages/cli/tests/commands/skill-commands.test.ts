@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { builtinRules } from '../../src/config/builtin-rules.js';
 import { buildProgram } from '../../src/program.js';
-import { STEP_STATUSES } from '../../src/spec/flow.js';
-import { EDGE_KINDS, NODE_KINDS, STATUSES } from '../../src/spec/schema.js';
+import { STEP_STATUSES } from '@codechart/core';
+import { EDGE_KINDS, NODE_KINDS, STATUSES } from '@codechart/core';
 
 const dir = join(import.meta.dirname, '..', '..', 'skills', 'codechart');
 const docs = ['SKILL.md', 'example.md'].map((f) => ({ f, text: readFileSync(join(dir, f), 'utf8') }));

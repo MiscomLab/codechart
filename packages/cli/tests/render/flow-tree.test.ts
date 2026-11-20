@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { validateFlowSpec, type FlowSpec, type FlowStep } from '../../src/spec/flow.js';
+import { validateFlowSpec, type FlowSpec, type FlowStep } from '@codechart/core';
 import { FLOW_KEY, renderFlowTree } from '../../src/render/flow/tree.js';
 import { columns } from '../../src/render/terminal/wrap.js';
 

@@ -8,9 +8,9 @@ import { flowGaps, type FlowView } from '../render/explain-flows.js';
 import { stepLabel } from '../render/flow/tree.js';
 import { gitDirtyHashes, gitHead } from '../rules/git-files.js';
 import { hasGitSelection, type GitSelection } from '../rules/selection.js';
-import type { ChangeSpec } from '../spec/business.js';
-import type { FlowSpec, FlowStep } from '../spec/flow.js';
-import type { Spec } from '../spec/schema.js';
+import type { ChangeSpec } from '@codechart/core';
+import type { FlowSpec, FlowStep } from '@codechart/core';
+import type { Spec } from '@codechart/core';
 import type { Range, ReviewNode } from './schema.js';
 import type { ReviewSnapshot } from './store.js';
 

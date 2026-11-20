@@ -1,7 +1,7 @@
 import { businessPage } from './html.js';
 import { businessSnapshot } from '../../review/snapshot.js';
-import { isExplain, itemGroups, questionsOf, type BusinessSpec } from '../../spec/business.js';
-import type { TechBox } from '../../spec/business-links.js';
+import { isExplain, itemGroups, questionsOf, type BusinessSpec } from '@codechart/core';
+import type { TechBox } from '@codechart/core';
 import { markdownBlock } from '../markdown.js';
 import { fullMapLine } from '../terminal/render.js';
 import type { WrittenHtml, WriteHtml } from '../web/write.js';

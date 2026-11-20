@@ -1,4 +1,4 @@
-import { isPlannedLink, isRemovedLink, type FlowLink, type FlowSpec, type FlowStep } from '../../spec/flow.js';
+import { isPlannedLink, isRemovedLink, type FlowLink, type FlowSpec, type FlowStep } from '@codechart/core';
 import type { KeyPart } from '../web/page.js';
 import type { Side } from '../web/states.js';
 

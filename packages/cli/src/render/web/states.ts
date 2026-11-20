@@ -1,4 +1,4 @@
-import type { Field, Spec, SpecEdge, SpecNode, Status } from '../../spec/schema.js';
+import type { Field, Spec, SpecEdge, SpecNode, Status } from '@codechart/core';
 import type { KeyPart } from './page.js';
 
 /** A plan's two pictures: the code as it is, and as it will be once built. */

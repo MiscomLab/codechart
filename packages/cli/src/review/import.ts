@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { sanitizeText } from '@codechart/core';
-import { LONG, SHORT } from '../spec/shared.js';
+import { LONG, SHORT } from '@codechart/core';
 import { targetExists } from './carry.js';
 import { isAt, lastNoteNumber } from './doc.js';
 import { sameNote } from './parse.js';

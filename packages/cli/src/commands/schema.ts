@@ -1,10 +1,10 @@
 import { Command } from 'commander';
 import { configJsonSchema } from '../config/schema.js';
 import type { CommandOptions } from '../program.js';
-import { businessSpecJsonSchema } from '../spec/business.js';
-import { flowJsonSchema } from '../spec/flow.js';
-import { releaseSpecJsonSchema } from '../spec/release.js';
-import { specJsonSchema } from '../spec/schema.js';
+import { businessSpecJsonSchema } from '@codechart/core';
+import { flowJsonSchema } from '@codechart/core';
+import { releaseSpecJsonSchema } from '@codechart/core';
+import { specJsonSchema } from '@codechart/core';
 
 export function schemaCommand(opts: CommandOptions): Command {
   return new Command('schema')

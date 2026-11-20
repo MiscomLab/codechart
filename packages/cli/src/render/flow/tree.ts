@@ -1,4 +1,4 @@
-import { isPlannedLink, isRemovedLink, type FlowLink, type FlowSpec, type FlowStep } from '../../spec/flow.js';
+import { isPlannedLink, isRemovedLink, type FlowLink, type FlowSpec, type FlowStep } from '@codechart/core';
 import { markdownBlock } from '../markdown.js';
 import type { TermCtx } from '../terminal/ctx.js';
 import { columns, fit, flat, truncate, wrapItems, type Cuts, type Segment } from '../terminal/wrap.js';

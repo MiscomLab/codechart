@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderTerminal } from '../../src/render/terminal/render.js';
-import { validateSpec, type Spec } from '../../src/spec/schema.js';
+import { validateSpec, type Spec } from '@codechart/core';
 import { explain } from '../../../../tests/fixtures/explain.js';
 
 const spec = (raw: object): Spec => {

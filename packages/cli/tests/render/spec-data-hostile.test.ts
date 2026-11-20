@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { businessPage } from '../../src/render/business/html.js';
 import { renderHtml } from '../../src/render/web/html.js';
 import { layoutSpec } from '../../src/render/web/layout.js';
-import { validateBusinessSpec } from '../../src/spec/business.js';
-import { validateSpec } from '../../src/spec/schema.js';
+import { validateBusinessSpec } from '@codechart/core';
+import { validateSpec } from '@codechart/core';
 import { business } from '../../../../tests/fixtures/business.js';
 
 const BRANCH = 'x</script><b>pwn';

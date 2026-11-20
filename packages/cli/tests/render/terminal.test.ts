@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { Spec, Status } from '../../src/spec/schema.js';
+import type { Spec, Status } from '@codechart/core';
 import { selectTerminalNodes } from '../../src/render/terminal/select.js';
 import { renderBlocks } from '../../src/render/terminal/blocks.js';
 import { columns, flat, truncate } from '../../src/render/terminal/wrap.js';

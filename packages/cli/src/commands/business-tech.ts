@@ -3,8 +3,8 @@ import { stepKey } from '../render/explain-flows.js';
 import { isExplainSlug, repoFolder } from '../render/output-path.js';
 import { listReviews } from '../review/store.js';
 import { gitBranch } from '../rules/git-files.js';
-import { validateSpec } from '../spec/schema.js';
-import type { TechBox } from '../spec/business-links.js';
+import { validateSpec } from '@codechart/core';
+import type { TechBox } from '@codechart/core';
 import { readSpecJson } from './spec-input.js';
 
 const NO_TECH = "no tech map found for this change: render the tech map first, or pass --tech '<spec.json>'";

@@ -5,7 +5,7 @@ import { syncReview } from '../../src/commands/pr-sync.js';
 import { replaceSection, specInDescription } from '../../src/pr/description.js';
 import { githubReview, gitlabReview, type Review } from '../../src/pr/platforms.js';
 import { prBlock } from '../../src/render/pr.js';
-import type { Spec } from '../../src/spec/schema.js';
+import type { Spec } from '@codechart/core';
 import { git, makeSandbox, removeSandbox, type Sandbox } from '../../../../tests/helpers/sandbox.js';
 
 const spec = (path: string): Spec => ({

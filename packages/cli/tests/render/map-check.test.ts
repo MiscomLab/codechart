@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { checkFlowDiff, checkMapNodes, diffOf } from '../../src/render/check.js';
 import { alertLine, checkHeadline, checkHeadlineParts, checkTag, countLines } from '../../src/render/terminal/check-lines.js';
 import type { ChangeStatus } from '../../src/rules/git-files.js';
-import type { FlowSpec } from '../../src/spec/flow.js';
-import { validateSpec, type Spec, type SpecNode } from '../../src/spec/schema.js';
+import type { FlowSpec } from '@codechart/core';
+import { validateSpec, type Spec, type SpecNode } from '@codechart/core';
 import { repoFromTemplate } from '../../../../tests/helpers/sandbox.js';
 
 let base: string;

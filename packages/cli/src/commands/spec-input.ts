@@ -1,6 +1,6 @@
 import { constants, closeSync, fstatSync, openSync, readSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { MAX_SPEC_BYTES } from '../spec/shared.js';
+import { MAX_SPEC_BYTES } from '@codechart/core';
 
 export class InvalidSpec extends Error {
   constructor(readonly errors: string[]) {

@@ -1,5 +1,5 @@
 import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk.bundled.js';
-import type { FlowSpec, FlowStep } from '../../spec/flow.js';
+import type { FlowSpec, FlowStep } from '@codechart/core';
 import { wrapText, type Point } from '../web/layout.js';
 
 export interface FlowLayoutNode {

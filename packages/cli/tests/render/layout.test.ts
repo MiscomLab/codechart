@@ -11,7 +11,7 @@ import {
   type Direction,
   type Layout,
 } from '../../src/render/web/layout.js';
-import { validateSpec, type Spec } from '../../src/spec/schema.js';
+import { validateSpec, type Spec } from '@codechart/core';
 
 function loadFixture(file = 'tests/fixtures/shop.spec.json'): Spec {
   const raw = JSON.parse(readFileSync(file, 'utf8'));

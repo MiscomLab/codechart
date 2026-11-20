@@ -1,5 +1,5 @@
 import type { ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk.bundled.js';
-import type { Spec } from '../../spec/schema.js';
+import type { Spec } from '@codechart/core';
 
 export type Direction = 'RIGHT' | 'DOWN';
 

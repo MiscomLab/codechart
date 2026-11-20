@@ -1,5 +1,5 @@
 import { stepRev } from '../../review/snapshot.js';
-import type { Spec } from '../../spec/schema.js';
+import type { Spec } from '@codechart/core';
 import type { FlowView, LaidOutCheck } from '../explain-flows.js';
 import { FLOW_CSS, flowViewport, stepPanel } from '../flow/html.js';
 import type { MapCheck } from '../check.js';

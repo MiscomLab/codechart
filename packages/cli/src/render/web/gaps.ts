@@ -1,4 +1,4 @@
-import type { Spec, SpecNode } from '../../spec/schema.js';
+import type { Spec, SpecNode } from '@codechart/core';
 import type { Box } from './shapes.js';
 import type { MapCheck } from '../check.js';
 import { entryPaths, entryProse, entryWords } from '../omitted.js';

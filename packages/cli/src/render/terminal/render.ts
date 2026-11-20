@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { Spec } from '../../spec/schema.js';
+import type { Spec } from '@codechart/core';
 import type { TermCtx } from './ctx.js';
 import { flat, truncate, wrapItems } from './wrap.js';
 import { renderBlocks } from './blocks.js';

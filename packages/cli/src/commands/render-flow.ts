@@ -11,7 +11,7 @@ import { flowSnapshot, rangeOf } from '../review/snapshot.js';
 import { webAlert } from '../render/terminal/check-lines.js';
 import { driftBlock } from '../render/terminal/drift-lines.js';
 import { fullMapLine } from '../render/terminal/render.js';
-import type { FlowSpec } from '../spec/flow.js';
+import type { FlowSpec } from '@codechart/core';
 import { chooseOutput, type RenderContext, type Rendered } from './choose-output.js';
 
 export async function renderFlow(spec: FlowSpec, anchors: { snippets: FlowSnippets; checked: number }, ctx: RenderContext): Promise<Rendered> {

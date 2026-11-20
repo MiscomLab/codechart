@@ -5,7 +5,7 @@ import { layoutFlow } from '../../packages/cli/src/render/flow/layout.js';
 import type { Preview } from '../../packages/cli/src/render/preview.js';
 import { renderHtml } from '../../packages/cli/src/render/web/html.js';
 import { layoutSpec, PANE_CANVASES } from '../../packages/cli/src/render/web/layout.js';
-import { validateSpec, type Spec } from '../../packages/cli/src/spec/schema.js';
+import { validateSpec, type Spec } from '@codechart/core';
 import { sampleFlow, sampleSnippets } from '../fixtures/flow.js';
 
 function mapSpec(raw: unknown): Spec {

@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { repoFolder } from '../../src/render/output-path.js';
 import { loadPlan, savePlan, type PlanStoreOptions } from '../../src/render/plan-store.js';
-import { validateFlowSpec } from '../../src/spec/flow.js';
-import { validateSpec, type Spec } from '../../src/spec/schema.js';
+import { validateFlowSpec } from '@codechart/core';
+import { validateSpec, type Spec } from '@codechart/core';
 import { git, gitInit, makeTempDir, removeTempDir } from '../../../../tests/helpers/sandbox.js';
 
 const DAY = 86_400_000;

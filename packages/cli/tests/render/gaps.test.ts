@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MapCheck } from '../../src/render/check.js';
 import { gapBoxes, withGaps } from '../../src/render/web/gaps.js';
-import { validateSpec, type Spec } from '../../src/spec/schema.js';
+import { validateSpec, type Spec } from '@codechart/core';
 
 function map(raw: unknown): Spec {
   const result = validateSpec(raw);

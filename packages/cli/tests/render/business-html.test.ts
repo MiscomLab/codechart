@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { Window } from 'happy-dom';
 import { describe, expect, it } from 'vitest';
 import { businessPage } from '../../src/render/business/html.js';
-import { validateBusinessSpec, type ChangeSpec } from '../../src/spec/business.js';
+import { validateBusinessSpec, type ChangeSpec } from '@codechart/core';
 import { business, businessExplain } from '../../../../tests/fixtures/business.js';
 
 const meta = { generatedAt: new Date('2026-11-08T12:00:00Z'), repo: 'demo', change: { slug: 'new-refund-rules.business', branch: 'feat/refunds', at: '2026-11-08T12:00:00.000Z' } };

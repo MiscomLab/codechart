@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { prBlock } from '../../src/render/pr.js';
-import type { Spec } from '../../src/spec/schema.js';
+import type { Spec } from '@codechart/core';
 import { git, makeSandbox, removeSandbox, type Sandbox } from '../../../../tests/helpers/sandbox.js';
 import { runCli } from '../../../../tests/helpers/cli.js';
 

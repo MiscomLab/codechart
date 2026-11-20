@@ -6,8 +6,8 @@ import { layoutFlow } from '../../src/render/flow/layout.js';
 import { hasFlowNowAfter } from '../../src/render/flow/states.js';
 import { renderFlowTree } from '../../src/render/flow/tree.js';
 import { fullMapLine } from '../../src/render/terminal/render.js';
-import { validateSpec } from '../../src/spec/schema.js';
-import type { FlowSpec } from '../../src/spec/flow.js';
+import { validateSpec } from '@codechart/core';
+import type { FlowSpec } from '@codechart/core';
 import { sampleFlow } from '../../../../tests/fixtures/flow.js';
 
 const src = 'api/invites.py';

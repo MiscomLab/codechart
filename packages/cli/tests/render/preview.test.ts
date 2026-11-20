@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { checkMapNodes, diffOf } from '../../src/render/check.js';
 import { nodePreviews, parseDiff } from '../../src/render/preview.js';
 import { diffRange, gitFiles, type GitSelection } from '../../src/rules/selection.js';
-import type { Spec, SpecNode } from '../../src/spec/schema.js';
+import type { Spec, SpecNode } from '@codechart/core';
 import { repoFromTemplate } from '../../../../tests/helpers/sandbox.js';
 
 let tmp: string;

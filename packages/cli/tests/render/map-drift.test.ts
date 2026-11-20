@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compareMaps } from '../../src/render/map-drift.js';
-import type { Spec, SpecEdge, SpecNode } from '../../src/spec/schema.js';
+import type { Spec, SpecEdge, SpecNode } from '@codechart/core';
 
 const node = (id: string, status: SpecNode['status'], extra: Partial<SpecNode> = {}): SpecNode => ({ id, label: id, kind: 'other', status, layer: 'l', ...extra });
 const map = (kind: Spec['kind'], nodes: SpecNode[], extra: Partial<Spec> = {}): Spec => ({ title: 'T', kind, nodes, edges: [], ...extra });

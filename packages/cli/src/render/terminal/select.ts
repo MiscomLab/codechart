@@ -1,4 +1,4 @@
-import type { Spec, SpecNode, Status } from "../../spec/schema.js";
+import type { Spec, SpecNode, Status } from '@codechart/core';
 
 interface Selection {
   ids: Set<string>;

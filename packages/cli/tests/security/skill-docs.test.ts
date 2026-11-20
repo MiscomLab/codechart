@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { validateSpec } from '../../src/spec/schema.js';
+import { validateSpec } from '@codechart/core';
 
 const read = (file: string) => readFileSync(`packages/cli/skills/codechart/${file}`, 'utf8');
 // Whole specs have a title; title-less blocks are fragments.

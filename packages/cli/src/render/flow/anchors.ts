@@ -1,4 +1,4 @@
-import type { FlowSpec } from '../../spec/flow.js';
+import type { FlowSpec } from '@codechart/core';
 import { anchorContext, likelyPath, load, shownLines, type AnchorCtx } from './anchor-files.js';
 
 const SNIPPET_MAX_LINES = 15;

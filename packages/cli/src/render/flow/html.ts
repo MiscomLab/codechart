@@ -1,5 +1,5 @@
 import { stepRev } from '../../review/snapshot.js';
-import { isPlannedLink, isRemovedLink, type FlowLink, type FlowSpec, type FlowStep } from '../../spec/flow.js';
+import { isPlannedLink, isRemovedLink, type FlowLink, type FlowSpec, type FlowStep } from '@codechart/core';
 import type { CheckSummary } from '../terminal/check-lines.js';
 import { flagMark, flagTitle, mismatchNote } from '../web/check-html.js';
 import { DRIFT_CSS, driftInfo, driftMark, driftSection, itemsById, type Ghosts } from '../web/drift-html.js';

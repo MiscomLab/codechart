@@ -1,5 +1,5 @@
 import { flat } from './wrap.js';
-import type { NodeKind, SpecNode, Status } from '../../spec/schema.js';
+import type { NodeKind, SpecNode, Status } from '@codechart/core';
 
 // Unchanged nodes carry no marker, as unchanged lines in a diff carry none.
 const MARKER: Record<Status, string> = { new: '+', changed: '~', removed: '-', context: '', config: '◆', existing: '', outside: '○' };

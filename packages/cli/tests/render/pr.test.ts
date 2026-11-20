@@ -4,7 +4,7 @@ import type { MapCheck } from '../../src/render/check.js';
 import { prBlock, renderSvg } from '../../src/render/pr.js';
 import { viewport } from '../../src/render/web/html.js';
 import { layoutSpec } from '../../src/render/web/layout.js';
-import { validateSpec, type Spec } from '../../src/spec/schema.js';
+import { validateSpec, type Spec } from '@codechart/core';
 
 const shop = (): Spec => {
   const result = validateSpec(JSON.parse(readFileSync(new URL('../../../../tests/fixtures/shop.spec.json', import.meta.url), 'utf8')));

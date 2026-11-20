@@ -1,4 +1,4 @@
-import { isPlannedLink, isRemovedLink, type FlowSpec, type FlowStep } from '../../spec/flow.js';
+import { isPlannedLink, isRemovedLink, type FlowSpec, type FlowStep } from '@codechart/core';
 import { cleanPath, noteDifference, pairItems, withReasons, type Drift, type DriftItem } from '../drift.js';
 
 type Items = Map<string, DriftItem<FlowStep>>;

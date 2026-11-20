@@ -7,7 +7,7 @@ import { BLOCK_MAX, blockOf } from '../../src/render/block.js';
 import { checkMapNodes } from '../../src/render/check.js';
 import { renderHtml } from '../../src/render/web/html.js';
 import { layoutSpec } from '../../src/render/web/layout.js';
-import { validateSpec, type Spec } from '../../src/spec/schema.js';
+import { validateSpec, type Spec } from '@codechart/core';
 import { click, mount, node, q, qa, usePages } from '../../../../tests/helpers/page.js';
 
 usePages();

@@ -2,7 +2,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { renderHtml } from '../../src/render/web/html.js';
 import { layoutSpec } from '../../src/render/web/layout.js';
-import { validateSpec } from '../../src/spec/schema.js';
+import { validateSpec } from '@codechart/core';
 import { explain, withFlows } from '../../../../tests/fixtures/explain.js';
 import { explainFlowsPage, explainRepo } from '../../../../tests/helpers/explain-flows.js';
 import { change, click, key, mount, q, qa, usePages } from '../../../../tests/helpers/page.js';

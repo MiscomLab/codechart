@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { renderFlowTree } from '../../src/render/flow/tree.js';
 import { renderTerminal } from '../../src/render/terminal/render.js';
 import { flat } from '../../src/render/terminal/wrap.js';
-import type { Spec } from '../../src/spec/schema.js';
+import type { Spec } from '@codechart/core';
 import { sampleFlow } from '../../../../tests/fixtures/flow.js';
 
 const teams = JSON.parse(readFileSync(new URL('../../../../tests/fixtures/shop.spec.json', import.meta.url), 'utf8')) as Spec;

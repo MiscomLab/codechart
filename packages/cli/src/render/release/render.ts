@@ -1,4 +1,4 @@
-import type { ReleaseSpec } from '../../spec/release.js';
+import type { ReleaseSpec } from '@codechart/core';
 import type { WrittenHtml, WriteHtml } from '../web/write.js';
 import { releasePage, type Brand } from './html.js';
 

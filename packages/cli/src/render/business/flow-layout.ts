@@ -1,5 +1,5 @@
-import { isQuestion } from '../../spec/business-flow.js';
-import type { Flow } from '../../spec/business.js';
+import { isQuestion } from '@codechart/core';
+import type { Flow } from '@codechart/core';
 import { layersOf, spineOf } from './flow-graph.js';
 import { arrowsOf, corridorY, entries, exitOf, SLOT, startY, TRACK, verticals, type Arrow, type Raw, type Vertical } from './flow-arrows.js';
 import { LABEL_ROOM, labelOf, labelReach, type Label } from './flow-labels.js';

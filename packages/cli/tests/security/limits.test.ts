@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseConfigFile } from '../../src/config/schema.js';
 import { wrapItems } from '../../src/render/terminal/wrap.js';
 import { buildProgram, runProgram } from '../../src/program.js';
-import { validateFlowSpec } from '../../src/spec/flow.js';
-import { validateSpec } from '../../src/spec/schema.js';
+import { validateFlowSpec } from '@codechart/core';
+import { validateSpec } from '@codechart/core';
 import { sampleFlow } from '../../../../tests/fixtures/flow.js';
 
 const node = (i: number, over: Record<string, unknown> = {}) => ({

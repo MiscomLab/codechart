@@ -1,4 +1,4 @@
-import type { Flow } from '../../spec/business.js';
+import type { Flow } from '@codechart/core';
 
 /** Longest-path layers over the arrows, ignoring the ones that loop back to a step still being walked. */
 export function layersOf(flow: Flow): number[] {

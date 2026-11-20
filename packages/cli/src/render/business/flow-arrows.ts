@@ -1,7 +1,7 @@
 import type { FlowLane, FlowNode, Pt } from './flow-layout.js';
 import { sidesOf, type Port, type Spot } from './flow-ports.js';
 import { trackOrder, type Seg } from './flow-slots.js';
-import type { Flow } from '../../spec/business.js';
+import type { Flow } from '@codechart/core';
 
 export const TRACK = 10;
 export const SLOT = 12;

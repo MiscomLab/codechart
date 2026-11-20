@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { businessPage } from '../../src/render/business/html.js';
 import { esc } from '../../src/render/web/page.js';
-import { validateBusinessSpec, type ChangeSpec } from '../../src/spec/business.js';
+import { validateBusinessSpec, type ChangeSpec } from '@codechart/core';
 import { business } from '../../../../tests/fixtures/business.js';
 import { EXPLAIN_FILES, withFlows } from '../../../../tests/fixtures/explain.js';
 import { makeSandbox, removeSandbox } from '../../../../tests/helpers/sandbox.js';

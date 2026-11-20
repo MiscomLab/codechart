@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { validateSpec } from '../../src/spec/schema.js';
+import { validateSpec } from '@codechart/core';
 import { makeSandbox, removeSandbox } from '../../../../tests/helpers/sandbox.js';
 import { runCli } from '../../../../tests/helpers/cli.js';
 

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as readRegular from '@codechart/core';
 import { checkExplain } from '../../src/render/explain-flows.js';
 import { checkHeadline, checkTag } from '../../src/render/terminal/check-lines.js';
-import { validateSpec } from '../../src/spec/schema.js';
+import { validateSpec } from '@codechart/core';
 import { withFlows } from '../../../../tests/fixtures/explain.js';
 import { explainRepo } from '../../../../tests/helpers/explain-flows.js';
 

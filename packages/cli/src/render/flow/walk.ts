@@ -1,4 +1,4 @@
-import type { FlowLink, FlowSpec, FlowStep } from '../../spec/flow.js';
+import type { FlowLink, FlowSpec, FlowStep } from '@codechart/core';
 
 /** `via`: the link from the previous item in the run; absent on a run's first item. */
 export type Item =

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compareFlows } from '../../src/render/flow/drift.js';
-import type { FlowLink, FlowSpec, FlowStep } from '../../src/spec/flow.js';
+import type { FlowLink, FlowSpec, FlowStep } from '@codechart/core';
 
 const step = (id: string, status: FlowStep['status'], extra: Partial<FlowStep> = {}): FlowStep => ({
   id,

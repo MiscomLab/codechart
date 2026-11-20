@@ -4,7 +4,7 @@ import { buildDoc } from '../../src/review/doc.js';
 import { feedbackText } from '../../src/review/feedback.js';
 import { carryNotes } from '../../src/review/carry.js';
 import { flowSnapshot, mapSnapshot } from '../../src/review/snapshot.js';
-import type { Spec } from '../../src/spec/schema.js';
+import type { Spec } from '@codechart/core';
 import { sampleFlow, sampleSnippets } from '../../../../tests/fixtures/flow.js';
 import { note, review } from '../../../../tests/fixtures/review.js';
 

@@ -9,7 +9,7 @@ import type { Brand } from '../render/release/html.js';
 import { loadLogo } from '../render/release/logo.js';
 import { releaseSummary, renderRelease } from '../render/release/render.js';
 import { releaseSlug } from '../render/release/slug.js';
-import type { ReleaseSpec } from '../spec/release.js';
+import type { ReleaseSpec } from '@codechart/core';
 import { htmlWriter } from './html-writer.js';
 import { UsageError } from './usage-error.js';
 import { findBrowser, pdfFlagPath, printPdf, runBrowser } from './release-pdf.js';

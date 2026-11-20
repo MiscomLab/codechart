@@ -1,4 +1,4 @@
-import type { DriftCause } from '../spec/shared.js';
+import type { DriftCause } from '@codechart/core';
 
 export type DriftKind = 'missing' | 'unplanned' | 'different';
 

@@ -1,4 +1,4 @@
-import type { Field, Spec, SpecEdge, SpecNode } from '../../spec/schema.js';
+import type { Field, Spec, SpecEdge, SpecNode } from '@codechart/core';
 import type { DriftItem } from '../drift.js';
 import { headerHeight, KIND_ROW, LABEL_LINE_HEIGHT, labelLines, wrapSummary, type Layout, type LayoutEdge } from './layout.js';
 import type { MapCheck } from '../check.js';

@@ -1,6 +1,6 @@
-import { asFlowSpec, FLOW_PREFIX, type ExplainFlow } from '../spec/explain.js';
-import type { FlowSpec } from '../spec/flow.js';
-import type { Spec } from '../spec/schema.js';
+import { asFlowSpec, FLOW_PREFIX, type ExplainFlow } from '@codechart/core';
+import type { FlowSpec } from '@codechart/core';
+import type { Spec } from '@codechart/core';
 import { checkMapNodes, type MapCheck } from './check.js';
 import { anchorContext } from './flow/anchor-files.js';
 import { scanFlowAnchors, type AnchorFailure, type FlowSnippets } from './flow/anchors.js';

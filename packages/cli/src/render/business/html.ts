@@ -1,6 +1,6 @@
 import { THEMES, type Theme } from '../../config/schema.js';
 import { businessRev } from '../../review/snapshot.js';
-import { isExplain, itemGroups, type BusinessSpec, type ChangeSpec, type ExplainSpec } from '../../spec/business.js';
+import { isExplain, itemGroups, type BusinessSpec, type ChangeSpec, type ExplainSpec } from '@codechart/core';
 import { CLIENT_JS } from '../web/client.js';
 import { esc, jsonForScript, PAGE_CSP, prettyDate, type HtmlMeta } from '../web/page.js';
 import { flowDiagram } from './flow-diagram.js';

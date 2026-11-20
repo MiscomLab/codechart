@@ -18,7 +18,7 @@ import { DESCRIPTION_CANVASES, layoutSpec, PANE_CANVASES } from '../render/web/l
 import { hasNowAfter } from '../render/web/states.js';
 import { mapSnapshot, rangeOf } from '../review/snapshot.js';
 import { diffRange } from '../rules/selection.js';
-import type { Spec } from '../spec/schema.js';
+import type { Spec } from '@codechart/core';
 import { chooseOutput, type RenderContext, type Rendered } from './choose-output.js';
 
 function markdown(spec: Spec, map: string | undefined, htmlPath: string | undefined, alert: string): string {

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { layoutSpec } from '../../src/render/web/layout.js';
 import { renderHtml } from '../../src/render/web/html.js';
-import { validateSpec } from '../../src/spec/schema.js';
+import { validateSpec } from '@codechart/core';
 
 const raw = JSON.parse(readFileSync('tests/fixtures/shop.spec.json', 'utf8'));
 const validated = validateSpec(raw);

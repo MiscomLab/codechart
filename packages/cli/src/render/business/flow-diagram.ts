@@ -1,4 +1,4 @@
-import type { Flow } from '../../spec/business.js';
+import type { Flow } from '@codechart/core';
 import { esc } from '../web/page.js';
 import { layoutFlow, type FlowNode, type Pt } from './flow-layout.js';
 

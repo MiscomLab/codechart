@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadConfig } from '../../src/config/load.js';
 import { configJsonSchema } from '../../src/config/schema.js';
 import { readState, skillDirs } from '../../src/update/check.js';
-import { STEP_STATUSES } from '../../src/spec/flow.js';
-import { STATUSES } from '../../src/spec/schema.js';
+import { STEP_STATUSES } from '@codechart/core';
+import { STATUSES } from '@codechart/core';
 import { makeSandbox, removeSandbox } from '../../../../tests/helpers/sandbox.js';
 import { runCli } from '../../../../tests/helpers/cli.js';
 
