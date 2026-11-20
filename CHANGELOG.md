@@ -4,11 +4,13 @@ What's new in each codechart release. Update with `codechart update`; the [relea
 
 ## 1.0.2 (2026-11-20)
 
+### New
+
+- `.codechart.yaml` takes an `ignore` list of paths, such as `generated/**`, for the coming codechart desktop app's live map to leave out. Add it to your repo now and the app will use it.
+
 ### Changed
 
-- The engine shared with the upcoming desktop app now lives in the MIT package [`@codechart/core`](https://www.npmjs.com/package/@codechart/core). The CLI works the same.
-- `@codechart/core` 0.3.0 reads a repo's TypeScript and JavaScript code: its classes and functions, and which file each import points to. The CLI doesn't use it yet.
-- `.codechart.yaml` accepts `ignore`: paths the desktop app's live map skips. The CLI doesn't use it.
+- codechart's engine is now its own open-source package, [`@codechart/core`](https://www.npmjs.com/package/@codechart/core) (MIT), shared with the desktop app. Maps, flows and checks work as before.
 
 ## 1.0.1 (2026-11-19)
 
