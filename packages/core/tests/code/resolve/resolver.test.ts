@@ -108,6 +108,15 @@ describe('bare specifiers', () => {
     expect(['@/b', 'react', 'fs', 'left-pad'].map((s) => r.resolve('src/a.ts', s))).toEqual([UNKNOWN, EXTERNAL, EXTERNAL, UNKNOWN]);
   });
 
+  it("marks Bun's runtime module bun external after aliases and workspace packages", () => {
+    const plain = repo({ 'tsconfig.json': json({ files: [], references: [{ path: './tsconfig.app.json' }] }), 'a.ts': '' });
+    expect([plain.resolve('a.ts', 'bun'), plain.resolve('a.ts', 'bun/sub')]).toEqual([EXTERNAL, UNKNOWN]);
+    const aliased = repo({ 'tsconfig.json': json({ compilerOptions: { paths: { bun: ['./shim.ts'] } } }), 'shim.ts': '', 'a.ts': '' });
+    expect(aliased.resolve('a.ts', 'bun')).toEqual(to('shim.ts'));
+    const workspace = repo({ 'package.json': json({ workspaces: ['pkgs/*'] }), 'pkgs/bun/package.json': json({ name: 'bun' }), 'pkgs/bun/index.ts': '', 'a.ts': '' });
+    expect(workspace.resolve('a.ts', 'bun')).toEqual(to('pkgs/bun/index.ts'));
+  });
+
   it('counts a declared @types package as declaring the package it types', () => {
     const r = repo({
       'tsconfig.json': json({ files: [], references: [{ path: './tsconfig.app.json' }] }),

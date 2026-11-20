@@ -66,6 +66,8 @@ function bare(repo: Repo, from: string, spec: string, load: LoadKind): Resolutio
     const dir = repo.workspaces().get(name);
     return dir === undefined ? UNKNOWN : found(packageEntry(repo.listed, dir, repo.readPackage(dir)!, subpath, load));
   }
+  // Bun's runtime module, like `bun:test`, ships with Bun rather than as a package.
+  if (spec === 'bun') return EXTERNAL;
   // A base config outside the repo may set `paths`: only a declared dependency is surely external then.
   if (ts && !ts.complete && !declared(repo, from, name)) return UNKNOWN;
   return EXTERNAL;
