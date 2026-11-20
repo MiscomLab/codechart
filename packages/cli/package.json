@@ -49,7 +49,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "prepack": "npm run build"
+    "prepack": "npm run build && node ../../scripts/pack-readme.mjs"
   },
   "dependencies": {
     "@codechart/core": "0.1.0",
