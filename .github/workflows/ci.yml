@@ -50,7 +50,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run build
-      - run: npm pack --workspaces --pack-destination "$RUNNER_TEMP/pack" --silent
+      - run: mkdir -p "$RUNNER_TEMP/pack" && npm pack --workspaces --pack-destination "$RUNNER_TEMP/pack" --silent
         shell: bash
       - run: npm i --prefix "$RUNNER_TEMP/p" "$RUNNER_TEMP/pack"/*.tgz
         shell: bash
