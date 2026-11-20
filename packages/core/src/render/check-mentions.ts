@@ -1,5 +1,5 @@
 import { posix } from 'node:path';
-import type { SpecNode } from '@codechart/core';
+import type { SpecNode } from '../spec/schema.js';
 
 /** Case, `_` and `-` dropped, so `total_amount` matches `totalAmount`. */
 export const loose = (s: string) => s.toLowerCase().replace(/[_-]/g, '');

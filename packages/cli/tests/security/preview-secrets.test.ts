@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { readdirSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkMapNodes, diffOf } from '../../src/render/check.js';
+import { checkMapNodes, diffOf } from '@codechart/core';
 import { nodePreviews } from '../../src/render/preview.js';
 import { diffRange, gitFiles } from '@codechart/core';
 import type { Spec } from '@codechart/core';

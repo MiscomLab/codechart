@@ -3,7 +3,7 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync }
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkFlowAnchors } from '../../src/render/flow/anchors.js';
+import { checkFlowAnchors } from '@codechart/core';
 import { type FlowSpec, validateFlowSpec } from '@codechart/core';
 import { repoFromTemplate } from '../../../../tests/helpers/sandbox.js';
 

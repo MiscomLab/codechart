@@ -56,8 +56,7 @@ export interface DriftReason {
   why: string;
 }
 
-/** A path with `/` separators, no leading `./` and no trailing `/`, so one file compares equal however it was spelled. */
-export const cleanPath = (path: string): string => path.replaceAll('\\', '/').replace(/^(\.\/)+/, '').replace(/\/$/, '');
+export { cleanPath } from '@codechart/core';
 
 /** Plan items matched to built ones: by id first, then by where they live (`sameSpot`); each built item pairs once. */
 export function pairItems<T extends { id: string }>(plan: readonly T[], built: readonly T[], sameSpot: (plan: T, built: T) => boolean): Map<T, T> {

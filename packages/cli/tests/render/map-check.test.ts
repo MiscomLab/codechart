@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkFlowDiff, checkMapNodes, diffOf } from '../../src/render/check.js';
+import { checkFlowDiff, checkMapNodes, diffOf } from '@codechart/core';
 import { alertLine, checkHeadline, checkHeadlineParts, checkTag, countLines } from '../../src/render/terminal/check-lines.js';
 import type { ChangeStatus } from '@codechart/core';
 import type { FlowSpec } from '@codechart/core';

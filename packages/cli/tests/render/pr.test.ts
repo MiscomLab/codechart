@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { MapCheck } from '../../src/render/check.js';
+import type { MapCheck } from '@codechart/core';
 import { prBlock, renderSvg } from '../../src/render/pr.js';
 import { viewport } from '../../src/render/web/html.js';
 import { layoutSpec } from '../../src/render/web/layout.js';

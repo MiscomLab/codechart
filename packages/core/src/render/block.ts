@@ -1,5 +1,5 @@
-import { clip } from '@codechart/core';
-import { looksSecret, PRIVATE_KEY } from '@codechart/core';
+import { clip } from './clip.js';
+import { looksSecret, PRIVATE_KEY } from './secret.js';
 
 /** Lines of a block shown open; the rest is folded behind "show more". */
 export const BLOCK_MAX = 40;

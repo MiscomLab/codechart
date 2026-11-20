@@ -1,5 +1,5 @@
 import { codeRow, pathHtml } from '../flow/html.js';
-import type { Block } from '../block.js';
+import type { Block } from '@codechart/core';
 import { esc } from './page.js';
 
 const plural = (n: number, what: string) => `${n} ${what}${n === 1 ? '' : 's'}`;

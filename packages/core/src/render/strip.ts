@@ -24,3 +24,6 @@ const HIDDEN = new RegExp(`[\\u0000-\\u001f\\u007f-\\u009f\\u200b-\\u200f\\u202a
 
 // Identifiers must stay distinct after stripping, so they may hold none of these (ZWJ included).
 export const hasHiddenChars = (s: string): boolean => HIDDEN.test(s);
+
+// Any control char would break a line-based drawing; keep the text on one line.
+export const flat = (s: string): string => stripInvisible(s).replace(/[\u0000-\u001f\u007f-\u009f]+/g, ' ');

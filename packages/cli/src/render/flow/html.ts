@@ -9,7 +9,7 @@ import { arrowMarker, CHANGE_ARROWS, esc, num, type HtmlMeta } from '../web/page
 import type { Side } from '../web/states.js';
 import { panelShell, relationsHtml, relationsOf, panelTitle, tickSvg } from '../web/tools.js';
 import { FLOW_SIDE_KEY, hasFlowNowAfter, isAltered, linkOn, linkTone, stepOn } from './states.js';
-import type { FlowSnippets, Snippet } from './anchors.js';
+import type { FlowSnippets, Snippet } from '@codechart/core';
 import { BADGE_HEIGHT, LINE_HEIGHT, type FlowLayout, type FlowLayoutEdge, type FlowLayoutNode } from './layout.js';
 
 export const FLOW_CSS = `

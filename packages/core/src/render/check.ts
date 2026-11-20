@@ -1,15 +1,14 @@
 import { relative, resolve, sep } from 'node:path';
-import type { FlowSpec } from '@codechart/core';
-import type { Spec, SpecNode } from '@codechart/core';
+import type { FlowSpec } from '../spec/flow.js';
+import type { Spec, SpecNode } from '../spec/schema.js';
 import { anchorContext, likelyPath, load, locate, type AnchorCtx } from './flow/anchor-files.js';
 import { findMatch, type FlowSnippets, type Snippet } from './flow/anchors.js';
 import { blockOf, type Block } from './block.js';
-import { stepLabel } from './flow/tree.js';
+import { plainLabel, stepLabel } from '../labels.js';
 import { arrowNames, loose, mentionsPath } from './check-mentions.js';
 import { explains } from './omitted.js';
-import type { ChangeStatus, FileChange } from '@codechart/core';
-import type { CheckSummary, Mismatch } from './terminal/check-lines.js';
-import { plainLabel } from './terminal/labels.js';
+import type { ChangeStatus, FileChange } from '../rules/git-files.js';
+import type { CheckSummary, Mismatch } from '../check-types.js';
 
 /** Files the change touched, repo-relative with `/`. A folder is in it when a file under it is. */
 export interface Diff {

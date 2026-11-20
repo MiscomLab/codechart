@@ -1,12 +1,12 @@
 import { asFlowSpec, FLOW_PREFIX, type ExplainFlow } from '@codechart/core';
 import type { FlowSpec } from '@codechart/core';
 import type { Spec } from '@codechart/core';
-import { checkMapNodes, type MapCheck } from './check.js';
-import { anchorContext } from './flow/anchor-files.js';
-import { scanFlowAnchors, type AnchorFailure, type FlowSnippets } from './flow/anchors.js';
+import { checkMapNodes, type MapCheck } from '@codechart/core';
+import { anchorContext } from '@codechart/core';
+import { scanFlowAnchors, type AnchorFailure, type FlowSnippets } from '@codechart/core';
 import { layoutFlow, type FlowLayout } from './flow/layout.js';
 import { stepLabel } from './flow/tree.js';
-import type { Mismatch } from './terminal/check-lines.js';
+import type { Mismatch } from '@codechart/core';
 
 /** The page's id for a step. A flow id has no `/` (the spec refuses it) and a box id doesn't start with `flow:`, so no two steps or boxes share one. */
 export const stepKey = (flowId: string, stepId: string): string => `${FLOW_PREFIX}${flowId}/${stepId}`;

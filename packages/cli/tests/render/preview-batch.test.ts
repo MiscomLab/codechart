@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { checkMapNodes, diffOf } from '../../src/render/check.js';
+import { checkMapNodes, diffOf } from '@codechart/core';
 import { nodePreviews, parseDiff } from '../../src/render/preview.js';
 import { gitFileDiffs } from '@codechart/core';
 import { diffRange, gitFiles } from '@codechart/core';

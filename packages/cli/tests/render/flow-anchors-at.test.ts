@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildProgram, runProgram } from '../../src/program.js';
-import { checkFlowAnchors } from '../../src/render/flow/anchors.js';
+import { checkFlowAnchors } from '@codechart/core';
 import type { FlowSpec } from '@codechart/core';
 
 let base: string;

@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkFlowAnchors } from '../../src/render/flow/anchors.js';
+import { checkFlowAnchors } from '@codechart/core';
 import { renderFlowHtml } from '../../src/render/flow/html.js';
 import { layoutFlow } from '../../src/render/flow/layout.js';
 import { renderFlowTree } from '../../src/render/flow/tree.js';

@@ -1,4 +1,4 @@
-import { isPlannedLink, isRemovedLink, type FlowLink, type FlowSpec, type FlowStep } from '@codechart/core';
+import { isPlannedLink, isRemovedLink, stepLabel, type FlowLink, type FlowSpec, type FlowStep } from '@codechart/core';
 import { markdownBlock } from '../markdown.js';
 import type { TermCtx } from '../terminal/ctx.js';
 import { columns, fit, flat, truncate, wrapItems, type Cuts, type Segment } from '../terminal/wrap.js';
@@ -24,7 +24,7 @@ export const FLOW_KEY = 'key: + new  ~ changed  ? planned  ◇ decision  ⤷ sha
 export const flowKey = (spec: FlowSpec): string => (hasRemoved(spec) ? FLOW_KEY.replace('? planned', '? planned  - removed') : FLOW_KEY);
 const hasRemoved = (spec: FlowSpec) => spec.steps.some((s) => s.status === 'removed') || spec.links.some((l) => l.removed === true);
 const MARKER: Record<Status, string> = { existing: '', new: '+', changed: '~', planned: '?', removed: '-' };
-export const stepLabel = (step: FlowStep): string => MARKER[step.status] + flat(step.label);
+export { stepLabel };
 const SGR: Record<Status, string | undefined> = { existing: undefined, new: '32', changed: '33', planned: '35', removed: '31' };
 
 interface Ctx extends TermCtx {

@@ -1,6 +1,6 @@
 import type { Output } from '@codechart/core';
 import type { CheckSummary } from '../render/terminal/check-lines.js';
-import type { Diff } from '../render/check.js';
+import type { Diff } from '@codechart/core';
 import type { Drift } from '../render/drift.js';
 import type { StoredPlan } from '../render/plan-store.js';
 import type { WrittenHtml, WriteHtml } from '../render/web/write.js';

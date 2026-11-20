@@ -1,5 +1,5 @@
 import type { Spec, SpecNode, Status } from '@codechart/core';
-import type { MapCheck } from './check.js';
+import type { MapCheck } from '@codechart/core';
 import { checkHeadline, type Mismatch } from './terminal/check-lines.js';
 import { marker } from './terminal/labels.js';
 import { flat } from './terminal/wrap.js';

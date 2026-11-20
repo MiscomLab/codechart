@@ -1,7 +1,7 @@
 import type { Field, Spec, SpecEdge, SpecNode } from '@codechart/core';
 import type { DriftItem } from '../drift.js';
 import { headerHeight, KIND_ROW, LABEL_LINE_HEIGHT, labelLines, wrapSummary, type Layout, type LayoutEdge } from './layout.js';
-import type { MapCheck } from '../check.js';
+import type { MapCheck } from '@codechart/core';
 import { pathHtml, snippetHtml } from '../flow/html.js';
 import type { Preview } from '../preview.js';
 import { flagMark, flagTitle, mismatchNote } from './check-html.js';

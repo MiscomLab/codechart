@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { MapCheck } from '../../src/render/check.js';
+import type { MapCheck } from '@codechart/core';
 import { gapBoxes, withGaps } from '../../src/render/web/gaps.js';
 import { validateSpec, type Spec } from '@codechart/core';
 

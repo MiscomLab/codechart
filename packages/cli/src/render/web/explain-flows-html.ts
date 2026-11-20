@@ -2,7 +2,7 @@ import { stepRev } from '../../review/snapshot.js';
 import type { Spec } from '@codechart/core';
 import type { FlowView, LaidOutCheck } from '../explain-flows.js';
 import { FLOW_CSS, flowViewport, stepPanel } from '../flow/html.js';
-import type { MapCheck } from '../check.js';
+import type { MapCheck } from '@codechart/core';
 import { arrowMarker, esc } from './page.js';
 import { COMPONENTS_VIEW } from './tools.js';
 

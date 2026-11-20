@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { DriftItem } from '../render/drift.js';
-import type { FlowSnippets } from '../render/flow/anchors.js';
+import type { FlowSnippets } from '@codechart/core';
 import type { Preview } from '../render/preview.js';
 import { sanitizeText } from '@codechart/core';
 import { diffRev } from '../render/web/tools.js';

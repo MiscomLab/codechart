@@ -1,14 +1,9 @@
-import { flat } from './wrap.js';
+import { flat, marker } from '@codechart/core';
 import type { NodeKind, SpecNode, Status } from '@codechart/core';
 
-// Unchanged nodes carry no marker, as unchanged lines in a diff carry none.
-const MARKER: Record<Status, string> = { new: '+', changed: '~', removed: '-', context: '', config: '◆', existing: '', outside: '○' };
+export { marker };
+
 const SGR: Record<Status, string | undefined> = { new: '32', changed: '33', removed: '31', context: '2', config: '36', existing: undefined, outside: '2' };
-
-export const marker = (status: Status): string => MARKER[status];
-
-/** Marker glued to the label, `~orders`: for check messages and the HTML. */
-export const plainLabel = (node: SpecNode): string => marker(node.status) + flat(node.label);
 
 export const paint = (node: SpecNode, text: string): string =>
   text && SGR[node.status] ? `\u001b[${SGR[node.status]}m${text}\u001b[0m` : text;

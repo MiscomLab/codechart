@@ -1,4 +1,4 @@
-import type { FlowSnippets } from '../../packages/cli/src/render/flow/anchors.js';
+import type { FlowSnippets } from '@codechart/core';
 import type { FlowSpec } from '@codechart/core';
 
 export function sampleFlow(): FlowSpec {
