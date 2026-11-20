@@ -13,11 +13,11 @@ For the maintainer. The workflow is `.github/workflows/publish.yml`; the notes c
 
 ## Core releases
 
-`@codechart/core` has its own version in `packages/core/package.json`. Bump it when core changes, note it in the changelog, and release both in the same tag: the CLI depends on the core version pinned in `packages/cli/package.json`, so approve the staged core before the CLI. A tag that doesn't bump core stages only the CLI. The app pins a core range (`0.1.x`), so a core patch does not require an app release. Core does not need a GitHub Release of its own; the CLI's release notes describe what changed for users.
+`@codechart/core` has its own version in `packages/core/package.json`. Bump it when core changes, note it in the changelog, and release both in the same tag: the CLI depends on the core version pinned in `packages/cli/package.json`, so approve the staged core before the CLI. A tag that doesn't bump core stages only the CLI. The app pins a core range (`0.1.x`), so a core patch does not require an app release. CI fails a PR that changes core's code (`src`, `package.json`, `tsup.config.ts`) without bumping its version, or whose CLI pin doesn't match it. Core does not need a GitHub Release of its own; the CLI's release notes describe what changed for users.
 
 ### First core publish
 
-`@codechart/core` 0.1.0 is published once by hand, after the PR that adds it is merged: `npm publish -w @codechart/core --access public --provenance=false`, with 2FA (provenance needs a CI provider). Then set the package's Publishing access to "Require 2FA and disallow tokens".
+`@codechart/core` 0.1.0 is published once by hand, after the PR that adds it is merged: `npm publish -w @codechart/core --access public --provenance=false`, with 2FA (provenance needs a CI provider). A hand `npm publish` of a new package is staged: npm shows a `0.0.0-stage` placeholder, and the version goes live only after you approve it on npmjs.com with 2FA. Then set the package's Publishing access to "Require 2FA and disallow tokens".
 
 Add the trusted publisher (MiscomLab / codechart / `publish.yml` / environment `npm`, stage-only) on the day of the first tag that bumps core, not before: npm expires a trusted publisher that goes unused for 2 days.
 
