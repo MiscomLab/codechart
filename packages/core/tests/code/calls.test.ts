@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { callRefSchema } from '../../src/code/model.js';
 import { parseCode, type ParsedFile } from '../../src/code/parse.js';
@@ -14,7 +14,7 @@ let repo: string;
 let files: ParsedFile[];
 
 const write = (path: string, text: string) => {
-  mkdirSync(join(repo, path, '..'), { recursive: true });
+  mkdirSync(dirname(join(repo, path)), { recursive: true });
   writeFileSync(join(repo, path), text);
 };
 
