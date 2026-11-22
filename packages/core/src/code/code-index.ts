@@ -6,6 +6,7 @@ import { listCodeFiles, parseRepo, readCodeFile } from './repo.js';
 import { buildReverse, importerClosure, nameUsers, namesOf, shadowImporters, unknownUsers, type ReverseIndex } from './reverse.js';
 import { linkResolved, resolveImports } from './resolve/link.js';
 import { createResolver } from './resolve/resolver.js';
+import { isRelative } from './resolve/files.js';
 
 export interface CodeIndexOptions {
   /** The config's `ignore` globs, as `parseRepo` takes them. */
@@ -36,7 +37,7 @@ export interface CodeIndex {
   update(paths?: readonly string[]): Promise<CodeUpdate>;
 }
 
-const CONFIG_FILE = /(^|\/)(package\.json|(?:ts|js)config[^/]*\.json)$/;
+const CONFIG_FILE = /(^|\/)(package\.json|pnpm-workspace\.ya?ml|(?:ts|js)config[^/]*\.json)$/;
 const sorted = (set: Iterable<string>): string[] => [...set].sort();
 
 const hashOf = (text: string): string => createHash('sha256').update(text).digest('hex');
@@ -74,6 +75,7 @@ const surface = (parsed: ParsedFile): string =>
 class Index implements CodeIndex {
   private byPath: Map<string, ParsedFile>;
   private reverse: ReverseIndex;
+  private queue: Promise<void> = Promise.resolve();
 
   constructor(
     readonly root: string,
@@ -92,7 +94,16 @@ class Index implements CodeIndex {
     return this.byPath.get(path);
   }
 
-  async update(paths?: readonly string[]): Promise<CodeUpdate> {
+  update(paths?: readonly string[]): Promise<CodeUpdate> {
+    const run = this.queue.then(() => this.runUpdate(paths));
+    this.queue = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private async runUpdate(paths?: readonly string[]): Promise<CodeUpdate> {
     const listed = listCodeFiles(this.root, this.ignore);
     const listedSet = new Set(listed);
     const before = this.byPath;
@@ -187,6 +198,10 @@ class Index implements CodeIndex {
     if (update.added.length) {
       for (const path of unknownUsers(this.reverse)) if (present(path)) imports.add(path);
       for (const path of shadowImporters(this.reverse, update.added)) if (present(path)) imports.add(path);
+      // A paths alias or workspace entry can have several targets: an earlier missing target can appear anywhere.
+      for (const parsed of next.values()) {
+        if (parsed.imports.some((imp) => imp.status === 'resolved' && imp.resolved && !isRelative(imp.spec))) imports.add(parsed.file.path);
+      }
     }
     // Changed files that are still present, including config files and files the ripple does not reach.
     for (const path of update.changed) if (present(path) && !update.removed.has(path)) imports.add(path);

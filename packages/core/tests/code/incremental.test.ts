@@ -60,6 +60,18 @@ describe('openCodeIndex', () => {
     const update = await index.update([join(repo, 'src', 'control.ts')]);
     expect(update.parsed).toEqual(['src/control.ts']);
   });
+
+  it('serialises overlapping updates instead of losing one map', async () => {
+    const beforeMain = index.file('src/main.ts')!.file.hash;
+    const beforeControl = index.file('src/control.ts')!.file.hash;
+    write('src/main.ts', `${read('src/main.ts')}// edited\n`);
+    write('src/control.ts', 'export function control(): void {\n  local();\n}\n\nfunction local(): void {}\n// edited\n');
+    const [first, second] = await Promise.all([index.update(['src/main.ts']), index.update(['src/control.ts'])]);
+    expect(first.parsed).toEqual(['src/main.ts']);
+    expect(second.parsed).toEqual(['src/control.ts']);
+    expect(index.file('src/main.ts')!.file.hash).not.toBe(beforeMain);
+    expect(index.file('src/control.ts')!.file.hash).not.toBe(beforeControl);
+  });
 });
 
 describe('the ripple from adding and removing a file', () => {
@@ -119,6 +131,32 @@ describe('a change to a barrel or a target', () => {
     expect(callOutcome('src/main.ts', 'charge')).toEqual([undefined, 'name-only']);
     expect(callOutcome('src/main.ts', 'settle')).toEqual(['src/service.ts::settle::function', 'resolved']);
     expect(callOutcome('src/control.ts', 'local')).toEqual(['src/control.ts::local::function', 'resolved']);
+  });
+
+  it('re-resolves an import when an earlier alias target appears', async () => {
+    write('tsconfig.json', '{"compilerOptions":{"baseUrl":".","paths":{"@x/*":["./src/preferred/*","./src/fallback/*"]}}}\n');
+    write('src/fallback/task.ts', 'export function task(): void {}\n');
+    write('src/alias.ts', "import { task } from '@x/task';\nexport function run() { task(); }\n");
+    await index.update();
+    expect(importOutcome('src/alias.ts', '@x/task')).toEqual(['resolved', 'src/fallback/task.ts', ['src/fallback/task.ts']]);
+    write('src/preferred/task.ts', 'export function task(): void {}\n');
+    const update = await index.update(['src/preferred/task.ts']);
+    expect(update.relinked).toContain('src/alias.ts');
+    expect(importOutcome('src/alias.ts', '@x/task')).toEqual(['resolved', 'src/preferred/task.ts', ['src/preferred/task.ts']]);
+    expect(callOutcome('src/alias.ts', 'task')).toEqual(['src/preferred/task.ts::task::function', 'resolved']);
+  });
+
+  it('re-resolves imports when pnpm-workspace.yaml changes', async () => {
+    write('packages/lib/package.json', '{"name":"@lib","source":"./src/index.ts"}\n');
+    write('packages/lib/src/index.ts', 'export function lib(): void {}\n');
+    write('src/pnpm-user.ts', "import { lib } from '@lib';\nexport function run() { lib(); }\n");
+    await index.update();
+    expect(importOutcome('src/pnpm-user.ts', '@lib')).toEqual(['external', undefined, [undefined]]);
+    write('pnpm-workspace.yaml', 'packages:\n  - packages/*\n');
+    const update = await index.update(['pnpm-workspace.yaml']);
+    expect(update.relinked).toEqual(['src/pnpm-user.ts']);
+    expect(importOutcome('src/pnpm-user.ts', '@lib')).toEqual(['resolved', 'packages/lib/src/index.ts', ['packages/lib/src/index.ts']]);
+    expect(callOutcome('src/pnpm-user.ts', 'lib')).toEqual(['packages/lib/src/index.ts::lib::function', 'resolved']);
   });
 
   it('re-resolves imports across the repo when a tsconfig path alias changes', async () => {

@@ -38,19 +38,35 @@ function keepLastGood(extracted: Extracted, lastGood: readonly CodeSymbol[] | un
   return { symbols: [...symbols, ...kept], kept: kept.map((s) => s.id) };
 }
 
-const importKey = (imp: Import): string =>
+const importKey = (imp: Pick<Import, 'kind' | 'spec' | 'typeOnly' | 'names'>): string =>
   JSON.stringify([imp.kind, imp.spec, imp.typeOnly ?? false, (imp.names ?? []).map((n) => [n.imported, n.local, n.typeOnly ?? false])]);
 
+const lineOverlap = (a: CodeRange, b: CodeRange): boolean => a.start.line <= b.end.line && a.end.line >= b.start.line;
+
 /**
- * COD-42 follow-up: while a file has a syntax error, an import the broken text still shows keeps its last good
- * version, so arrows do not flicker as the agent types. An import whose specifier is gone was deleted or edited and
- * is not resurrected. Crisp statements outside the error update normally.
+ * COD-42 follow-up: while a file has a syntax error, an import hidden by the broken text keeps its last good version,
+ * so arrows do not flicker as the agent types. An import cleanly replaced or deleted is not resurrected: a type-only
+ * replacement must switch the call to name-only immediately, not keep the old value import.
  */
-function keepLastGoodImports(imports: readonly ImportSpec[], errors: CodeRange[], lastGood: ParsedFile | undefined, text: string): Import[] {
+function keepLastGoodImports(
+  imports: readonly ImportSpec[],
+  hidden: readonly ImportSpec[],
+  errors: CodeRange[],
+  lastGood: ParsedFile | undefined,
+  text: string,
+): Import[] {
   const current: Import[] = imports.map((i) => ({ ...i, status: 'unknown' }));
   if (!errors.length || !lastGood) return current;
   const present = new Set(current.map(importKey));
-  const kept = lastGood.imports.filter((i) => !present.has(importKey(i)) && text.includes(i.spec));
+  const hiddenKeys = new Set(hidden.map(importKey));
+  const hiddenSpecs = new Set(hidden.map((i) => i.spec));
+  const kept = lastGood.imports.filter((imp) => {
+    if (present.has(importKey(imp))) return false;
+    if (hiddenKeys.has(importKey(imp)) || hiddenSpecs.has(imp.spec)) return true;
+    if (hidden.some((h) => lineOverlap(h.range, imp.range))) return true;
+    // A statement whose own specifier is broken has no query match; the broken text still names the old spec.
+    return errors.some((e) => lineOverlap(e, imp.range)) && text.includes(imp.spec);
+  });
   return [...current, ...kept];
 }
 
@@ -102,12 +118,12 @@ export async function parseCode(path: string, text: string, lastGood?: LastGood)
     const errors = tree.rootNode.hasError ? errorNodes(tree.rootNode) : [];
     const extracted = extractSymbols(path, tree, tags);
     const good = keepLastGood(extracted, Array.isArray(lastGood) ? lastGood : previous?.symbols);
-    const { imports, exports } = extractImports(path, tree, query);
+    const { imports, exports, hidden } = extractImports(path, tree, query);
     return {
       file,
       ...good,
       parseErrors: extracted.errors,
-      imports: keepLastGoodImports(imports, extracted.errors, previous, text).map(unlinked),
+      imports: keepLastGoodImports(imports, hidden, extracted.errors, previous, text).map(unlinked),
       exports: keepLastGoodExports(exports, extracted.errors, previous),
       calls: extractCalls(tree, tags, good.symbols, errors),
     };

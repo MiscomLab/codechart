@@ -24,6 +24,17 @@ describe('last good imports on broken code (COD-42 follow-up)', () => {
     expect(broken.exports.names.map((n) => n.name)).toContain('kept');
   });
 
+  it('does not resurrect a value import that clean text replaced with a type-only one', async () => {
+    const good = await parse(GOOD);
+    const text = "import type { pay } from './b';\nexport function run() {\n  pay();\n}\nconst x = ;\n";
+    const broken = await parse(text, good);
+    expect(broken.imports.map((i) => [i.spec, i.typeOnly, i.names])).toEqual([['./b', true, [{ imported: 'pay', local: 'pay', typeOnly: true }]]]);
+    const tree = { 'a.ts': text, 'b.ts': 'export function pay() {}\n' };
+    const [linked] = linkCode([broken, (await parseCode('b.ts', tree['b.ts']))!], createResolver(Object.keys(tree), (p) => tree[p as keyof typeof tree]));
+    expect(linked!.calls[0]).toMatchObject({ name: 'pay', evidence: 'name-only' });
+    expect(linked!.calls[0]).not.toHaveProperty('to');
+  });
+
   it('does not resurrect an import that was deleted from clean text', async () => {
     const good = await parse(GOOD);
     const broken = await parse('export function run() {\n  pay();\n}\nconst x = ;\n', good);
