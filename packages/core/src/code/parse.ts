@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto';
+import { extractCalls } from './calls.js';
 import { loadGrammar } from './grammars.js';
 import { grammarOf, langOf } from './languages.js';
-import { extractImports, type ModuleExports } from './imports.js';
-import type { CodeSymbol, FileInfo, CodeRange, Import } from './model.js';
+import { extractImports, type ImportSpec, type ModuleExports } from './imports.js';
+import type { CallRef, CodeSymbol, FileInfo, CodeRange, Import } from './model.js';
 import { extractSymbols, type Extracted } from './symbols.js';
+import { errorNodes } from './tree.js';
 
 /** One file of the code layer. */
 export interface ParsedFile {
@@ -13,10 +15,15 @@ export interface ParsedFile {
   parseErrors: CodeRange[];
   /** Ids of symbols carried over from the last good parse with their old range, since the broken text no longer shows them. */
   kept: string[];
-  /** `unknown` until `linkImports` resolves them against the rest of the repo. */
+  /** `unknown` until the link pass resolves them against the rest of the repo. */
   imports: Import[];
   exports: ModuleExports;
+  /** Calls by `from` symbol; `name-only` until the link pass proves a target. */
+  calls: CallRef[];
 }
+
+/** The previous parse of a file: symbols, imports and exports that stand in while syntax errors hide them. */
+export type LastGood = ParsedFile | readonly CodeSymbol[];
 
 /**
  * Live map #11: symbols outside syntax errors update; one parsed in or around an error stays only when the last good
@@ -31,28 +38,78 @@ function keepLastGood(extracted: Extracted, lastGood: readonly CodeSymbol[] | un
   return { symbols: [...symbols, ...kept], kept: kept.map((s) => s.id) };
 }
 
+const importKey = (imp: Import): string =>
+  JSON.stringify([imp.kind, imp.spec, imp.typeOnly ?? false, (imp.names ?? []).map((n) => [n.imported, n.local, n.typeOnly ?? false])]);
+
 /**
- * Parses one file in isolation. `path` is repo-relative with `/`; `lastGood` is the file's previous symbols, which
- * stand in for definitions a syntax error hides. A file in a v1 language without a symbol grammar yet gets no symbols.
+ * COD-42 follow-up: while a file has a syntax error, an import the broken text still shows keeps its last good
+ * version, so arrows do not flicker as the agent types. An import whose specifier is gone was deleted or edited and
+ * is not resurrected. Crisp statements outside the error update normally.
  */
-export async function parseCode(path: string, text: string, lastGood?: readonly CodeSymbol[]): Promise<ParsedFile | undefined> {
+function keepLastGoodImports(imports: readonly ImportSpec[], errors: CodeRange[], lastGood: ParsedFile | undefined, text: string): Import[] {
+  const current: Import[] = imports.map((i) => ({ ...i, status: 'unknown' }));
+  if (!errors.length || !lastGood) return current;
+  const present = new Set(current.map(importKey));
+  const kept = lastGood.imports.filter((i) => !present.has(importKey(i)) && text.includes(i.spec));
+  return [...current, ...kept];
+}
+
+/** Own exports hidden by a syntax error keep their last good names, so barrel lookups do not flicker. */
+function keepLastGoodExports(exports: ModuleExports, errors: CodeRange[], lastGood: ParsedFile | undefined): ModuleExports {
+  if (!errors.length || !lastGood) return exports;
+  const names = [...exports.names];
+  const present = new Set(names.map((n) => `${n.name}\0${n.local ?? ''}`));
+  for (const name of lastGood.exports.names) {
+    const key = `${name.name}\0${name.local ?? ''}`;
+    if (!present.has(key)) {
+      present.add(key);
+      names.push(name);
+    }
+  }
+  return { names, complete: false };
+}
+
+/** A parsed import, with any previous link evidence removed; the next link pass proves it again. */
+function unlinked(imp: Import): Import {
+  const copy: Import = { ...imp, status: 'unknown' };
+  delete copy.resolved;
+  if (copy.names) {
+    copy.names = copy.names.map((name) => {
+      const fresh = { ...name };
+      delete fresh.definedIn;
+      return fresh;
+    });
+  }
+  return copy;
+}
+
+/**
+ * Parses one file in isolation. `path` is repo-relative with `/`; `lastGood` is the file's previous parse, whose
+ * symbols, imports and exports stand in for what a syntax error hides. A file in a v1 language without a symbol
+ * grammar yet gets no symbols.
+ */
+export async function parseCode(path: string, text: string, lastGood?: LastGood): Promise<ParsedFile | undefined> {
   const lang = langOf(path);
   if (!lang) return undefined;
   const file: FileInfo = { path, lang, hash: createHash('sha256').update(text).digest('hex') };
   const grammar = grammarOf(path);
-  if (!grammar) return { file, symbols: [], parseErrors: [], kept: [], imports: [], exports: { names: [], complete: false } };
+  if (!grammar) return { file, symbols: [], parseErrors: [], kept: [], imports: [], exports: { names: [], complete: false }, calls: [] };
   const { parser, tags, imports: query } = await loadGrammar(grammar);
   const tree = parser.parse(text);
   if (!tree) throw new Error(`tree-sitter returned no tree for ${path}`);
   try {
+    const previous = Array.isArray(lastGood) ? undefined : (lastGood as ParsedFile | undefined);
+    const errors = tree.rootNode.hasError ? errorNodes(tree.rootNode) : [];
     const extracted = extractSymbols(path, tree, tags);
+    const good = keepLastGood(extracted, Array.isArray(lastGood) ? lastGood : previous?.symbols);
     const { imports, exports } = extractImports(path, tree, query);
     return {
       file,
-      ...keepLastGood(extracted, lastGood),
+      ...good,
       parseErrors: extracted.errors,
-      imports: imports.map((i) => ({ ...i, status: 'unknown' as const })),
-      exports,
+      imports: keepLastGoodImports(imports, extracted.errors, previous, text).map(unlinked),
+      exports: keepLastGoodExports(exports, extracted.errors, previous),
+      calls: extractCalls(tree, tags, good.symbols, errors),
     };
   } finally {
     tree.delete();

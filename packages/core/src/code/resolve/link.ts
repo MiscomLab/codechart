@@ -1,71 +1,37 @@
 import type { Import, ImportedName } from '../model.js';
 import type { ParsedFile } from '../parse.js';
+import { resolveCalls } from './calls.js';
 import type { Resolver } from './resolver.js';
+import { createTracer, type Tracer } from './trace.js';
 
-/** Where a name a file exports is defined (the file and its binding there), proven absent, or not provable (ambiguous, unresolved, CommonJS). */
-type Found = { file: string; binding: string } | 'none' | 'unknown';
+const allPaths = (files: readonly ParsedFile[]): Set<string> => new Set(files.map((f) => f.file.path));
 
-const isStar = (i: Import) => i.kind === 'export' && (i.names ?? []).some((n) => n.local === '*');
-
-type Files = ReadonlyMap<string, ParsedFile>;
-
-function through(files: Files, imp: Import, imported: string, seen: Set<string>): Found {
-  if (imp.status !== 'resolved' || !imp.resolved) return 'unknown';
-  return imported === '*' ? { file: imp.resolved, binding: '*' } : find(files, imp.resolved, imported, seen);
-}
-
-/** `export * from` adds a name when exactly one binding provides it; two that do make it ambiguous, so not proven. */
-function viaStars(files: Files, parsed: ParsedFile, name: string, seen: Set<string>): Found {
-  const hits = new Map<string, Found>();
-  let unsure = !parsed.exports.complete;
-  for (const imp of parsed.imports.filter(isStar)) {
-    const found = through(files, imp, name, seen);
-    if (found === 'unknown') unsure = true;
-    else if (found !== 'none') hits.set(`${found.file}\0${found.binding}`, found);
-  }
-  if (hits.size > 1 || unsure) return 'unknown';
-  return [...hits.values()][0] ?? 'none';
-}
-
-/** The import in `parsed` of `kind` that binds `local`, and its name entry. */
-function binding(parsed: ParsedFile, kind: Import['kind'], local: string): { imp: Import; imported: string } | undefined {
-  for (const imp of parsed.imports) {
-    const name = imp.kind === kind ? imp.names?.find((n) => n.local === local) : undefined;
-    if (name) return { imp, imported: name.imported };
-  }
-  return undefined;
-}
-
-// `seen` spans one lookup: a cycle adds no name, and a file reached twice gives the same definition.
-function find(files: Files, file: string, name: string, seen: Set<string>): Found {
-  const key = `${file}\0${name}`;
-  if (seen.has(key)) return 'none';
-  seen.add(key);
-  const parsed = files.get(file);
-  if (!parsed) return 'unknown';
-  const own = parsed.exports.names.find((e) => e.name === name);
-  if (own) {
-    const imported = own.local === undefined ? undefined : binding(parsed, 'import', own.local);
-    return imported ? through(files, imported.imp, imported.imported, seen) : { file, binding: own.local ?? name };
-  }
-  const reexport = binding(parsed, 'export', name);
-  if (reexport) return through(files, reexport.imp, reexport.imported, seen);
-  // `export *` never re-exports `default`.
-  if (name === 'default') return parsed.exports.complete ? 'none' : 'unknown';
-  return viaStars(files, parsed, name, seen);
-}
-
-function createTracer(files: Files) {
-  const memo = new Map<string, Found>();
-  return (file: string, name: string): Found => {
-    const key = `${file}\0${name}`;
-    let found = memo.get(key);
-    if (!found) memo.set(key, (found = find(files, file, name, new Set())));
-    return found;
+/** A file's imports with their current resolution and no evidence from an earlier link pass. */
+function withResolvedImports(parsed: ParsedFile, resolver: Resolver): ParsedFile {
+  return {
+    ...parsed,
+    imports: parsed.imports.map((stated): Import => {
+      const imp: Import = { ...stated, ...resolver.resolve(parsed.file.path, stated.spec, stated.kind) };
+      if (imp.status !== 'resolved') delete imp.resolved;
+      if (imp.names) {
+        imp.names = imp.names.map((name) => {
+          const fresh = { ...name };
+          delete fresh.definedIn;
+          return fresh;
+        });
+      }
+      return imp;
+    }),
   };
 }
 
-function withDefinitions(imp: Import, trace: ReturnType<typeof createTracer>): Import {
+/** Resolves import paths in `only` (all files by default) without parsing; the next pass proves `definedIn`. */
+export function resolveImports(files: readonly ParsedFile[], resolver: Resolver, only?: ReadonlySet<string>): ParsedFile[] {
+  const paths = only ?? allPaths(files);
+  return files.map((f) => (paths.has(f.file.path) ? withResolvedImports(f, resolver) : f));
+}
+
+function withDefinitions(imp: Import, trace: Tracer): Import {
   if (!imp.names) return imp;
   const names = imp.names.map((stated): ImportedName => {
     const name = { ...stated };
@@ -77,19 +43,45 @@ function withDefinitions(imp: Import, trace: ReturnType<typeof createTracer>): I
   return { ...imp, names };
 }
 
+export interface LinkPass {
+  /** Files whose imported names get a fresh `definedIn`. */
+  definitions?: ReadonlySet<string>;
+  /** Files whose calls get a fresh target. */
+  calls?: ReadonlySet<string>;
+}
+
+/**
+ * Adds `definedIn` and call targets to files whose imports were just resolved. One export tracer serves the whole pass,
+ * so a barrel is followed once no matter how many names point through it.
+ */
+export function linkResolved(files: readonly ParsedFile[], pass: LinkPass): ParsedFile[] {
+  const map = new Map(files.map((f) => [f.file.path, f]));
+  const trace = createTracer(map);
+  const linked = new Map(map);
+  for (const path of pass.definitions ?? []) {
+    const parsed = map.get(path);
+    if (parsed) linked.set(path, { ...parsed, imports: parsed.imports.map((imp) => withDefinitions(imp, trace)) });
+  }
+  const callRefs = resolveCalls(map, pass.calls ?? new Set(), trace);
+  for (const [path, calls] of callRefs) {
+    const parsed = linked.get(path);
+    if (parsed) linked.set(path, { ...parsed, calls });
+  }
+  return files.map((f) => linked.get(f.file.path)!);
+}
+
 /**
  * Resolves every file's imports with `resolver`, then follows each imported name through re-exports to the file
  * that defines it. Files not passed in count as unparsed: names reaching them get no `definedIn`.
  */
 export function linkImports(files: readonly ParsedFile[], resolver: Resolver): ParsedFile[] {
-  const resolved = files.map((f) => ({
-    ...f,
-    imports: f.imports.map((stated): Import => {
-      const imp = { ...stated, ...resolver.resolve(f.file.path, stated.spec, stated.kind) };
-      if (imp.status !== 'resolved') delete imp.resolved;
-      return imp;
-    }),
-  }));
-  const trace = createTracer(new Map(resolved.map((f) => [f.file.path, f])));
-  return resolved.map((f) => ({ ...f, imports: f.imports.map((i) => withDefinitions(i, trace)) }));
+  const resolved = resolveImports(files, resolver);
+  return linkResolved(resolved, { definitions: allPaths(resolved) });
+}
+
+/** Imports and calls of every file, linked against the full set. */
+export function linkCode(files: readonly ParsedFile[], resolver: Resolver): ParsedFile[] {
+  const resolved = resolveImports(files, resolver);
+  const paths = allPaths(resolved);
+  return linkResolved(resolved, { definitions: paths, calls: paths });
 }

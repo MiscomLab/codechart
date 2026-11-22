@@ -1,5 +1,6 @@
 import type { Node, Query, Tree } from 'web-tree-sitter';
 import { SYMBOL_KINDS, symbolId, type CodeSymbol, type CodeRange, type SymbolKind } from './model.js';
+import { errorNodes, nodeRange, touches } from './tree.js';
 
 interface Def {
   node: Node;
@@ -18,24 +19,6 @@ export interface Extracted {
 
 const KINDS = new Set<string>(SYMBOL_KINDS);
 
-export const nodeRange = (node: Node): CodeRange => ({
-  start: { line: node.startPosition.row + 1, column: node.startPosition.column },
-  end: { line: node.endPosition.row + 1, column: node.endPosition.column },
-});
-
-/** ERROR and MISSING nodes, descending only into subtrees that hold one. */
-function errorNodes(node: Node, out: Node[] = []): Node[] {
-  if (node.isError || node.isMissing) {
-    out.push(node);
-    return out;
-  }
-  for (let i = 0; i < node.childCount; i++) {
-    const child = node.child(i);
-    if (child?.hasError || child?.isMissing) errorNodes(child, out);
-  }
-  return out;
-}
-
 const WRAPPERS = new Set(['export_statement', 'ambient_declaration']);
 
 // Overloads share a scope; `export` and `declare` wrap each declaration on its own.
@@ -44,10 +27,6 @@ function scopeOf(node: Node): number | undefined {
   while (parent && WRAPPERS.has(parent.type)) parent = parent.parent;
   return parent?.id;
 }
-
-// A MISSING node is zero-width: it breaks the definitions it sits in or at the edge of.
-const touches = (def: Node, err: Node) =>
-  err.startIndex === err.endIndex ? def.startIndex <= err.startIndex && err.startIndex <= def.endIndex : err.startIndex < def.endIndex && err.endIndex > def.startIndex;
 
 function definitions(tree: Tree, tags: Query): Omit<Def, 'path' | 'broken'>[] {
   const seen = new Set<number>();

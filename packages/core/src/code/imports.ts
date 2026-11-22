@@ -1,6 +1,6 @@
 import type { Node, Query, Tree } from 'web-tree-sitter';
 import type { Import, ImportedName } from './model.js';
-import { nodeRange } from './symbols.js';
+import { nodeRange } from './tree.js';
 
 /** Finds import statements, re-exports, `require('x')`, `import('x')` and CommonJS exports; shared by the JS and TS grammars. */
 export const IMPORTS_QUERY = `
@@ -121,7 +121,10 @@ function localExports(node: Node): ExportName[] | undefined {
   if (hasToken(node, '=')) return undefined;
   if (hasToken(node, 'default')) {
     const value = node.childForFieldName('value');
-    return [value?.type === 'identifier' ? { name: 'default', local: value.text } : { name: 'default' }];
+    if (value?.type === 'identifier') return [{ name: 'default', local: value.text }];
+    // `export default function charge` / `export default class PaymentService`: the declaration is a field, not a value.
+    const declared = (node.childForFieldName('declaration') ?? value)?.childForFieldName('name');
+    return [declared ? { name: 'default', local: declared.text } : { name: 'default' }];
   }
   const decl = node.childForFieldName('declaration');
   if (decl) return declarationNames(decl).map((name) => ({ name }));
