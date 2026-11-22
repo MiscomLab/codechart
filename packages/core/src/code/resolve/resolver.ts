@@ -95,12 +95,28 @@ function resolveSpec(repo: Repo, from: string, spec: string, load: LoadKind): Re
   return bare(repo, from, spec, load);
 }
 
+/** A file set that reports every path asked about: the paths whose appearance or removal can change a resolution. */
+class ProbedSet extends Set<string> {
+  constructor(
+    files: Iterable<string>,
+    private readonly probe: (path: string) => void,
+  ) {
+    super(files);
+  }
+
+  override has(path: string): boolean {
+    this.probe(path);
+    return super.has(path);
+  }
+}
+
 /**
  * A resolver over `files` (repo paths with `/`, as `listCodeFiles` gives them); `read` returns a repo file's text.
- * Only listed files count, so nothing resolves into `node_modules` or ignored build output.
+ * Only listed files count, so nothing resolves into `node_modules` or ignored build output. `probe` sees every path a
+ * resolution checks for; config lookups are cached, so it sees those only on first use.
  */
-export function createResolver(files: Iterable<string>, read: (path: string) => string | undefined): Resolver {
-  const listed: FileSet = new Set(files);
+export function createResolver(files: Iterable<string>, read: (path: string) => string | undefined, probe?: (path: string) => void): Resolver {
+  const listed: FileSet = probe ? new ProbedSet(files, probe) : new Set(files);
   const packages = new Map<string, PackageJson | undefined>();
   const readPackage = (dir: string): PackageJson | undefined => {
     if (!packages.has(dir)) {

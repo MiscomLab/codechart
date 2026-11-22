@@ -30,12 +30,19 @@ function calleeOf(call: Node): Callee {
 const after = (a: { line: number; column: number }, b: { line: number; column: number }) => a.line > b.line || (a.line === b.line && a.column > b.column);
 const pointOrder = (a: { line: number; column: number }, b: { line: number; column: number }) => a.line - b.line || a.column - b.column;
 
-/** The innermost symbol whose range holds the call's first character. */
-function fromSymbol(symbols: readonly CodeSymbol[], call: Node): CodeSymbol | undefined {
+/**
+ * The innermost symbol whose range holds the call's first character. A symbol kept from the last good parse has its
+ * old range, which no longer matches the text: it is never the caller, and when one sits deeper than every parsed
+ * symbol around the call, the call has no provable caller.
+ */
+function fromSymbol(symbols: readonly CodeSymbol[], kept: ReadonlySet<string>, call: Node): CodeSymbol | undefined {
   const at = { line: call.startPosition.row + 1, column: call.startPosition.column };
-  return symbols
-    .filter((s) => !after(s.range.start, at) && !after(at, s.range.end))
-    .sort((a, b) => b.path.length - a.path.length || pointOrder(b.range.start, a.range.start) || pointOrder(a.range.end, b.range.end))[0];
+  const around = symbols.filter((s) => !after(s.range.start, at) && !after(at, s.range.end));
+  const parsed = around
+    .filter((s) => !kept.has(s.id))
+    .sort((a, b) => b.path.length - a.path.length || pointOrder(b.range.start, a.range.start) || pointOrder(a.range.end, b.range.end));
+  const keptDepth = Math.max(0, ...around.filter((s) => kept.has(s.id)).map((s) => s.path.length));
+  return parsed[0] && parsed[0].path.length >= keptDepth ? parsed[0] : undefined;
 }
 
 /**
@@ -43,9 +50,10 @@ function fromSymbol(symbols: readonly CodeSymbol[], call: Node): CodeSymbol | un
  * file scope has no symbol to point at and is skipped. Calls in or around a syntax error are not read: the broken text
  * proves nothing. Evidence is `name-only` until the link pass proves a target.
  */
-export function extractCalls(tree: Tree, tags: Query, symbols: readonly CodeSymbol[], errors: readonly Node[]): CallRef[] {
+export function extractCalls(tree: Tree, tags: Query, symbols: { symbols: readonly CodeSymbol[]; kept: readonly string[] }, errors: readonly Node[]): CallRef[] {
   const calls: CallRef[] = [];
   const seen = new Set<number>();
+  const kept = new Set(symbols.kept);
   for (const match of tags.matches(tree.rootNode)) {
     const ref = match.captures.find((c) => c.name === 'reference.call')?.node;
     const name = match.captures.find((c) => c.name === 'name')?.node;
@@ -53,7 +61,7 @@ export function extractCalls(tree: Tree, tags: Query, symbols: readonly CodeSymb
     const call = callOf(ref);
     if (!call || call.hasError || errors.some((e) => touches(call, e))) continue;
     seen.add(ref.id);
-    const from = fromSymbol(symbols, call);
+    const from = fromSymbol(symbols.symbols, kept, call);
     if (!from) continue;
     const { via, receiver } = calleeOf(call);
     calls.push({

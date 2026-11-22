@@ -146,6 +146,18 @@ describe('a change to a barrel or a target', () => {
     expect(callOutcome('src/alias.ts', 'task')).toEqual(['src/preferred/task.ts::task::function', 'resolved']);
   });
 
+  it('re-resolves only imports that checked for an added file, not every alias import', async () => {
+    write('tsconfig.json', '{"compilerOptions":{"baseUrl":".","paths":{"@x/*":["./src/*"]}}}\n');
+    write('src/target.ts', 'export function target(): void {}\n');
+    write('src/alias.ts', "import { target } from '@x/target';\nexport function run() { target(); }\n");
+    await index.update();
+    const before = index.file('src/alias.ts');
+    write('src/unrelated.ts', 'export function unrelated(): void {}\n');
+    const update = await index.update(['src/unrelated.ts']);
+    expect(update.relinked).toEqual([]);
+    expect(index.file('src/alias.ts')).toBe(before);
+  });
+
   it('re-resolves imports when pnpm-workspace.yaml changes', async () => {
     write('packages/lib/package.json', '{"name":"@lib","source":"./src/index.ts"}\n');
     write('packages/lib/src/index.ts', 'export function lib(): void {}\n');

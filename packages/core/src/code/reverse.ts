@@ -4,8 +4,6 @@ import type { ParsedFile } from './parse.js';
 export interface ReverseIndex {
   /** Resolved target file → files importing it. */
   importers: Map<string, Set<string>>;
-  /** Unresolved import specifier → files that wrote it. */
-  unknown: Map<string, Set<string>>;
   /** Call or import name → files using it. */
   names: Map<string, Set<string>>;
 }
@@ -18,18 +16,16 @@ function add(map: Map<string, Set<string>>, key: string, file: string): void {
 
 export function buildReverse(files: Iterable<ParsedFile>): ReverseIndex {
   const importers = new Map<string, Set<string>>();
-  const unknown = new Map<string, Set<string>>();
   const names = new Map<string, Set<string>>();
   for (const parsed of files) {
     const file = parsed.file.path;
     for (const imp of parsed.imports) {
       if (imp.status === 'resolved' && imp.resolved) add(importers, imp.resolved, file);
-      if (imp.status === 'unknown') add(unknown, imp.spec, file);
       for (const name of imp.names ?? []) add(names, name.local, file);
     }
     for (const call of parsed.calls) add(names, call.name, file);
   }
-  return { importers, unknown, names };
+  return { importers, names };
 }
 
 /** The files that import something in `seeds`, transitively: a barrel passes a change on to its importers. */
@@ -62,29 +58,35 @@ export function namesOf(parsed: ParsedFile | undefined): Set<string> {
   return names;
 }
 
-/** Files whose unknown imports are worth retrying when a file appears. */
-export function unknownUsers(index: ReverseIndex): Set<string> {
-  const files = new Set<string>();
-  for (const users of index.unknown.values()) for (const file of users) files.add(file);
-  return files;
-}
-
-const withoutExtension = (path: string): string => path.replace(/\.[^/.]+$/, '');
-
 /**
- * Importers of resolved files an added file could shadow. Resolving `./foo` prefers `foo.ts` to `foo/index.ts`, so a
- * new `foo.ts` can change an import that already pointed at `foo/index.ts`; the reverse index finds those importers.
+ * The repo paths each file's import resolution checked for, and the reverse. A file appearing or leaving changes a
+ * resolution only if the resolver asked about it: an unknown import, a `.ts` shadowing a `.js`, an earlier `paths`
+ * target or an ambiguous package source all show up here.
  */
-export function shadowImporters(index: ReverseIndex, added: readonly string[]): Set<string> {
-  const targets = [...index.importers.keys()];
-  const files = new Set<string>();
-  for (const path of added) {
-    const stem = withoutExtension(path);
-    for (const target of targets) {
-      const targetStem = withoutExtension(target);
-      if (targetStem !== stem && targetStem !== `${stem}/index`) continue;
-      for (const importer of index.importers.get(target) ?? []) files.add(importer);
-    }
+export class Probes {
+  private readonly byFile = new Map<string, Set<string>>();
+  private readonly byPath = new Map<string, Set<string>>();
+
+  /** Replaces what `file` checked for. */
+  set(file: string, paths: ReadonlySet<string>): void {
+    this.delete(file);
+    this.byFile.set(file, new Set(paths));
+    for (const path of paths) add(this.byPath, path, file);
   }
-  return files;
+
+  delete(file: string): void {
+    for (const path of this.byFile.get(file) ?? []) {
+      const files = this.byPath.get(path)!;
+      files.delete(file);
+      if (!files.size) this.byPath.delete(path);
+    }
+    this.byFile.delete(file);
+  }
+
+  /** Files whose resolution checked for any of `paths`. */
+  users(paths: Iterable<string>): Set<string> {
+    const files = new Set<string>();
+    for (const path of paths) for (const file of this.byPath.get(path) ?? []) files.add(file);
+    return files;
+  }
 }

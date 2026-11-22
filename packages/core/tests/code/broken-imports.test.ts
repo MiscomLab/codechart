@@ -42,6 +42,25 @@ describe('last good imports on broken code (COD-42 follow-up)', () => {
     expect(broken.parseErrors.length).toBeGreaterThan(0);
   });
 
+  it('does not resurrect an export that was deleted while the file is broken elsewhere', async () => {
+    const good = await parse('export function foo() {}\nexport function bar() {}\nexport default function main() {}\n');
+    const broken = await parse('export function bar() {}\nconst x = ;\n', good);
+    expect(broken.exports.names).toEqual([{ name: 'bar' }]);
+    const again = await parse('export function bar() {}\nconst y = ;\n', broken);
+    expect(again.exports.names).toEqual([{ name: 'bar' }]);
+  });
+
+  it('never makes a symbol kept with its old range the caller', async () => {
+    const good = await parse('class K {\n  m() {\n    a();\n  }\n}\nfunction a() {}\n');
+    const deeper = await parse('\nfunction f() {\n  a();\n}\nfunction a() {}\nconst z = ;\n', good);
+    expect(deeper.kept).toEqual(['a.ts::K::class', 'a.ts::K.m::method']);
+    expect(deeper.calls).toEqual([]);
+
+    const broken = await parse('function f() {\n  a();\n}\nfunction a() {}\nconst z = ;\n', await parse('function g() {\n  a();\n}\nfunction a() {}\n'));
+    expect(broken.kept).toEqual(['a.ts::g::function']);
+    expect(broken.calls.map((c) => c.from)).toEqual(['a.ts::f::function']);
+  });
+
   it('stays linked while the import is broken, then parses clean again', async () => {
     const good = await parse(GOOD);
     const tree = { 'a.ts': GOOD, 'b.ts': 'export function pay() {}\n' };

@@ -21,7 +21,9 @@ class SymbolLookup {
       const byId = new Map<string, CodeSymbol>();
       for (const symbol of this.files.get(file)?.symbols ?? []) {
         const leaf = symbol.path[symbol.path.length - 1]!;
-        byName.set(leaf, [...(byName.get(leaf) ?? []), symbol]);
+        const named = byName.get(leaf);
+        if (named) named.push(symbol);
+        else byName.set(leaf, [symbol]);
         byId.set(symbol.id, symbol);
       }
       this.byFile.set(file, (entry = { byName, byId }));

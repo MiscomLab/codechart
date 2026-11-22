@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { extractCalls } from './calls.js';
 import { loadGrammar } from './grammars.js';
 import { grammarOf, langOf } from './languages.js';
-import { extractImports, type ImportSpec, type ModuleExports } from './imports.js';
+import { extractImports, type ExportName, type ImportSpec, type ModuleExports } from './imports.js';
 import type { CallRef, CodeSymbol, FileInfo, CodeRange, Import } from './model.js';
 import { extractSymbols, type Extracted } from './symbols.js';
 import { errorNodes } from './tree.js';
@@ -70,14 +70,23 @@ function keepLastGoodImports(
   return [...current, ...kept];
 }
 
-/** Own exports hidden by a syntax error keep their last good names, so barrel lookups do not flicker. */
-function keepLastGoodExports(exports: ModuleExports, errors: CodeRange[], lastGood: ParsedFile | undefined): ModuleExports {
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Whether the text still names an export: `export default` for a default, else the exported name as a whole word. */
+const stillWritten = (text: string, name: ExportName): boolean =>
+  (name.name === 'default' ? /\bexport\s+default\b/ : new RegExp(`(?<![\\w$])${escapeRegExp(name.name)}(?![\\w$])`)).test(text);
+
+/**
+ * Own exports hidden by a syntax error keep their last good names, so barrel lookups do not flicker. As with imports,
+ * an export whose name is gone from the text was deleted, not hidden, and is not resurrected.
+ */
+function keepLastGoodExports(exports: ModuleExports, errors: CodeRange[], lastGood: ParsedFile | undefined, text: string): ModuleExports {
   if (!errors.length || !lastGood) return exports;
   const names = [...exports.names];
   const present = new Set(names.map((n) => `${n.name}\0${n.local ?? ''}`));
   for (const name of lastGood.exports.names) {
     const key = `${name.name}\0${name.local ?? ''}`;
-    if (!present.has(key)) {
+    if (!present.has(key) && stillWritten(text, name)) {
       present.add(key);
       names.push(name);
     }
@@ -124,8 +133,8 @@ export async function parseCode(path: string, text: string, lastGood?: LastGood)
       ...good,
       parseErrors: extracted.errors,
       imports: keepLastGoodImports(imports, hidden, extracted.errors, previous, text).map(unlinked),
-      exports: keepLastGoodExports(exports, extracted.errors, previous),
-      calls: extractCalls(tree, tags, good.symbols, errors),
+      exports: keepLastGoodExports(exports, extracted.errors, previous, text),
+      calls: extractCalls(tree, tags, good, errors),
     };
   } finally {
     tree.delete();

@@ -2,11 +2,10 @@ import { createHash } from 'node:crypto';
 import { relative, resolve, sep } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { parseCode, type ParsedFile } from './parse.js';
-import { listCodeFiles, parseRepo, readCodeFile } from './repo.js';
-import { buildReverse, importerClosure, nameUsers, namesOf, shadowImporters, unknownUsers, type ReverseIndex } from './reverse.js';
+import { listCodeFiles, readCodeFile } from './repo.js';
+import { buildReverse, importerClosure, nameUsers, namesOf, Probes, type ReverseIndex } from './reverse.js';
 import { linkResolved, resolveImports } from './resolve/link.js';
-import { createResolver } from './resolve/resolver.js';
-import { isRelative } from './resolve/files.js';
+import { createResolver, type Resolver } from './resolve/resolver.js';
 
 export interface CodeIndexOptions {
   /** The config's `ignore` globs, as `parseRepo` takes them. */
@@ -44,6 +43,33 @@ const hashOf = (text: string): string => createHash('sha256').update(text).diges
 
 const emptyUpdate = (): CodeUpdate => ({ changed: [], parsed: [], relinked: [], removed: [] });
 
+/** An update in progress: what was added, removed, changed by hash and parsed again. */
+interface Pending {
+  added: string[];
+  removed: Set<string>;
+  changed: Set<string>;
+  parsed: Set<string>;
+}
+
+/** A resolver that records, per importing file, every path its resolutions checked for. */
+function recordingResolver(root: string, listed: readonly string[]): { resolver: Resolver; recorded: Map<string, Set<string>> } {
+  const recorded = new Map<string, Set<string>>();
+  let current: Set<string> | undefined;
+  const inner = createResolver(listed, (path) => readCodeFile(root, path), (path) => current?.add(path));
+  const resolver: Resolver = {
+    resolve(from, spec, kind) {
+      current = recorded.get(from) ?? new Set();
+      recorded.set(from, current);
+      try {
+        return inner.resolve(from, spec, kind);
+      } finally {
+        current = undefined;
+      }
+    },
+  };
+  return { resolver, recorded };
+}
+
 function repoPaths(root: string, paths: readonly string[]): Set<string> {
   const base = resolve(root);
   const out = new Set<string>();
@@ -75,15 +101,18 @@ const surface = (parsed: ParsedFile): string =>
 class Index implements CodeIndex {
   private byPath: Map<string, ParsedFile>;
   private reverse: ReverseIndex;
+  private readonly probes = new Probes();
   private queue: Promise<void> = Promise.resolve();
 
   constructor(
     readonly root: string,
     private readonly ignore: readonly string[],
     files: Map<string, ParsedFile>,
+    probed: ReadonlyMap<string, ReadonlySet<string>>,
   ) {
     this.byPath = files;
     this.reverse = buildReverse(files.values());
+    for (const path of files.keys()) this.probes.set(path, probed.get(path) ?? new Set());
   }
 
   get files(): readonly ParsedFile[] {
@@ -108,15 +137,14 @@ class Index implements CodeIndex {
     const listedSet = new Set(listed);
     const before = this.byPath;
     const next = new Map(before);
-    const first = this.collect(listed, before, next);
-    await this.parseChanged(paths, listed, listedSet, before, next, first);
-    if (!first.changed.size) return emptyUpdate();
-    return this.relink(listed, before, next, first);
+    const pending = this.collect(listed, listedSet, before, next);
+    await this.parseChanged(paths, listed, listedSet, before, next, pending);
+    if (!pending.changed.size) return emptyUpdate();
+    return this.relink(listed, before, next, pending);
   }
 
   /** Files added and removed since the last snapshot, and the removed ones deleted from `next`. */
-  private collect(listed: readonly string[], before: Map<string, ParsedFile>, next: Map<string, ParsedFile>) {
-    const listedSet = new Set(listed);
+  private collect(listed: readonly string[], listedSet: ReadonlySet<string>, before: Map<string, ParsedFile>, next: Map<string, ParsedFile>): Pending {
     const removed = new Set<string>();
     const added: string[] = [];
     for (const path of before.keys()) {
@@ -136,7 +164,7 @@ class Index implements CodeIndex {
     listedSet: ReadonlySet<string>,
     before: Map<string, ParsedFile>,
     next: Map<string, ParsedFile>,
-    update: { added: string[]; removed: Set<string>; changed: Set<string>; parsed: Set<string> },
+    update: Pending,
   ): Promise<void> {
     const touched = paths === undefined ? listed : [...repoPaths(this.root, paths)].filter((p) => listedSet.has(p));
     for (const path of new Set([...update.added, ...touched])) {
@@ -162,9 +190,9 @@ class Index implements CodeIndex {
     listed: readonly string[],
     before: Map<string, ParsedFile>,
     next: Map<string, ParsedFile>,
-    update: { added: string[]; removed: Set<string>; changed: Set<string>; parsed: Set<string> },
+    update: Pending,
   ): CodeUpdate {
-    const resolver = createResolver(listed, (path) => readCodeFile(this.root, path));
+    const { resolver, recorded } = recordingResolver(this.root, listed);
     const configChanged = [...update.changed].some((path) => CONFIG_FILE.test(path));
     const imports = this.importCandidates(update, configChanged, next);
     const resolved = resolveImports([...next.values()], resolver, imports);
@@ -177,6 +205,8 @@ class Index implements CodeIndex {
     const relinked = sorted([...touched].filter((path) => !update.parsed.has(path) && next.has(path) && !sameLinks(before.get(path), after.get(path))));
     this.byPath = after;
     this.reverse = buildReverse(after.values());
+    for (const path of update.removed) this.probes.delete(path);
+    for (const path of imports) this.probes.set(path, recorded.get(path) ?? new Set());
     return {
       changed: sorted(update.changed),
       parsed: sorted(update.parsed),
@@ -187,22 +217,15 @@ class Index implements CodeIndex {
 
   /** Files whose imports may resolve differently after this update. */
   private importCandidates(
-    update: { added: string[]; removed: Set<string>; changed: Set<string>; parsed: Set<string> },
+    update: Pending,
     configChanged: boolean,
     next: Map<string, ParsedFile>,
   ): Set<string> {
     const present = (path: string) => next.has(path);
     if (configChanged) return new Set([...next.keys()]);
     const imports = new Set([...update.parsed].filter(present));
-    for (const path of update.removed) for (const importer of this.reverse.importers.get(path) ?? []) if (present(importer)) imports.add(importer);
-    if (update.added.length) {
-      for (const path of unknownUsers(this.reverse)) if (present(path)) imports.add(path);
-      for (const path of shadowImporters(this.reverse, update.added)) if (present(path)) imports.add(path);
-      // A paths alias or workspace entry can have several targets: an earlier missing target can appear anywhere.
-      for (const parsed of next.values()) {
-        if (parsed.imports.some((imp) => imp.status === 'resolved' && imp.resolved && !isRelative(imp.spec))) imports.add(parsed.file.path);
-      }
-    }
+    // Only a resolution that checked for an added or removed path can come out differently.
+    for (const path of this.probes.users([...update.added, ...update.removed])) if (present(path)) imports.add(path);
     // Changed files that are still present, including config files and files the ripple does not reach.
     for (const path of update.changed) if (present(path) && !update.removed.has(path)) imports.add(path);
     return imports;
@@ -240,8 +263,18 @@ class Index implements CodeIndex {
   }
 }
 
-/** Opens the code layer of `root` and keeps it ready for one-file updates. */
+/** Opens the code layer of `root` and keeps it ready for one-file updates; links as `parseRepo` does, recording probes. */
 export async function openCodeIndex(root: string, opts: CodeIndexOptions = {}): Promise<CodeIndex> {
-  const files = await parseRepo(root, opts);
-  return new Index(root, opts.ignore ?? [], new Map(files.map((f) => [f.file.path, f])));
+  const listed = listCodeFiles(root, opts.ignore);
+  const parsed: ParsedFile[] = [];
+  for (const path of listed) {
+    const text = readCodeFile(root, path);
+    const file = text === undefined ? undefined : await parseCode(path, text);
+    if (file) parsed.push(file);
+  }
+  const { resolver, recorded } = recordingResolver(root, listed);
+  const resolved = resolveImports(parsed, resolver);
+  const paths = new Set(resolved.map((f) => f.file.path));
+  const files = linkResolved(resolved, { definitions: paths, calls: paths });
+  return new Index(root, opts.ignore ?? [], new Map(files.map((f) => [f.file.path, f])), recorded);
 }
