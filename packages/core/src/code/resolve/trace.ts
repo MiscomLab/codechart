@@ -11,6 +11,21 @@ type Files = ReadonlyMap<string, ParsedFile>;
 
 const isStar = (i: Import) => i.kind === 'export' && (i.names ?? []).some((n) => n.local === '*');
 
+/** The package folder of a Python `__init__` module, or undefined for a file that cannot own submodules. */
+function packageDir(file: string): string | undefined {
+  for (const init of ['/__init__.py', '/__init__.pyi']) if (file.endsWith(init)) return file.slice(0, -init.length);
+  return undefined;
+}
+
+/** The module a Python name may be when the package does not export it: `from pkg import mod` → `pkg/mod.py`. */
+export function pythonSubmodule(files: Files, file: string, name: string): string | undefined {
+  const dir = packageDir(file);
+  if (dir === undefined) return undefined;
+  const base = dir ? `${dir}/${name}` : name;
+  for (const candidate of [`${base}.py`, `${base}/__init__.py`]) if (files.has(candidate)) return candidate;
+  return undefined;
+}
+
 function through(files: Files, imp: Import, imported: string, seen: Set<string>): Found {
   if (imp.status !== 'resolved' || !imp.resolved) return 'unknown';
   return imported === '*' ? { file: imp.resolved, binding: '*' } : find(files, imp.resolved, imported, seen);
@@ -54,6 +69,10 @@ function find(files: Files, file: string, name: string, seen: Set<string>): Foun
   if (reexport) return through(files, reexport.imp, reexport.imported, seen);
   // `export *` never re-exports `default`.
   if (name === 'default') return parsed.exports.complete ? 'none' : 'unknown';
+  if (!parsed.exports.complete) return 'unknown';
+  // Python's `from pkg import mod` names a module when the package does not export `mod` itself.
+  const submodule = pythonSubmodule(files, file, name);
+  if (submodule) return { file: submodule, binding: '*' };
   return viaStars(files, parsed, name, seen);
 }
 

@@ -63,5 +63,6 @@ export async function parseRepo(root: string, opts: { ignore?: readonly string[]
     const file = text === undefined ? undefined : await parseCode(path, text);
     if (file) parsed.push(file);
   }
+  // A Python project's declared dependencies live in files the code layer does not parse; resolution still reads them.
   return linkCode(parsed, createResolver(paths, (path) => readCodeFile(root, path)));
 }

@@ -36,7 +36,7 @@ export interface CodeIndex {
   update(paths?: readonly string[]): Promise<CodeUpdate>;
 }
 
-const CONFIG_FILE = /(^|\/)(package\.json|pnpm-workspace\.ya?ml|(?:ts|js)config[^/]*\.json)$/;
+const CONFIG_FILE = /(^|\/)(package\.json|pnpm-workspace\.ya?ml|(?:ts|js)config[^/]*\.json|__init__\.py|pyproject\.toml|setup\.cfg|setup\.py|Pipfile|requirements[^/]*\.txt)$/;
 const sorted = (set: Iterable<string>): string[] => [...set].sort();
 
 const hashOf = (text: string): string => createHash('sha256').update(text).digest('hex');
@@ -65,11 +65,11 @@ function recordingResolver(root: string, listed: readonly string[]): Recording {
   let current: Set<string> | undefined;
   const inner = createResolver(listed, (path) => readCodeFile(root, path), { path: (path) => current?.add(path), config: (path) => config.add(path) });
   const resolver: Resolver = {
-    resolve(from, spec, kind) {
+    resolve(from, spec, kind, context) {
       current = recorded.get(from) ?? new Set();
       recorded.set(from, current);
       try {
-        return inner.resolve(from, spec, kind);
+        return inner.resolve(from, spec, kind, context);
       } finally {
         current = undefined;
       }

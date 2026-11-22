@@ -1,7 +1,7 @@
 import type { Lang } from './model.js';
 
 /** A tree-sitter grammar codechart parses symbols with. */
-export type Grammar = 'typescript' | 'tsx' | 'javascript';
+export type Grammar = 'typescript' | 'tsx' | 'javascript' | 'python';
 
 const BY_EXTENSION: Record<string, Lang> = {
   ts: 'typescript',
@@ -40,6 +40,7 @@ export function langOf(path: string): Lang | undefined {
 export function grammarOf(path: string): Grammar | undefined {
   const ext = extension(path);
   if (ext === 'tsx') return 'tsx';
+  if (ext === 'py' || ext === 'pyi') return 'python';
   const lang = BY_EXTENSION[ext];
   // The JavaScript grammar parses JSX too.
   return lang === 'typescript' || lang === 'javascript' ? lang : undefined;

@@ -1,6 +1,6 @@
 {
   "name": "@codechart/core",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Shared engine for codechart: map and flow schemas, truth checks, layout, git rules, review notes, config, agent presets, code layer parsing",
   "type": "module",
   "license": "MIT",
@@ -49,6 +49,7 @@
   },
   "devDependencies": {
     "tree-sitter-javascript": "0.25.0",
+    "tree-sitter-python": "0.25.0",
     "tree-sitter-typescript": "0.23.2"
   }
 }

@@ -68,6 +68,10 @@ export const callRefSchema = z.object({
   via: z.enum(CALL_VIAS).optional(),
   /** For `via: 'member'`, the object when it is a plain identifier (a namespace import, for example). */
   receiver: z.string().min(1).optional(),
+  /**
+   * For a Python dotted callee (`a.b.f()`), the attribute chain before the name. `receiver` holds its first name.
+   */
+  receiverPath: z.array(z.string().min(1)).min(2).optional(),
   to: z.string().min(1).optional(),
   evidence: z.enum(['resolved', 'name-only']),
   range: codeRangeSchema,

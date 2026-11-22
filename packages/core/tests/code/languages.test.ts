@@ -12,8 +12,8 @@ describe('langOf and grammarOf', () => {
     ['a.mjs', 'javascript', 'javascript'],
     ['a.cjs', 'javascript', 'javascript'],
     ['a.jsx', 'javascript', 'javascript'],
-    ['a.PY', 'python', undefined],
-    ['x.pyi', 'python', undefined],
+    ['a.PY', 'python', 'python'],
+    ['x.pyi', 'python', 'python'],
     ['ci.yml', 'yaml', undefined],
     ['deploy.sh', 'bash', undefined],
   ])('%s is %s, parsed with %s', (path, lang, grammar) => {

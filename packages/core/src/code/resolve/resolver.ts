@@ -4,14 +4,20 @@ import { dirOf, isJsFile, isRelative, joinRepo, resolveFile, type FileSet } from
 import { parseJsonc } from './jsonc.js';
 import { mapTargets, toPackageJson, type LoadKind, type PackageJson } from './package-json.js';
 import { inPackage, packageEntry, splitPackageSpec, workspacePackages } from './packages.js';
+import { PythonResolver } from './python.js';
 import { createTsconfigs, matchAlias } from './tsconfig.js';
 
 export type Resolution = Pick<Import, 'status' | 'resolved'>;
 
+/** What a resolution needs beyond the specifier: whether the importing Python file edits `sys.path`. */
+export interface ResolveContext {
+  sysPathEdited?: boolean;
+}
+
 /** Resolves import specifiers against one snapshot of a repo's files; caches configs, so make a new one when a config changes. */
 export interface Resolver {
   /** Where `spec`, imported by repo file `from`, leads; `kind` picks the package conditions (`require` or the rest). */
-  resolve(from: string, spec: string, kind?: Import['kind']): Resolution;
+  resolve(from: string, spec: string, kind?: Import['kind'], context?: ResolveContext): Resolution;
 }
 
 const BUILTINS = new Set(builtinModules);
@@ -146,5 +152,15 @@ export function createResolver(files: Iterable<string>, read: (path: string) => 
   let map: Map<string, string | undefined> | undefined;
   const workspaces = () => (map ??= workspacePackages(configFiles, readPackage, readConfig));
   const repo: Repo = { listed, readPackage, workspaces, tsconfigs: createTsconfigs(configFiles, readConfig, { dir: (name) => workspaces().get(name), read: readPackage }) };
-  return { resolve: (from, spec, kind) => resolveSpec(repo, from, spec, kind === 'require' ? 'require' : 'import') };
+  const python = new PythonResolver(listed, (path) => read(path), (path) => probes.path?.(path));
+  return {
+    resolve: (from, spec, kind, context) => {
+      // Python's rules are its own: dots, packages and source roots, not `package.json` and tsconfig.
+      if (from.endsWith('.py') || from.endsWith('.pyi')) {
+        const hit = python.resolve(from, spec, context?.sysPathEdited ?? false);
+        return hit.status === 'resolved' && hit.resolved ? { status: 'resolved', resolved: hit.resolved } : { status: hit.status };
+      }
+      return resolveSpec(repo, from, spec, kind === 'require' ? 'require' : 'import');
+    },
+  };
 }
