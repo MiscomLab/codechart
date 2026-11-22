@@ -95,22 +95,56 @@ function resolveSpec(repo: Repo, from: string, spec: string, load: LoadKind): Re
   return bare(repo, from, spec, load);
 }
 
+/** A file set that reports every path asked about: the paths whose appearance or removal can change a resolution. */
+class ProbedSet extends Set<string> {
+  constructor(
+    files: Iterable<string>,
+    private readonly probe: (path: string) => void,
+  ) {
+    super(files);
+  }
+
+  override has(path: string): boolean {
+    this.probe(path);
+    return super.has(path);
+  }
+}
+
+/** Hooks that see what resolution depends on. */
+export interface ResolverProbes {
+  /** Every path one resolution checks for. */
+  path?: (path: string) => void;
+  /**
+   * Every path a config lookup (package.json, tsconfig and its `extends` chain, workspaces) checks for or reads. Those
+   * lookups are cached and shared by every resolution, so a change to one of these paths can change any of them.
+   */
+  config?: (path: string) => void;
+}
+
 /**
  * A resolver over `files` (repo paths with `/`, as `listCodeFiles` gives them); `read` returns a repo file's text.
  * Only listed files count, so nothing resolves into `node_modules` or ignored build output.
  */
-export function createResolver(files: Iterable<string>, read: (path: string) => string | undefined): Resolver {
-  const listed: FileSet = new Set(files);
+export function createResolver(files: Iterable<string>, read: (path: string) => string | undefined, probes: ResolverProbes = {}): Resolver {
+  const listed: FileSet = probes.path ? new ProbedSet(files, probes.path) : new Set(files);
+  const { config } = probes;
+  const configFiles: FileSet = config ? new ProbedSet(files, config) : listed;
+  const readConfig = config
+    ? (path: string) => {
+        config(path);
+        return read(path);
+      }
+    : read;
   const packages = new Map<string, PackageJson | undefined>();
   const readPackage = (dir: string): PackageJson | undefined => {
     if (!packages.has(dir)) {
       const path = dir ? `${dir}/package.json` : 'package.json';
-      packages.set(dir, listed.has(path) ? toPackageJson(parseJsonc(read(path) ?? '')) : undefined);
+      packages.set(dir, configFiles.has(path) ? toPackageJson(parseJsonc(readConfig(path) ?? '')) : undefined);
     }
     return packages.get(dir);
   };
   let map: Map<string, string | undefined> | undefined;
-  const workspaces = () => (map ??= workspacePackages(listed, readPackage, read));
-  const repo: Repo = { listed, readPackage, workspaces, tsconfigs: createTsconfigs(listed, read, { dir: (name) => workspaces().get(name), read: readPackage }) };
+  const workspaces = () => (map ??= workspacePackages(configFiles, readPackage, readConfig));
+  const repo: Repo = { listed, readPackage, workspaces, tsconfigs: createTsconfigs(configFiles, readConfig, { dir: (name) => workspaces().get(name), read: readPackage }) };
   return { resolve: (from, spec, kind) => resolveSpec(repo, from, spec, kind === 'require' ? 'require' : 'import') };
 }

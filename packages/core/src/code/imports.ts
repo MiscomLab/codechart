@@ -1,6 +1,6 @@
 import type { Node, Query, Tree } from 'web-tree-sitter';
 import type { Import, ImportedName } from './model.js';
-import { nodeRange } from './symbols.js';
+import { nodeRange } from './tree.js';
 
 /** Finds import statements, re-exports, `require('x')`, `import('x')` and CommonJS exports; shared by the JS and TS grammars. */
 export const IMPORTS_QUERY = `
@@ -121,7 +121,10 @@ function localExports(node: Node): ExportName[] | undefined {
   if (hasToken(node, '=')) return undefined;
   if (hasToken(node, 'default')) {
     const value = node.childForFieldName('value');
-    return [value?.type === 'identifier' ? { name: 'default', local: value.text } : { name: 'default' }];
+    if (value?.type === 'identifier') return [{ name: 'default', local: value.text }];
+    // `export default function charge` / `export default class PaymentService`: the declaration is a field, not a value.
+    const declared = (node.childForFieldName('declaration') ?? value)?.childForFieldName('name');
+    return [declared ? { name: 'default', local: declared.text } : { name: 'default' }];
   }
   const decl = node.childForFieldName('declaration');
   if (decl) return declarationNames(decl).map((name) => ({ name }));
@@ -137,33 +140,58 @@ function fromCall(node: Node, kind: 'require' | 'dynamic', src: Node): Stated | 
   return { spec, kind, ...(up?.type === 'type_query' && { typeOnly: true }), range: nodeRange(node) };
 }
 
+/** Whether a statement sits in a `namespace` or `declare module` block, whose imports are not the file's own. */
+function insideModule(node: Node): boolean {
+  for (let up = node.parent; up; up = up.parent) if (up.type === 'module' || up.type === 'internal_module') return true;
+  return false;
+}
+
+/** The import or re-export a statement states, for clean statements and for ones a syntax error hid. */
+function statedImport(node: Node, name: string, src: Node | undefined): Stated | undefined {
+  if (name === 'import') return fromImport(node);
+  if (name === 'export') {
+    const source = literal(node.childForFieldName('source'));
+    if (source === undefined) return undefined;
+    const typeOnly = hasToken(node, 'type');
+    return { spec: source, kind: 'export', ...(typeOnly && { typeOnly }), names: reexportNames(node, typeOnly), range: nodeRange(node) };
+  }
+  return src && (name === 'require' || name === 'dynamic') ? fromCall(node, name, src) : undefined;
+}
+
 /**
  * The imports and own exports of a parsed file. Statements inside a syntax error are skipped, as is `require()` or
  * `import()` of anything but a plain string: its target is decided at run time.
  */
-export function extractImports(file: string, tree: Tree, query: Query): { imports: ImportSpec[]; exports: ModuleExports } {
+export function extractImports(file: string, tree: Tree, query: Query): { imports: ImportSpec[]; exports: ModuleExports; hidden: ImportSpec[] } {
   const imports: ImportSpec[] = [];
+  const hidden: ImportSpec[] = [];
   const exports: ModuleExports = { names: [], complete: !tree.rootNode.hasError };
   for (const match of query.matches(tree.rootNode)) {
     const [main] = match.captures.filter((c) => c.name !== 'fn' && c.name !== 'src');
     const src = match.captures.find((c) => c.name === 'src')?.node;
-    // Statements in `namespace` or `declare module` blocks are not the file's own imports and exports.
-    if (!main || main.node.hasError || (STATEMENTS.has(main.name) && main.node.parent?.type !== 'program')) continue;
+    if (!main) continue;
     const node = main.node;
-    let spec: Stated | undefined;
-    if (main.name === 'cjs') exports.complete = false;
-    else if (main.name === 'import') spec = fromImport(node);
-    else if (main.name === 'export') {
-      const source = literal(node.childForFieldName('source'));
-      const typeOnly = hasToken(node, 'type');
-      if (source !== undefined) spec = { spec: source, kind: 'export', ...(typeOnly && { typeOnly }), names: reexportNames(node, typeOnly), range: nodeRange(node) };
-      else {
-        const names = localExports(node);
-        if (names) exports.names.push(...names);
-        else exports.complete = false;
+    const moduleBlock = insideModule(node);
+    const hiddenByError = node.hasError || (STATEMENTS.has(main.name) && node.parent?.type !== 'program');
+    if (hiddenByError) {
+      if (!moduleBlock) {
+        const spec = statedImport(node, main.name, src);
+        if (spec) hidden.push({ ...spec, file });
       }
-    } else if (src) spec = fromCall(node, main.name as 'require' | 'dynamic', src);
+      continue;
+    }
+    if (main.name === 'cjs') {
+      exports.complete = false;
+      continue;
+    }
+    if (main.name === 'export' && literal(node.childForFieldName('source')) === undefined) {
+      const names = localExports(node);
+      if (names) exports.names.push(...names);
+      else exports.complete = false;
+      continue;
+    }
+    const spec = statedImport(node, main.name, src);
     if (spec) imports.push({ ...spec, file });
   }
-  return { imports, exports };
+  return { imports, exports, hidden };
 }

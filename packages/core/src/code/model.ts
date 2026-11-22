@@ -58,9 +58,16 @@ export const importSchema = z.object({
 });
 export type Import = z.infer<typeof importSchema>;
 
+export const CALL_VIAS = ['bare', 'this', 'member'] as const;
+export type CallVia = (typeof CALL_VIAS)[number];
+
 export const callRefSchema = z.object({
   from: z.string().min(1),
   name: z.string().min(1),
+  /** How the callee is written; linking needs it because the syntax tree is gone by then. */
+  via: z.enum(CALL_VIAS).optional(),
+  /** For `via: 'member'`, the object when it is a plain identifier (a namespace import, for example). */
+  receiver: z.string().min(1).optional(),
   to: z.string().min(1).optional(),
   evidence: z.enum(['resolved', 'name-only']),
   range: codeRangeSchema,
