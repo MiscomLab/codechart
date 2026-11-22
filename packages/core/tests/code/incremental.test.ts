@@ -158,6 +158,28 @@ describe('a change to a barrel or a target', () => {
     expect(index.file('src/alias.ts')).toBe(before);
   });
 
+  it('re-resolves every importer when a shared extends target appears or changes', async () => {
+    write('tsconfig.json', '{"extends":"./base.json"}\n');
+    write('src/task.ts', 'export function task(): void {}\n');
+    write('lib/task.ts', 'export function task(): void {}\n');
+    write('src/a.ts', "import { task } from '@x/task';\nexport function a() { task(); }\n");
+    write('src/b.ts', "import { task } from '@x/task';\nexport function b() { task(); }\n");
+    await index.update();
+    expect(importOutcome('src/a.ts', '@x/task')).toEqual(['unknown', undefined, [undefined]]);
+    expect(importOutcome('src/b.ts', '@x/task')).toEqual(['unknown', undefined, [undefined]]);
+
+    write('base.json', '{"compilerOptions":{"baseUrl":".","paths":{"@x/*":["./src/*"]}}}\n');
+    const added = await index.update(['base.json']);
+    expect(added.relinked).toEqual(['src/a.ts', 'src/b.ts']);
+    expect(callOutcome('src/a.ts', 'task')).toEqual(['src/task.ts::task::function', 'resolved']);
+    expect(callOutcome('src/b.ts', 'task')).toEqual(['src/task.ts::task::function', 'resolved']);
+
+    write('base.json', '{"compilerOptions":{"baseUrl":".","paths":{"@x/*":["./lib/*"]}}}\n');
+    const edited = await index.update(['base.json']);
+    expect(edited.relinked).toEqual(['src/a.ts', 'src/b.ts']);
+    expect(callOutcome('src/b.ts', 'task')).toEqual(['lib/task.ts::task::function', 'resolved']);
+  });
+
   it('re-resolves imports when pnpm-workspace.yaml changes', async () => {
     write('packages/lib/package.json', '{"name":"@lib","source":"./src/index.ts"}\n');
     write('packages/lib/src/index.ts', 'export function lib(): void {}\n');

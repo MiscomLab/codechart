@@ -51,11 +51,19 @@ interface Pending {
   parsed: Set<string>;
 }
 
-/** A resolver that records, per importing file, every path its resolutions checked for. */
-function recordingResolver(root: string, listed: readonly string[]): { resolver: Resolver; recorded: Map<string, Set<string>> } {
+interface Recording {
+  resolver: Resolver;
+  /** Per importing file, every path its resolutions checked for. */
+  recorded: Map<string, Set<string>>;
+  /** Every path a cached config lookup checked for or read, whichever file's resolution triggered it. */
+  config: Set<string>;
+}
+
+function recordingResolver(root: string, listed: readonly string[]): Recording {
   const recorded = new Map<string, Set<string>>();
+  const config = new Set<string>();
   let current: Set<string> | undefined;
-  const inner = createResolver(listed, (path) => readCodeFile(root, path), (path) => current?.add(path));
+  const inner = createResolver(listed, (path) => readCodeFile(root, path), { path: (path) => current?.add(path), config: (path) => config.add(path) });
   const resolver: Resolver = {
     resolve(from, spec, kind) {
       current = recorded.get(from) ?? new Set();
@@ -67,7 +75,7 @@ function recordingResolver(root: string, listed: readonly string[]): { resolver:
       }
     },
   };
-  return { resolver, recorded };
+  return { resolver, recorded, config };
 }
 
 function repoPaths(root: string, paths: readonly string[]): Set<string> {
@@ -102,6 +110,8 @@ class Index implements CodeIndex {
   private byPath: Map<string, ParsedFile>;
   private reverse: ReverseIndex;
   private readonly probes = new Probes();
+  /** Paths config lookups depend on; never shrinks between full re-resolves, so a stale entry costs time, not truth. */
+  private configDeps: Set<string>;
   private queue: Promise<void> = Promise.resolve();
 
   constructor(
@@ -109,8 +119,10 @@ class Index implements CodeIndex {
     private readonly ignore: readonly string[],
     files: Map<string, ParsedFile>,
     probed: ReadonlyMap<string, ReadonlySet<string>>,
+    configDeps: Set<string>,
   ) {
     this.byPath = files;
+    this.configDeps = configDeps;
     this.reverse = buildReverse(files.values());
     for (const path of files.keys()) this.probes.set(path, probed.get(path) ?? new Set());
   }
@@ -192,8 +204,8 @@ class Index implements CodeIndex {
     next: Map<string, ParsedFile>,
     update: Pending,
   ): CodeUpdate {
-    const { resolver, recorded } = recordingResolver(this.root, listed);
-    const configChanged = [...update.changed].some((path) => CONFIG_FILE.test(path));
+    const { resolver, recorded, config } = recordingResolver(this.root, listed);
+    const configChanged = [...update.changed].some((path) => CONFIG_FILE.test(path) || this.configDeps.has(path));
     const imports = this.importCandidates(update, configChanged, next);
     const resolved = resolveImports([...next.values()], resolver, imports);
     const importChanged = this.importChanged(resolved, before, imports);
@@ -207,6 +219,7 @@ class Index implements CodeIndex {
     this.reverse = buildReverse(after.values());
     for (const path of update.removed) this.probes.delete(path);
     for (const path of imports) this.probes.set(path, recorded.get(path) ?? new Set());
+    this.configDeps = configChanged ? config : new Set([...this.configDeps, ...config]);
     return {
       changed: sorted(update.changed),
       parsed: sorted(update.parsed),
@@ -272,9 +285,9 @@ export async function openCodeIndex(root: string, opts: CodeIndexOptions = {}): 
     const file = text === undefined ? undefined : await parseCode(path, text);
     if (file) parsed.push(file);
   }
-  const { resolver, recorded } = recordingResolver(root, listed);
+  const { resolver, recorded, config } = recordingResolver(root, listed);
   const resolved = resolveImports(parsed, resolver);
   const paths = new Set(resolved.map((f) => f.file.path));
   const files = linkResolved(resolved, { definitions: paths, calls: paths });
-  return new Index(root, opts.ignore ?? [], new Map(files.map((f) => [f.file.path, f])), recorded);
+  return new Index(root, opts.ignore ?? [], new Map(files.map((f) => [f.file.path, f])), recorded, config);
 }
