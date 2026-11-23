@@ -312,6 +312,23 @@ describe('Prisma with a syntax error', () => {
     expect(parsed.refs).toEqual([]);
   });
 
+  it('keeps no relation of a broken model once its type name is gone from the text', async () => {
+    const good = await parse('a.prisma', 'model A {\n  id Int @id\n  x  Elsewhere\n  b  B?\n}\nmodel B {\n  id Int @id\n  a  A\n}\n');
+    expect(relations(good)).toEqual([
+      ['a.prisma::A::model', 'Elsewhere', undefined, 3],
+      ['a.prisma::A::model', 'B', 'a.prisma::B::model', 4],
+      ['a.prisma::B::model', 'A', 'a.prisma::A::model', 8],
+    ]);
+    // A broken and its `Elsewhere` field deleted: that name is nowhere in the text, so it was deleted, not hidden.
+    const parsed = await parse('a.prisma', 'model A {{\n  id Int @id\n  b  B?\n}\nmodel B {\n  id Int @id\n  a  A\n}\n', good);
+    expect(parsed.parseErrors.length).toBeGreaterThan(0);
+    expect(relations(parsed)).toEqual([
+      ['a.prisma::A::model', 'B', 'a.prisma::B::model', 4],
+      ['a.prisma::B::model', 'A', 'a.prisma::A::model', 8],
+    ]);
+    live(parsed);
+  });
+
   it('keeps no relation once its field is gone, and none that points at a missing model', async () => {
     const good = await parse('a.prisma', 'model A {\n  id Int @id\n  b  B?\n}\nmodel B {\n  id Int @id\n  a  A\n}\n');
     // B broken, A's field to B deleted: B.a stays (B is broken, A is there), A.b is gone from the text.

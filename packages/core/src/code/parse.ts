@@ -142,6 +142,7 @@ function keepLastGoodRefs(refs: readonly CodeRef[], errors: readonly CodeRange[]
 function relationHeld(hiddenRefs: ReadonlySet<string>, untrusted: ReadonlySet<string>, entities: ReadonlySet<string>, text: string, fallback: Held): Held {
   return (r) => {
     if (r.kind !== 'relation') return fallback(r);
+    // A safeguard: while the file is broken every last good entity is kept, so both ends are there today.
     if (!entities.has(r.from!) || (r.to !== undefined && !entities.has(r.to))) return false;
     return hiddenRefs.has(hiddenKey(r.from!, r.spec)) || (untrusted.has(r.from!) && text.includes(r.spec));
   };
