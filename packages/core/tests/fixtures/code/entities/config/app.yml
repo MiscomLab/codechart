@@ -1,0 +1,6 @@
+jobs:
+  nightly:
+    steps:
+      - run: ./scripts/deploy.sh
+services:
+  web: {}

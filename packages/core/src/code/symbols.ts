@@ -36,7 +36,7 @@ function pythonMethod(node: Node): boolean {
   return inner.parent?.type === 'block' && inner.parent.parent?.type === 'class_definition';
 }
 
-function definitions(tree: Tree, tags: Query, grammar: Grammar): Omit<Def, 'path' | 'broken'>[] {
+function definitions(tree: Tree, tags: Query, grammar: Grammar | 'bash'): Omit<Def, 'path' | 'broken'>[] {
   const seen = new Set<number>();
   const defs: Omit<Def, 'path' | 'broken'>[] = [];
   for (const match of tags.matches(tree.rootNode)) {
@@ -79,7 +79,7 @@ function pythonDefinition(node: Node): Node | undefined {
  * The range a symbol covers. A Python method's starts at its `def` line rather than at its decorators: the decorator
  * line is the one place a call inside the method must not be attributed to the class instead.
  */
-function definitionRange(grammar: Grammar, node: Node, kind: SymbolKind): CodeRange {
+function definitionRange(grammar: Grammar | 'bash', node: Node, kind: SymbolKind): CodeRange {
   const range = nodeRange(node);
   if (grammar !== 'python' || kind !== 'method') return range;
   const def = pythonDefinition(node);
@@ -90,7 +90,7 @@ function definitionRange(grammar: Grammar, node: Node, kind: SymbolKind): CodeRa
  * The definitions `tags` finds in `tree`, as symbols of `file`.
  * Overload signatures merge into the implementation that follows in the same scope; any other repeated identity gets `~n`.
  */
-export function extractSymbols(file: string, tree: Tree, tags: Query, grammar: Grammar): Extracted {
+export function extractSymbols(file: string, tree: Tree, tags: Query, grammar: Grammar | 'bash'): Extracted {
   const errors = tree.rootNode.hasError ? errorNodes(tree.rootNode) : [];
   const symbols: CodeSymbol[] = [];
   const broken = new Set<string>();

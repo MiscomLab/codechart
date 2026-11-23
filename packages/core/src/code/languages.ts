@@ -36,6 +36,15 @@ export function langOf(path: string): Lang | undefined {
   return BY_EXTENSION[extension(path)];
 }
 
+/** A tree-sitter grammar codechart reads entities and references with (and, for Bash, functions). */
+export type EntityGrammar = 'html' | 'css' | 'sql' | 'bash' | 'yaml' | 'json';
+
+/** The grammar that reads a file's entities and references, for the v1 languages without imports. */
+export function entityGrammarOf(path: string): EntityGrammar | undefined {
+  const lang = langOf(path);
+  return lang === undefined || lang === 'typescript' || lang === 'javascript' || lang === 'python' ? undefined : lang;
+}
+
 /** The grammar that reads a file's symbols, or undefined while its language has entities only or none yet. */
 export function grammarOf(path: string): Grammar | undefined {
   const ext = extension(path);

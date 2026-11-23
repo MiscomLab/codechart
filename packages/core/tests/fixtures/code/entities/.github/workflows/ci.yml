@@ -1,0 +1,31 @@
+name: ci
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: |
+          npm ci
+          ./scripts/test.sh --fast && bash scripts/lint.sh
+      - run: "python tools/check.py"
+        working-directory: app
+      - name: Windows only
+        shell: pwsh
+        run: ./scripts/win.sh
+  deploy:
+    needs: test
+    defaults:
+      run:
+        working-directory: scripts
+    steps:
+      - uses: actions/checkout@v4
+      - id: ship
+        run: ./deploy.sh
+      - run: ./missing.sh
+      - name: Matrix dir
+        working-directory: ${{ matrix.dir }}
+        run: ./deploy.sh
+      - name: Escape
+        run: bash ../../../etc/passwd

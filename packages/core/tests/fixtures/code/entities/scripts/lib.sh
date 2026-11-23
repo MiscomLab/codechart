@@ -1,0 +1,5 @@
+log() { echo "$@"; }
+
+function retry {
+  "$@" || "$@"
+}

@@ -1,10 +1,11 @@
 import { builtinModules } from 'node:module';
-import type { Import } from '../model.js';
+import type { CodeRef, Import } from '../model.js';
 import { dirOf, isJsFile, isRelative, joinRepo, resolveFile, type FileSet } from './files.js';
 import { parseJsonc } from './jsonc.js';
 import { mapTargets, toPackageJson, type LoadKind, type PackageJson } from './package-json.js';
 import { inPackage, packageEntry, splitPackageSpec, workspacePackages } from './packages.js';
 import { PythonResolver } from './python.js';
+import { resolveRef, type RefResolution } from './refs.js';
 import { createTsconfigs, matchAlias } from './tsconfig.js';
 
 export type Resolution = Pick<Import, 'status' | 'resolved' | 'packageFolder'>;
@@ -18,6 +19,8 @@ interface ResolveContext {
 export interface Resolver {
   /** Where `spec`, imported by repo file `from`, leads; `kind` picks the package conditions (`require` or the rest). */
   resolve(from: string, spec: string, kind?: Import['kind'], context?: ResolveContext): Resolution;
+  /** Where a reference of a file without imports leads: the listed file it names, the web, or unknown. */
+  ref(ref: CodeRef): RefResolution;
 }
 
 const BUILTINS = new Set(builtinModules);
@@ -162,5 +165,6 @@ export function createResolver(files: Iterable<string>, read: (path: string) => 
       }
       return resolveSpec(repo, from, spec, kind === 'require' ? 'require' : 'import');
     },
+    ref: (ref) => resolveRef(listed, ref),
   };
 }
