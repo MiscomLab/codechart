@@ -116,8 +116,18 @@ function keepLastGoodExports(exports: ModuleExports, errors: CodeRange[], lastGo
  */
 function keepLastGoodRefs(refs: readonly CodeRef[], errors: readonly CodeRange[], lastGood: ParsedFile | undefined, text: string): CodeRef[] {
   if (!errors.length || !lastGood) return [...refs];
-  const present = new Set(refs.map((r) => `${r.kind}\0${r.spec}`));
-  const kept = lastGood.refs.filter((r) => !present.has(`${r.kind}\0${r.spec}`) && errors.some((e) => lineOverlap(e, r.range)) && text.includes(r.spec));
+  const key = (r: CodeRef) => `${r.kind}\0${r.spec}`;
+  // Counted, so a hidden reference is kept even while another one with the same spec still parses.
+  const present = new Map<string, number>();
+  for (const r of refs) present.set(key(r), (present.get(key(r)) ?? 0) + 1);
+  const kept = lastGood.refs.filter((r) => {
+    const left = present.get(key(r)) ?? 0;
+    if (left > 0) {
+      present.set(key(r), left - 1);
+      return false;
+    }
+    return errors.some((e) => lineOverlap(e, r.range)) && text.includes(r.spec);
+  });
   return [...refs, ...kept.map(unlinkedRef)];
 }
 

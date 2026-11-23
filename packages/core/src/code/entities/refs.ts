@@ -1,6 +1,7 @@
 import { joinRepo } from '../resolve/files.js';
 import type { CodeRef } from '../model.js';
-import { runTarget, shellCommands } from './shell.js';
+import { changesFolder, runTarget } from './commands.js';
+import { shellCommands } from './shell.js';
 import type { Decoded, Lines } from './text.js';
 
 type RefKind = CodeRef['kind'];
@@ -36,14 +37,19 @@ export function urlCandidate(dir: string | undefined, spec: string): string | un
   return joinRepo(dir, path) || undefined;
 }
 
-/** The files the commands in `value` run, from folder `base` (undefined when no folder is fixed). */
+/**
+ * The files the commands in `value` run, from folder `base` (undefined when no folder is fixed). After a `cd`, `pushd`
+ * or `popd` no folder is fixed: which one the shell is in then is not tracked.
+ */
 export function commandRefs(file: string, value: Decoded, lines: Lines, base: string | undefined, from: string | undefined): CodeRef[] {
   const refs: CodeRef[] = [];
+  let folder = base;
   for (const words of shellCommands(value.text)) {
+    if (changesFolder(words)) folder = undefined;
     const target = runTarget(words);
     if (!target || !target.word.value) continue;
     const { word } = target;
-    const candidate = target.searched || word.expands ? undefined : shellCandidate(base, word.value);
+    const candidate = target.searched || word.expands ? undefined : shellCandidate(folder, word.value);
     const [start, end] = value.span(word.start, word.end);
     refs.push(makeRef(file, word.value, 'run', candidate, lines.range(start, end), from));
   }

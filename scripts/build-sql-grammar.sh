@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds packages/core/grammars/tree-sitter-sql.wasm from the pinned DerekStride SQL grammar, which ships no .wasm.
-# Run it only to change the grammar version; packages/core/tests/code/grammar-assets.test.ts pins the result's sha256.
+# Run it only to change the grammar version; packages/core/tests/code/entities-rules.test.ts pins the result's sha256.
 set -euo pipefail
 
 VERSION=0.3.13

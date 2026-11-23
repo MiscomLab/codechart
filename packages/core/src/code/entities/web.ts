@@ -27,6 +27,16 @@ function attributes(tag: Node): Map<string, Node | undefined> {
   return out;
 }
 
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+
+/** An attribute value as the browser reads it: character references decoded. */
+const decodeEntities = (value: string): string =>
+  value.replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (whole, name: string) => {
+    if (name[0] !== '#') return ENTITIES[name.toLowerCase()] ?? whole;
+    const code = name[1]?.toLowerCase() === 'x' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+  });
+
 const tagName = (tag: Node): string | undefined => tag.namedChildren.find((c) => c?.type === 'tag_name')?.text.toLowerCase();
 
 /** `<script src>` and `<link href>`, relative to the page; a `<base href>` moves the base, so then no path is fixed. */
@@ -39,7 +49,7 @@ export function htmlRefs(file: string, tree: Tree, lines: Lines): CodeRef[] {
     const load = LOADS[tagName(tag) ?? ''];
     const value = load && attributes(tag).get(load.attribute);
     if (!load || !value?.text.trim()) continue;
-    refs.push(makeRef(file, value.text, load.kind, urlCandidate(dir, value.text.trim()), lines.range(value.startIndex, value.endIndex)));
+    refs.push(makeRef(file, value.text, load.kind, urlCandidate(dir, decodeEntities(value.text.trim())), lines.range(value.startIndex, value.endIndex)));
   }
   return refs;
 }

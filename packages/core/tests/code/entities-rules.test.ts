@@ -70,6 +70,22 @@ describe('commands in scripts and run steps', () => {
     expect(await script(command)).toEqual([]);
   });
 
+  it.each(['node -pe "1+1"', 'node -ep "1"', 'tsx -pe "1"', 'ts-node -pe "1"', 'command -v ./x.sh', 'command -V ./x.sh'])('reads no file from `%s`', async (command) => {
+    expect(await script(command)).toEqual([]);
+  });
+
+  it('leaves paths unfixed after the command changes folder', async () => {
+    expect(await script('./before.sh && cd sub && ./a.sh')).toEqual([['./before.sh', 'before.sh'], ['./a.sh', undefined]]);
+    expect(await script('(cd sub && ./a.sh)')).toEqual([['./a.sh', undefined]]);
+    expect(await script('pushd sub; ./a.sh')).toEqual([['./a.sh', undefined]]);
+    expect(await script('popd; ./a.sh')).toEqual([['./a.sh', undefined]]);
+    expect(await workflowRefs(workflow('|\n          ./before.sh\n          cd app\n          ./a.sh'))).toEqual([['./before.sh', 'before.sh'], ['./a.sh', undefined]]);
+  });
+
+  it("reads $'…' quoting", async () => {
+    expect(await script("$'./x.sh'")).toEqual([['./x.sh', 'x.sh']]);
+  });
+
   it('leaves `source` of a bare name unfixed: bash searches PATH first', async () => {
     expect(await script('source lib.sh')).toEqual([['lib.sh', undefined]]);
   });
@@ -212,6 +228,7 @@ describe('HTML references', () => {
     expect(await html('<script src="app.js#x"></script><script src="b.js?x#y"></script>')).toEqual([['app.js#x', 'web/app.js'], ['b.js?x#y', 'web/b.js']]);
     expect(await html('<script src="my%20file.js"></script><script src="bad%zz.js"></script>')).toEqual([['my%20file.js', 'web/my file.js'], ['bad%zz.js', undefined]]);
     expect(await html('<script src="js\\a.js"></script>')).toEqual([['js\\a.js', 'web/js/a.js']]);
+    expect(await html('<script src="a&amp;b.js"></script><script src="c&#46;js"></script>')).toEqual([['a&amp;b.js', 'web/a&b.js'], ['c&#46;js', 'web/c.js']]);
   });
 
   it('fixes no path for other schemes or template syntax', async () => {
@@ -255,8 +272,21 @@ describe('Bash folder variables and functions', () => {
     ['read', 'D="$(dirname "$0")"\nread D\nsource "$D/a.sh"\n'],
     ['for', 'D="$(dirname "$0")"\nfor D in a b; do :; done\nsource "$D/a.sh"\n'],
     ['a command prefix', 'D="$(dirname "$0")" true\nsource "$D/a.sh"\n'],
+    ['unset', 'D="$(dirname "$0")"\nunset D\nsource "$D/a.sh"\n'],
+    ['eval', 'D="$(dirname "$0")"\neval "D=/opt"\nsource "$D/a.sh"\n'],
+    ['printf -v', 'D="$(dirname "$0")"\nprintf -v D /opt\nsource "$D/a.sh"\n'],
+    ['arithmetic', 'D="$(dirname "$0")"\n(( D = 1 ))\nsource "$D/a.sh"\n'],
+    ['let', 'D="$(dirname "$0")"\nlet D=2\nsource "$D/a.sh"\n'],
   ])('does not trust a folder variable set by %s', async (_, text) => {
     expect(await sourced(text)).toEqual([['$D/a.sh', undefined]]);
+  });
+
+  it('fixes no script folder after the script changes folder, unless an absolute one was saved before', async () => {
+    expect(await sourced('cd /tmp\nsource "$(dirname "$0")/a.sh"\n')).toEqual([['$(dirname "$0")/a.sh', undefined]]);
+    expect(await sourced('cd /tmp\nsource "$(cd "$(dirname "$0")" && pwd)/a.sh"\n')).toEqual([['$(cd "$(dirname "$0")" && pwd)/a.sh', undefined]]);
+    expect(await sourced('D="$(dirname "$0")"\ncd /tmp\nsource "$D/a.sh"\n')).toEqual([['$D/a.sh', undefined]]);
+    expect(await sourced('D="$(cd "$(dirname "$0")" && pwd)"\ncd /tmp\nsource "$D/a.sh"\n')).toEqual([['$D/a.sh', 'bin/a.sh']]);
+    expect(await sourced('source "$(dirname "$0")/a.sh"\ncd /tmp\n')).toEqual([['$(dirname "$0")/a.sh', 'bin/a.sh']]);
   });
 
   it('names nested functions by their path, and reads .bash files', async () => {

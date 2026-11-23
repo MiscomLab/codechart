@@ -225,6 +225,17 @@ describe('entities and references on broken text (Live map #11)', () => {
     expect(stated(broken)[0]).toEqual(['base.css', 'import', 'web/base.css', 1, undefined]);
   });
 
+  it('keeps a hidden reference even when another one with the same spec still parses', async () => {
+    const text = '@import "a.css";\n@import "a.css";\n';
+    const good = await parse('web/s.css', text);
+    const broken = await parse('web/s.css', text.replace('@import "a.css";\n@import', '@import "a.css";\n@import {{'), good);
+    expect(broken.parseErrors.length).toBeGreaterThan(0);
+    expect(broken.refs.map((r) => [r.spec, r.range.start.line])).toEqual([
+      ['a.css', 1],
+      ['a.css', 2],
+    ]);
+  });
+
   it('drops a reference that was deleted, not hidden', async () => {
     const good = await parse('web/style.css');
     const broken = await parse('web/style.css', fixture('web/style.css').replace('@import "base.css";\n', '').replace(':root {', ':root {{'), good);
