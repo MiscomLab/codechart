@@ -1,9 +1,9 @@
-import type { Query, Tree } from 'web-tree-sitter';
-import type { Import, ImportedName } from '../model.js';
+import type { Node, Query, Tree } from 'web-tree-sitter';
 import type { ModuleExports } from '../imports.js';
-import { constructed, moduleExports } from './module-scope.js';
+import type { CodeSymbol, Import } from '../model.js';
 import { nodeRange } from '../tree.js';
-import { editsSysPath, owner, stated, typeGuarded } from './nodes.js';
+import { collectBindings, moduleExports, type PyBinding } from './module-scope.js';
+import { editsSysPath, statedModules, typeGuarded } from './nodes.js';
 
 /**
  * Finds Python imports and the calls that name a module at run time: `import`, `from … import`, and
@@ -29,53 +29,54 @@ export interface PythonFile {
   exports: ModuleExports;
   /** Imports a syntax error hid, so the last good version can stand in for them. */
   hidden: ImportSpec[];
-  /** `name = Class(…)` bindings, which let a `name.method()` call find the class's method. */
-  assignments: { name: string; constructor: string; scope: string[] }[];
+  /** Every name each scope binds, which call linking reads to decide what a name means where it is called. */
+  bindings: PyBinding[];
   /** The file edits `sys.path`, so no absolute import's target is provable. */
   sysPathEdited: boolean;
 }
 
+function hasWildcard(root: Node): boolean {
+  const stack: Node[] = [root];
+  while (stack.length) {
+    const node = stack.pop()!;
+    if (node.type === 'wildcard_import') return true;
+    for (const child of node.namedChildren) if (child && child.type !== 'function_definition' && child.type !== 'class_definition') stack.push(child);
+  }
+  return false;
+}
+
 /**
- * The imports and own exports of a parsed Python file. Every module-level definition, assignment and import binding is
- * an export, which is how a package's `__init__.py` re-exports through the shared tracer. A name both bound locally
- * and imported, or bound twice, means the export list is not complete.
+ * The imports, scope bindings and own exports of a parsed Python file. `symbols` are the file's symbols, which give each
+ * function and class scope its id. A module's exports are the names its own scope binds exactly once, imports
+ * included, which is how a package's `__init__.py` re-exports through the shared tracer.
  */
-export function extractPythonImports(file: string, tree: Tree, query: Query): PythonFile {
+export function extractPythonImports(file: string, tree: Tree, query: Query, symbols: readonly CodeSymbol[]): PythonFile {
   const imports: ImportSpec[] = [];
   const hidden: ImportSpec[] = [];
-  const moduleBindings: ImportedName[] = [];
+  const index = new Map<number, { locals: { name: string; dotted: boolean; index: number }[]; typeOnly: boolean; wildcard: boolean }>();
   const seen = new Set<number>();
   for (const match of query.matches(tree.rootNode)) {
-    const capture = match.captures.find((c) => c.name !== 'mod' && c.name !== 'fn' && !(c.node.type === 'attribute' && c.node.parent?.type === 'call'));
+    const capture = match.captures.find((c) => c.name !== 'mod' && c.name !== 'fn');
     if (!capture || seen.has(capture.node.id)) continue;
     seen.add(capture.node.id);
     const main = capture.node;
     const typeOnly = typeGuarded(main);
-    const statement = stated(main, capture.name);
-    if (!statement) continue;
-    const base = { file, spec: statement.spec, kind: statement.kind, ...(typeOnly && { typeOnly }), range: nodeRange(main) };
-    if (main.hasError) {
-      hidden.push({ ...base, names: statement.names });
-      continue;
+    const locals: { name: string; dotted: boolean; index: number }[] = [];
+    let stated = false;
+    for (const module of statedModules(main, capture.name)) {
+      const spec: ImportSpec = { file, spec: module.spec, kind: module.kind, ...(module.anchored && { anchored: module.anchored }), ...(typeOnly && { typeOnly }), names: typeOnly ? module.names.map((n) => ({ ...n, typeOnly: true })) : module.names, range: nodeRange(main) };
+      if (main.hasError) {
+        hidden.push(spec);
+        continue;
+      }
+      stated = true;
+      const at = imports.push(spec) - 1;
+      for (const name of module.names) locals.push({ name: name.local, dotted: false, index: at });
+      if (module.dotted) locals.push({ name: module.dotted, dotted: true, index: at });
     }
-    imports.push({ ...base, names: statement.names });
-    // A name bound at module scope is exported by the file, so a package's `__init__.py` re-exports its imports.
-    if (owner(main) || typeOnly || statement.spec === '__future__') continue;
-    for (const name of statement.names) if (name.local !== 'TYPE_CHECKING') moduleBindings.push(name);
+    const wildcard = main.namedChildren.some((c) => c?.type === 'wildcard_import');
+    if (stated) index.set(main.id, { locals, typeOnly, wildcard });
   }
-  const { exports, all } = moduleExports(tree.rootNode);
-  const own = new Set(exports.names.map((n) => n.name));
-  let complete = exports.complete;
-  for (const binding of moduleBindings) {
-    // A definition and an import binding the same name: which wins depends on the line the import runs on.
-    if (own.has(binding.local)) {
-      complete = false;
-      continue;
-    }
-    own.add(binding.local);
-    exports.names.push({ name: binding.local, local: binding.imported });
-  }
-  // `__all__` narrows a star import to the names it lists; a computed one leaves the list open.
-  const names: ModuleExports['names'] = all ? exports.names.filter((n) => all.includes(n.name)) : exports.names;
-  return { imports, exports: { names, complete }, hidden, assignments: constructed(tree.rootNode), sysPathEdited: editsSysPath(tree.rootNode) };
+  const bindings = collectBindings(tree.rootNode, symbols, index);
+  return { imports, exports: moduleExports(bindings, hasWildcard(tree.rootNode)), hidden, bindings, sysPathEdited: editsSysPath(tree.rootNode) };
 }

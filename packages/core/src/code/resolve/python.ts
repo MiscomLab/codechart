@@ -1,269 +1,260 @@
-import { dirOf, joinRepo, type FileSet } from './files.js';
+import { dirOf, type FileSet } from './files.js';
 
 /** Where a Python spec leads, before it is attached to an `Import`. */
 export interface PythonResolution {
   status: 'resolved' | 'unknown' | 'external';
   resolved?: string;
-  /**
-   * A folder the spec names, when its name may also be a module in it: `from nspkg import mod` on a namespace package.
-   * The import itself stays unknown; the linker uses the folder to resolve `mod`.
-   */
+  /** For a namespace package (a folder with no `__init__.py`): the folder, where `from pkg import mod` finds `mod`. */
   packageFolder?: string;
 }
 
-/**
- * The Python standard library. Frozen rather than read from the running runtime, so a resolution does not depend on
- * which machine parses the repo; a repo that pins an older Python still resolves these names as external either way.
- */
-export const PYTHON_STDLIB: readonly string[] = [
-  '__future__', '__main__', '_thread', 'abc', 'aifc', 'argparse', 'array', 'ast', 'asynchat', 'asyncio', 'asyncore', 'atexit',
-  'audioop', 'base64', 'bdb', 'binascii', 'bisect', 'builtins', 'bz2', 'cProfile', 'calendar', 'cgi', 'cgitb', 'chunk', 'cmath',
-  'cmd', 'code', 'codecs', 'codeop', 'collections', 'colorsys', 'compileall', 'compression', 'concurrent', 'configparser',
-  'contextlib', 'contextvars', 'copy', 'copyreg', 'crypt', 'csv', 'ctypes', 'curses', 'dataclasses', 'datetime', 'dbm',
-  'decimal', 'difflib', 'dis', 'distutils', 'doctest', 'email', 'encodings', 'ensurepip', 'enum', 'errno', 'faulthandler',
-  'fcntl', 'filecmp', 'fileinput', 'fnmatch', 'fractions', 'ftplib', 'functools', 'gc', 'getopt', 'getpass', 'gettext', 'glob',
-  'graphlib', 'grp', 'gzip', 'hashlib', 'heapq', 'hmac', 'html', 'http', 'idlelib', 'imaplib', 'imghdr', 'imp', 'importlib',
-  'inspect', 'io', 'ipaddress', 'itertools', 'json', 'keyword', 'lib2to3', 'linecache', 'locale', 'logging', 'lzma', 'mailbox',
-  'mailcap', 'marshal', 'math', 'mimetypes', 'mmap', 'modulefinder', 'msilib', 'msvcrt', 'multiprocessing', 'netrc', 'nis',
-  'nntplib', 'nt', 'numbers', 'operator', 'optparse', 'os', 'ossaudiodev', 'parser', 'pathlib', 'pdb', 'pickle', 'pickletools',
-  'pipes', 'pkgutil', 'platform', 'plistlib', 'poplib', 'posix', 'posixpath', 'pprint', 'profile', 'pstats', 'pty', 'pwd',
-  'py_compile', 'pyclbr', 'pydoc', 'pyexpat', 'queue', 'quopri', 'random', 're', 'readline', 'reprlib', 'resource',
-  'rlcompleter', 'runpy', 'sched', 'secrets', 'select', 'selectors', 'shelve', 'shlex', 'shutil', 'signal', 'site', 'smtpd',
-  'smtplib', 'sndhdr', 'socket', 'socketserver', 'spwd', 'sqlite3', 'ssl', 'stat', 'statistics', 'string', 'stringprep',
-  'struct', 'subprocess', 'sunau', 'symtable', 'sys', 'sysconfig', 'syslog', 'tabnanny', 'tarfile', 'telnetlib', 'tempfile',
-  'termios', 'test', 'textwrap', 'threading', 'time', 'timeit', 'tkinter', 'token', 'tokenize', 'trace', 'traceback',
-  'tracemalloc', 'tty', 'turtle', 'turtledemo', 'types', 'typing', 'unicodedata', 'unittest', 'urllib', 'uu', 'uuid', 'venv',
-  'warnings', 'wave', 'weakref', 'webbrowser', 'wsgiref', 'xdrlib', 'xml', 'xmlrpc', 'zipapp', 'zipfile', 'zipimport', 'zlib',
-  'zoneinfo',
-];
+/** `sys.stdlib_module_names` of CPython 3.14, so the answer does not depend on the machine that parses the repo. */
+const STDLIB = new Set([
+  '__future__', '_abc', '_aix_support', '_android_support', '_apple_support', '_ast', '_ast_unparse', '_asyncio',
+  '_bisect', '_blake2', '_bz2', '_codecs', '_codecs_cn', '_codecs_hk', '_codecs_iso2022', '_codecs_jp', '_codecs_kr',
+  '_codecs_tw', '_collections', '_collections_abc', '_colorize', '_compat_pickle', '_contextvars', '_csv', '_ctypes',
+  '_curses', '_curses_panel', '_datetime', '_dbm', '_decimal', '_elementtree', '_frozen_importlib',
+  '_frozen_importlib_external', '_functools', '_gdbm', '_hashlib', '_heapq', '_hmac', '_imp', '_interpchannels',
+  '_interpqueues', '_interpreters', '_io', '_ios_support', '_json', '_locale', '_lsprof', '_lzma', '_markupbase',
+  '_md5', '_multibytecodec', '_multiprocessing', '_opcode', '_opcode_metadata', '_operator', '_osx_support',
+  '_overlapped', '_pickle', '_posixshmem', '_posixsubprocess', '_py_abc', '_py_warnings', '_pydatetime', '_pydecimal',
+  '_pyio', '_pylong', '_pyrepl', '_queue', '_random', '_remote_debugging', '_scproxy', '_sha1', '_sha2', '_sha3',
+  '_signal', '_sitebuiltins', '_socket', '_sqlite3', '_sre', '_ssl', '_stat', '_statistics', '_string', '_strptime',
+  '_struct', '_suggestions', '_symtable', '_sysconfig', '_thread', '_threading_local', '_tkinter', '_tokenize',
+  '_tracemalloc', '_types', '_typing', '_uuid', '_warnings', '_weakref', '_weakrefset', '_winapi', '_wmi', '_zoneinfo',
+  '_zstd', 'abc', 'annotationlib', 'antigravity', 'argparse', 'array', 'ast', 'asyncio', 'atexit', 'base64', 'bdb',
+  'binascii', 'bisect', 'builtins', 'bz2', 'cProfile', 'calendar', 'cmath', 'cmd', 'code', 'codecs', 'codeop',
+  'collections', 'colorsys', 'compileall', 'compression', 'concurrent', 'configparser', 'contextlib', 'contextvars',
+  'copy', 'copyreg', 'csv', 'ctypes', 'curses', 'dataclasses', 'datetime', 'dbm', 'decimal', 'difflib', 'dis',
+  'doctest', 'email', 'encodings', 'ensurepip', 'enum', 'errno', 'faulthandler', 'fcntl', 'filecmp', 'fileinput',
+  'fnmatch', 'fractions', 'ftplib', 'functools', 'gc', 'genericpath', 'getopt', 'getpass', 'gettext', 'glob',
+  'graphlib', 'grp', 'gzip', 'hashlib', 'heapq', 'hmac', 'html', 'http', 'idlelib', 'imaplib', 'importlib', 'inspect',
+  'io', 'ipaddress', 'itertools', 'json', 'keyword', 'linecache', 'locale', 'logging', 'lzma', 'mailbox', 'marshal',
+  'math', 'mimetypes', 'mmap', 'modulefinder', 'msvcrt', 'multiprocessing', 'netrc', 'nt', 'ntpath', 'nturl2path',
+  'numbers', 'opcode', 'operator', 'optparse', 'os', 'pathlib', 'pdb', 'pickle', 'pickletools', 'pkgutil', 'platform',
+  'plistlib', 'poplib', 'posix', 'posixpath', 'pprint', 'profile', 'pstats', 'pty', 'pwd', 'py_compile', 'pyclbr',
+  'pydoc', 'pydoc_data', 'pyexpat', 'queue', 'quopri', 'random', 're', 'readline', 'reprlib', 'resource',
+  'rlcompleter', 'runpy', 'sched', 'secrets', 'select', 'selectors', 'shelve', 'shlex', 'shutil', 'signal', 'site',
+  'smtplib', 'socket', 'socketserver', 'sqlite3', 'sre_compile', 'sre_constants', 'sre_parse', 'ssl', 'stat',
+  'statistics', 'string', 'stringprep', 'struct', 'subprocess', 'symtable', 'sys', 'sysconfig', 'syslog', 'tabnanny',
+  'tarfile', 'tempfile', 'termios', 'textwrap', 'this', 'threading', 'time', 'timeit', 'tkinter', 'token', 'tokenize',
+  'tomllib', 'trace', 'traceback', 'tracemalloc', 'tty', 'turtle', 'turtledemo', 'types', 'typing', 'unicodedata',
+  'unittest', 'urllib', 'uuid', 'venv', 'warnings', 'wave', 'weakref', 'webbrowser', 'winreg', 'winsound', 'wsgiref',
+  'xml', 'xmlrpc', 'zipapp', 'zipfile', 'zipimport', 'zlib', 'zoneinfo',
+]);
 
-export const STDLIB = new Set(PYTHON_STDLIB);
-
-/** A requirement's project name, lower-cased, from `flask>=2`, `requests[socks]` or `django (>=4)`. */
-function requirementName(line: string): string | undefined {
-  const match = line.match(/^\s*([A-Za-z0-9][A-Za-z0-9_.-]*)\s*(?:\[[^\]]*\])?\s*(?:[<>=!~;@(]|\s|$)/);
-  return match && !line.trimStart().startsWith('-') ? match[1]!.toLowerCase() : undefined;
-}
-
-/** Third-party names a project file declares, as `pyproject.toml`, `setup.py`, `Pipfile` and `requirements.txt` write them. */
-export function declaredDeps(text: string): string[] {
-  const names: string[] = [];
-  for (const block of text.matchAll(/dependencies\s*=\s*\[([\s\S]*?)\]/g)) {
-    for (const entry of block[1]!.matchAll(/["']([A-Za-z0-9][A-Za-z0-9_.-]*)/g)) names.push(entry[1]!.toLowerCase());
-  }
-  for (const line of text.split('\n')) {
-    const name = requirementName(line);
-    if (name) names.push(name);
-  }
-  return [...new Set(names)];
-}
-
-/** Files that mark a folder as a Python project, for the source roots it lays out. */
+/** Files that make a folder a Python project, whose `src/` folder (if any) and root are its source roots. */
 const PROJECT_FILES = ['pyproject.toml', 'setup.py', 'setup.cfg'];
 
-/** Files a project keeps its dependencies in, at its root. */
-const DECLARATION_NAMES = ['pyproject.toml', 'setup.py', 'setup.cfg', 'Pipfile', 'requirements.txt'];
+/** Probe keys for facts that are not one file's presence: a folder holding Python files, a module name anywhere. */
+export const pyDirKey = (dir: string): string => `py-dir:${dir}`;
+export const pyNameKey = (name: string): string => `py-name:${name}`;
 
-interface Found {
-  file?: string;
-  /** A folder with Python files but no `__init__.py`: a namespace package, which has no file of its own. */
-  packageFolder?: string;
+/** The probe keys a Python file's arrival or removal can change: the folders holding it and the module names it adds. */
+export function pythonProbeKeys(path: string): string[] {
+  if (!/\.pyi?$/.test(path)) return [];
+  const parts = path.split('/');
+  const stem = parts.pop()!.replace(/\.pyi?$/, '');
+  const dirs = parts.map((_, i) => parts.slice(0, i + 1).join('/'));
+  return [...dirs.map(pyDirKey), ...[...parts, stem].map(pyNameKey)];
 }
 
+/** One directory's entry for a name, in the order Python's `FileFinder` takes them. */
+type Entry = { kind: 'package' | 'module'; file: string; dir?: string } | { kind: 'namespace'; dir: string };
+
+type Lookup = { kind: 'file'; file: string } | { kind: 'namespace'; dirs: string[] } | { kind: 'ambiguous' } | undefined;
+
+const join = (dir: string, name: string): string => (dir ? `${dir}/${name}` : name);
+
 /**
- * Python import resolution over one snapshot of the repo's files (COD-44). Only listed files count, so nothing
- * resolves into a virtualenv, `site-packages` or build output.
+ * Python import resolution over one snapshot of the repo's files (COD-44), following CPython's path finder: in each
+ * `sys.path` entry a regular package (`pkg/__init__.py`) comes before a module (`pkg.py`), and a folder without
+ * `__init__.py` is a namespace portion that only counts when no entry has a regular match. Only listed files count, so
+ * nothing resolves into a virtualenv or build output.
  *
- * A target depends on where the importing file sits, not on run time: relative imports walk up from its package,
- * absolute imports look along the source roots the repo lays out (`src/`, the package root, the repo root). A file
- * that edits `sys.path` makes its absolute imports unprovable, and the caller says so.
+ * `sys.path` is not known statically. It is taken as the importing file's project source roots: the `src/` folder and
+ * root of the nearest folder with a project file, or only `src/` for a file inside it. Two regular matches on different entries could each win depending on
+ * the real order, so they are unknown.
  */
 export class PythonResolver {
-  private readonly probe: (path: string) => void;
   private py: string[] | undefined;
   private pySet: Set<string> | undefined;
-  private topLevel: Set<string> | undefined;
-  private readonly deps = new Map<string, Set<string>>();
+  private dirs: Set<string> | undefined;
+  private names: Set<string> | undefined;
+  private readonly projects = new Map<string, string>();
 
   constructor(
     private readonly files: FileSet,
-    private readonly read: (path: string) => string | undefined,
-    probe: (path: string) => void = () => {},
-  ) {
-    this.probe = probe;
-  }
+    private readonly readConfig: (path: string) => string | undefined,
+    private readonly probe: (key: string) => void = () => {},
+  ) {}
 
   /** Where `spec`, imported by repo file `from`, leads; `sysPathEdited` comes from the importing file's parse. */
   resolve(from: string, spec: string, sysPathEdited = false): PythonResolution {
     if (!spec) return { status: 'unknown' };
-    // Python's relative form is leading dots, not `./`.
     if (spec.startsWith('.')) return this.relative(from, spec);
-    if (STDLIB.has(spec.split('.')[0]!)) return { status: 'external' };
+    const top = spec.split('.')[0]!;
+    if (STDLIB.has(top)) return { status: 'external' };
     if (sysPathEdited) return { status: 'unknown' };
     return this.absolute(from, spec);
   }
 
-  private python(): string[] {
-    if (!this.py) {
-      this.py = [...this.files].filter((p) => p.endsWith('.py') || p.endsWith('.pyi')).sort();
+  private index(): { py: Set<string>; dirs: Set<string>; names: Set<string> } {
+    if (!this.pySet) {
+      this.py = [...this.files].filter((p) => p.endsWith('.py') || p.endsWith('.pyi'));
       this.pySet = new Set(this.py);
-    }
-    return this.py;
-  }
-
-  /** A path's module: `x.py` before `x.pyi`, `x/__init__.py` with its stub as stand-in, else a namespace folder. */
-  private at(path: string): Found | undefined {
-    const set = this.pySet ?? new Set(this.python());
-    const candidates = [`${path}.py`, `${path}.pyi`, `${path}/__init__.py`, `${path}/__init__.pyi`];
-    for (const candidate of candidates) this.probe(candidate);
-    const run = candidates[0]!;
-    if (set.has(run)) return { file: run };
-    const stub = candidates[1]!;
-    if (set.has(stub)) return { file: stub };
-    const init = candidates[2]!;
-    if (set.has(init)) return { file: init };
-    const initStub = candidates[3]!;
-    if (set.has(initStub)) return { file: initStub };
-    // A folder's first Python file is one of the candidates above, so a namespace package needs no folder probe.
-    const prefix = `${path}/`;
-    return this.py!.some((p) => p.startsWith(prefix)) ? { packageFolder: path } : undefined;
-  }
-
-  /** The project a file belongs to: the nearest folder holding its `pyproject.toml`, `setup.py` or `setup.cfg`. */
-  private projectRoot(dir: string): string {
-    for (let d: string | undefined = dir; d !== undefined; d = d ? dirOf(d) : undefined) {
-      if (PROJECT_FILES.some((name) => this.read(d ? `${d}/${name}` : name) !== undefined)) return d;
-    }
-    return '';
-  }
-
-  /**
-   * The source roots of one project: its `src/` folder when it has one, else the project root itself. A monorepo's
-   * other projects are not on this file's `sys.path`, so their `src/` folders are never searched.
-   */
-  private sources(project: string): string[] {
-    const src = (p: string) => (this.files.has(p ? `${p}/src/__init__.py` : 'src/__init__.py') || this.python().some((file) => file.startsWith(`${p ? `${p}/` : ''}src/`)) ? [p ? `${p}/src` : 'src'] : []);
-    return [...src(project), project];
-  }
-
-  /**
-   * `sys.path` as this file sees it: its own package folder (the topmost package around it, or the folder of a script
-   * outside any package), then its project's source roots. A script outside any package keeps its own folder only when
-   * the project has no `src/` layout, where a launcher or test runner would put the project's roots instead.
-   */
-  private roots(from: string): string[] {
-    const dir = dirOf(from);
-    const own = this.packageRoot(dir);
-    const project = this.projectRoot(dir);
-    const sources = this.sources(project);
-    const out = own === undefined ? [] : [own];
-    // A script outside any package: its own folder is a source root only when there is a `src/` layout to prefer.
-    if (own === dir && dir && sources.some((r) => r.endsWith('/src') || r === 'src')) out.pop();
-    for (const root of sources) if (!out.includes(root)) out.push(root);
-    return out;
-  }
-
-  private packageRoot(dir: string): string | undefined {
-    let top: string | undefined;
-    for (let d = dir; ; d = dirOf(d)) {
-      if (!this.files.has(d ? `${d}/__init__.py` : '__init__.py')) break;
-      top = d;
-      if (!d) break;
-    }
-    // A folder named `src` is the project's source root, and the package under it starts the import path.
-    return top === undefined || top === 'src' || top.endsWith('/src') ? dir : top;
-  }
-
-  private absolute(from: string, spec: string): PythonResolution {
-    const segments = spec.split('.').filter(Boolean);
-    if (!segments.length) return { status: 'unknown' };
-    const hits = new Set<string>();
-    let namespacePackage: string | undefined;
-    for (const root of this.roots(from)) {
-      const found = this.walk(root, segments);
-      if (!found) continue;
-      if (found.file) hits.add(found.file);
-      else if (found.depth === segments.length) namespacePackage ??= found.packageFolder;
-    }
-    if (hits.size === 1) return { status: 'resolved', resolved: [...hits][0]! };
-    if (hits.size > 1) return { status: 'unknown' };
-    if (namespacePackage !== undefined) return { status: 'unknown', packageFolder: namespacePackage };
-    return this.missing(segments[0]!, from);
-  }
-
-  /** Walks a dotted path under one root. Each step but the last must be a package folder, not a module file. */
-  private walk(root: string, segments: string[]): (Found & { depth: number }) | undefined {
-    let base = root;
-    for (let i = 0; i < segments.length; i++) {
-      const path = joinRepo(base, segments[i]!);
-      if (path === undefined) return undefined;
-      const found = this.at(path);
-      if (!found) return undefined;
-      const last = i === segments.length - 1;
-      if (found.file) {
-        // A package's `__init__` is a folder on the way; a module file mid-path makes the rest an attribute.
-        const init = found.file === `${path}/__init__.py` || found.file === `${path}/__init__.pyi`;
-        if (init && !last) {
-          base = path;
-          continue;
+      this.dirs = new Set();
+      this.names = new Set();
+      for (const path of this.py) {
+        const parts = path.split('/');
+        const stem = parts.pop()!.replace(/\.pyi?$/, '');
+        if (stem !== '__init__') this.names.add(stem);
+        for (let i = 1; i <= parts.length; i++) {
+          this.dirs.add(parts.slice(0, i).join('/'));
+          this.names.add(parts[i - 1]!);
         }
-        return { file: found.file, depth: i + 1 };
       }
-      // The last segment may name a namespace package: a folder with Python files but no `__init__.py`.
-      if (last) return { packageFolder: found.packageFolder, depth: i + 1 };
-      base = found.packageFolder!;
+    }
+    return { py: this.pySet, dirs: this.dirs!, names: this.names! };
+  }
+
+  private has(path: string): boolean {
+    return this.files.has(path);
+  }
+
+  private isDir(dir: string): boolean {
+    this.probe(pyDirKey(dir));
+    return this.index().dirs.has(dir);
+  }
+
+  /** What `name` is in one directory: a regular package, then a module, then a namespace portion. */
+  private entry(dir: string, name: string): Entry | undefined {
+    const base = join(dir, name);
+    // CPython has no loader for `.pyi` stubs: a stub is never what an import runs.
+    if (this.has(`${base}/__init__.py`)) return { kind: 'package', file: `${base}/__init__.py`, dir: base };
+    if (this.has(`${base}.py`)) return { kind: 'module', file: `${base}.py` };
+    return this.isDir(base) ? { kind: 'namespace', dir: base } : undefined;
+  }
+
+  /** One import step across `sys.path` entries: the regular match, or every namespace portion when there is none. */
+  private step(entries: readonly string[], name: string): Lookup | { kind: 'package'; file: string; dir: string } {
+    const regular = new Map<string, Exclude<Entry, { kind: 'namespace' }>>();
+    const portions: string[] = [];
+    for (const dir of entries) {
+      const found = this.entry(dir, name);
+      if (found?.kind === 'namespace') portions.push(found.dir);
+      else if (found) regular.set(found.file, found);
+    }
+    if (regular.size > 1) return { kind: 'ambiguous' };
+    const [hit] = regular.values();
+    if (hit?.kind === 'package') return { kind: 'package', file: hit.file, dir: hit.dir! };
+    if (hit) return { kind: 'file', file: hit.file };
+    return portions.length ? { kind: 'namespace', dirs: portions } : undefined;
+  }
+
+  /** A dotted module path from `entries`; every part before the last must be a package. */
+  private lookup(entries: readonly string[], parts: readonly string[]): Lookup {
+    let search = [...entries];
+    for (let i = 0; i < parts.length; i++) {
+      const found = this.step(search, parts[i]!);
+      const last = i === parts.length - 1;
+      if (!found || found.kind === 'ambiguous') return found;
+      if (found.kind === 'package') {
+        if (last) return { kind: 'file', file: found.file };
+        search = [found.dir];
+      } else if (found.kind === 'namespace') {
+        if (last) return found;
+        search = found.dirs;
+      } else {
+        // A module file before the last part: `a.b` with only `a.py` names an attribute, not a module.
+        return last ? found : undefined;
+      }
     }
     return undefined;
   }
 
-  /** A relative import: one dot is the file's package, each further dot one package up. */
+  private toResolution(found: Lookup, otherwise: () => PythonResolution): PythonResolution {
+    if (found?.kind === 'file') return { status: 'resolved', resolved: found.file };
+    if (found?.kind === 'namespace') return { status: 'unknown', ...(found.dirs.length === 1 && { packageFolder: found.dirs[0]! }) };
+    if (found?.kind === 'ambiguous') return { status: 'unknown' };
+    return otherwise();
+  }
+
+  /** The folder holding a file's top-level regular package, or undefined when its folder is not a regular package. */
+  private packageParent(dir: string): string | undefined {
+    let top: string | undefined;
+    for (let d = dir; d; d = dirOf(d)) {
+      if (!this.has(`${d}/__init__.py`)) break;
+      top = d;
+    }
+    return top === undefined ? undefined : dirOf(top);
+  }
+
+  /** The nearest folder at or above `dir` with a project file; the repo root when there is none. */
+  private project(dir: string): string {
+    let found = this.projects.get(dir);
+    if (found === undefined) {
+      found = PROJECT_FILES.some((name) => this.readConfig(join(dir, name)) !== undefined) || !dir ? dir : this.project(dirOf(dir));
+      this.projects.set(dir, found);
+    }
+    return found;
+  }
+
+  /** A project's source roots: its `src/` folder when it holds Python files, then the project root. */
+  private sources(project: string): string[] {
+    const src = join(project, 'src');
+    return this.isDir(src) ? [src, project] : [project];
+  }
+
+  /**
+   * `sys.path` as the importing file is taken to see it: its project's source roots. The folder a file or its package
+   * sits in is not assumed: whether it is on `sys.path` depends on how the code is started (as a script, from inside a
+   * namespace folder, through an installed package), which the repo does not prove.
+   */
+  private roots(from: string): string[] {
+    const sources = this.sources(this.project(dirOf(from)));
+    // Installed, a src layout's package does not see the project root; only code started from the root (tests, scripts) does.
+    const src = sources.length > 1 ? sources[0]! : undefined;
+    return src !== undefined && from.startsWith(`${src}/`) ? [src] : sources;
+  }
+
+  private absolute(from: string, spec: string): PythonResolution {
+    const parts = spec.split('.');
+    if (parts.some((p) => !p)) return { status: 'unknown' };
+    return this.toResolution(this.lookup(this.roots(from), parts), () => this.missing(parts[0]!));
+  }
+
+  /**
+   * A relative import, from the importing file's package: the folders between the `sys.path` entry it is imported from
+   * and the file. A file directly on a root has no package, and dots cannot climb above the top-level package.
+   */
   private relative(from: string, spec: string): PythonResolution {
-    const level = spec.match(/^\.+/)![0].length;
-    const rest = spec.replace(/^\.+/, '');
-    let base = dirOf(from);
-    for (let i = 1; i < level; i++) base = dirOf(base);
-    if (!base && level > 1) return { status: 'unknown' };
-    if (!rest) {
-      const init = base ? `${base}/__init__.py` : undefined;
-      if (init && this.files.has(init)) return { status: 'resolved', resolved: init };
-      const stub = base ? `${base}/__init__.pyi` : undefined;
-      if (stub && this.files.has(stub)) return { status: 'resolved', resolved: stub };
-      return { status: 'unknown' };
+    const level = spec.length - spec.replace(/^\.+/, '').length;
+    const rest = spec.slice(level).split('.').filter(Boolean);
+    const dir = dirOf(from);
+    const parent = this.packageParent(dir);
+    const root =
+      parent ??
+      this.sources(this.project(dir))
+        .filter((r) => r !== dir && (r === '' || dir.startsWith(`${r}/`)))
+        .sort((a, b) => b.length - a.length)[0];
+    if (root === undefined) return { status: 'unknown' };
+    const pkg = (root ? dir.slice(root.length + 1) : dir).split('/').filter(Boolean);
+    if (level > pkg.length) return { status: 'unknown' };
+    const base = join(root, pkg.slice(0, pkg.length - (level - 1)).join('/'));
+    if (!rest.length) {
+      if (this.has(`${base}/__init__.py`)) return { status: 'resolved', resolved: `${base}/__init__.py` };
+      return { status: 'unknown', packageFolder: base };
     }
-    const segments = rest.split('.').filter(Boolean);
-    const found = this.walk(base, segments);
-    if (found?.file) return { status: 'resolved', resolved: found.file };
-    if (found?.packageFolder !== undefined && found.depth === segments.length) return { status: 'unknown', packageFolder: found.packageFolder };
-    return { status: 'unknown' };
+    return this.toResolution(this.lookup([base], rest), () => ({ status: 'unknown' }));
   }
 
   /**
-   * A spec that matches no module. A declared dependency is external; anything else is unknown, because a name that is
-   * absent from the repo may live in a virtualenv, a built package or a folder only `sys.path` at run time reaches.
+   * A name no `sys.path` entry holds. Found nowhere in the repo, it is a third-party package (site-packages) and so
+   * external; a module or folder of that name elsewhere in the repo may be what runs, so that is unknown.
    */
-  private missing(top: string, from: string): PythonResolution {
-    if (this.declared(from).has(top.toLowerCase())) return { status: 'external' };
-    return { status: 'unknown' };
+  private missing(top: string): PythonResolution {
+    this.probe(pyNameKey(top));
+    return this.index().names.has(top) ? { status: 'unknown' } : { status: 'external' };
   }
-
-  /**
-   * Third-party packages the project declares. Its declaration files are not code, so they are not in the listing: they
-   * are read from the project folder a file belongs to, which is where Python tooling looks for them too.
-   */
-  private declared(from: string): Set<string> {
-    const project = this.projectRoot(dirOf(from));
-    let deps = this.deps.get(project);
-    if (!deps) {
-      deps = new Set();
-      for (const name of DECLARATION_NAMES) {
-        const path = project ? `${project}/${name}` : name;
-        this.probe(path);
-        const text = this.read(path);
-        if (text !== undefined) for (const dep of declaredDeps(text)) deps.add(dep);
-      }
-      this.deps.set(project, deps);
-    }
-    return deps;
-  }
-
 }

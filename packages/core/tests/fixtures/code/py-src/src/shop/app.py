@@ -1,9 +1,9 @@
-"""Entry points: relative imports two levels down and a package re-export."""
+"""Entry points: relative imports and a package re-export."""
 
 from . import billing
 from .billing import PaymentService, charge
 from .utils import slug as make_slug
-from ..other.policies import allow
+from .policies import allow
 
 
 def run(amount: float) -> str:

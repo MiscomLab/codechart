@@ -1,119 +1,184 @@
 import type { Node } from 'web-tree-sitter';
 import type { ModuleExports } from '../imports.js';
-import { dotted, literal } from './nodes.js';
+import type { CodeSymbol } from '../model.js';
 
-const ASSIGNMENTS = new Set(['assignment', 'typed_assignment']);
-/** Statements whose body runs at module scope, so the names it binds are the module's. */
-const BLOCKS = new Set(['if_statement', 'try_statement', 'with_statement', 'for_statement', 'while_statement']);
-
-/** The name a `def` or `class` declares, through the `decorated_definition` that may wrap it. */
-function definitionName(node: Node): string | undefined {
-  const inner = node.childForFieldName('definition');
-  return inner ? definitionName(inner) : node.childForFieldName('name')?.text;
+/**
+ * One name a Python scope binds. `scope` is the id of the function or class whose body binds it, `''` for the module.
+ * `import` points at the file's import by index; `def` is a `def` or `class`; `other` is any other write (assignment,
+ * parameter, loop or `with` target, `del`, `global` write), with `built` set for `name = Name(…)`.
+ */
+export interface PyBinding {
+  scope: string;
+  name: string;
+  kind: 'import' | 'def' | 'other';
+  import?: number;
+  /** For `import a.b` without an alias: binds `a`, and `a.b` stays reachable through it. */
+  dotted?: boolean;
+  built?: string;
 }
 
-/** The names a literal `__all__ = ["a", "b"]` lists, or undefined when the list is computed. */
-function literalAll(node: Node): string[] | undefined {
-  const value = node.type === 'assignment' ? node.childForFieldName('right') : node.namedChildren[1];
-  const list = value?.type === 'list' || value?.type === 'tuple' ? value : undefined;
-  if (!list) return undefined;
-  const names = list.namedChildren.map((c) => literal(c));
-  return names.length && names.every((n): n is string => !!n) ? names : undefined;
+const PATTERNS = new Set(['pattern_list', 'tuple_pattern', 'list_pattern', 'tuple', 'list', 'list_splat_pattern', 'as_pattern_target', 'parenthesized_expression']);
+const PARAMETERS = new Set(['default_parameter', 'typed_parameter', 'typed_default_parameter', 'list_splat_pattern', 'dictionary_splat_pattern']);
+
+/** Identifiers a write target binds: `a`, `a, b`, `(a, [b, *c])`. Attributes and subscripts bind no name. */
+function targets(node: Node | null | undefined): string[] {
+  if (!node) return [];
+  if (node.type === 'identifier') return [node.text];
+  if (PATTERNS.has(node.type)) return node.namedChildren.flatMap((c) => targets(c));
+  return [];
 }
 
-/** Whether a wildcard import runs at module scope. */
-function hasWildcard(root: Node): boolean {
-  const stack: Node[] = [root];
+function parameterNames(params: Node | null): string[] {
+  return (params?.namedChildren ?? []).flatMap((p) => {
+    if (!p) return [];
+    if (p.type === 'identifier') return [p.text];
+    if (PARAMETERS.has(p.type)) return targets(p.childForFieldName('name') ?? p.namedChildren.find((c) => c?.type === 'identifier'));
+    return [];
+  });
+}
+
+/** The import index of each import or import call node, by node id; the extractor fills it. */
+export type ImportIndex = ReadonlyMap<number, { locals: { name: string; dotted: boolean; index: number }[]; typeOnly: boolean; wildcard: boolean }>;
+
+/**
+ * Every name every scope of a Python file binds, by Python's scoping rules: a function's parameters and writes are its
+ * own; a class body is a scope its methods do not see; comprehensions and lambdas have their own scope. Scope ids are
+ * the symbols `extractSymbols` found for each `def` and `class`.
+ */
+export function collectBindings(root: Node, symbols: readonly CodeSymbol[], imports: ImportIndex): PyBinding[] {
+  const out: PyBinding[] = [];
+  const idAt = new Map(symbols.map((s) => [`${s.range.start.line}:${s.range.start.column}`, s.id]));
+  const walker: Walker = { out, imports, scopeOf: (def) => idAt.get(`${def.startPosition.row + 1}:${def.startPosition.column}`) ?? `?${def.id}` };
+  walk(walker, root, { scope: '', isFunction: false, outer: [], globals: new Set(), nonlocals: new Set() });
+  return out;
+}
+
+interface Walker {
+  out: PyBinding[];
+  imports: ImportIndex;
+  scopeOf: (def: Node) => string;
+}
+
+/** Where writes land: the current scope, the enclosing function scopes, and names redirected by `global` / `nonlocal`. */
+interface Scope {
+  scope: string;
+  isFunction: boolean;
+  /** The function scopes around this one, innermost first; class bodies are not among them. */
+  outer: readonly string[];
+  globals: ReadonlySet<string>;
+  nonlocals: ReadonlySet<string>;
+}
+
+type Bind = (name: string, kind: PyBinding['kind'], extra?: Partial<PyBinding>) => void;
+
+function binder(w: Walker, at: Scope): Bind {
+  return (name, kind, extra = {}) => {
+    if (at.globals.has(name)) w.out.push({ scope: '', name, kind, ...extra });
+    // `nonlocal f` writes an enclosing function's f; which one is not tracked, so every enclosing scope loses its proof.
+    else if (at.nonlocals.has(name)) for (const outer of at.outer) w.out.push({ scope: outer, name, kind: 'other' });
+    else w.out.push({ scope: at.scope, name, kind, ...extra });
+  };
+}
+
+function walk(w: Walker, node: Node, at: Scope): void {
+  const bind = binder(w, at);
+  for (const child of node.namedChildren) {
+    if (!child) continue;
+    const inner = child.type === 'decorated_definition' ? child.childForFieldName('definition') : child;
+    if (inner?.type === 'function_definition' || inner?.type === 'class_definition') {
+      enterDefinition(w, inner, bind, at);
+      continue;
+    }
+    const imported = w.imports.get(child.id);
+    if (imported) {
+      if (imported.wildcard) bind('*', 'other');
+      if (!imported.typeOnly) for (const l of imported.locals) bind(l.name, 'import', { import: l.index, ...(l.dotted && { dotted: true }) });
+      continue;
+    }
+    // A comprehension, lambda or `case` pattern binds names a call inside it sees instead of the enclosing ones. Calls are
+    // attributed to the enclosing function, so those names count as writes there: the call is then not proven.
+    if (child.type === 'lambda') for (const p of parameterNames(child.childForFieldName('parameters'))) bind(p, 'other');
+    if (child.type === 'case_pattern') for (const name of identifiers(child)) bind(name, 'other');
+    bindWrites(w, child, bind);
+    walk(w, child, at);
+  }
+}
+
+/** A `def` or `class` binds its name here; its parameters and body bind in its own scope. */
+function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
+  const name = def.childForFieldName('name')?.text;
+  if (name) bind(name, 'def');
+  const own = w.scopeOf(def);
+  const fn = def.type === 'function_definition';
+  if (fn) for (const p of parameterNames(def.childForFieldName('parameters'))) w.out.push({ scope: own, name: p, kind: 'other' });
+  const body = def.childForFieldName('body');
+  if (!body) return;
+  const outer = at.isFunction ? [at.scope, ...at.outer] : at.outer;
+  walk(w, body, { scope: own, isFunction: fn, outer, globals: new Set(declared(body, 'global_statement')), nonlocals: new Set(declared(body, 'nonlocal_statement')) });
+}
+
+function identifiers(node: Node): string[] {
+  if (node.type === 'identifier') return [node.text];
+  return node.namedChildren.flatMap((c) => (c ? identifiers(c) : []));
+}
+
+/** The names that writes in `node` bind in the current scope. */
+function bindWrites(w: Walker, node: Node, bind: Bind): void {
+  if (node.type === 'assignment') {
+    const right = node.childForFieldName('right');
+    // `m = importlib.import_module('x')` binds `m` through the import itself.
+    if (right && w.imports.get(right.id)?.locals.length) return;
+    const callee = right?.type === 'call' ? right.childForFieldName('function') : undefined;
+    const left = node.childForFieldName('left');
+    const built = left?.type === 'identifier' && callee?.type === 'identifier' ? { built: callee.text } : {};
+    for (const name of targets(left)) bind(name, 'other', built);
+    return;
+  }
+  const field = WRITES[node.type];
+  if (field) for (const name of targets(node.childForFieldName(field))) bind(name, 'other');
+  else if (node.type === 'delete_statement') for (const name of node.namedChildren.flatMap((c) => targets(c))) bind(name, 'other');
+}
+
+/** Statements that write a name, and the field holding the target. */
+const WRITES: Record<string, string> = {
+  augmented_assignment: 'left',
+  for_statement: 'left',
+  for_in_clause: 'left',
+  as_pattern: 'alias',
+  named_expression: 'name',
+};
+
+/** Names a function body declares with `global` or `nonlocal`, so its writes to them land in another scope. */
+function declared(body: Node, statement: 'global_statement' | 'nonlocal_statement'): string[] {
+  const names: string[] = [];
+  const stack: Node[] = [body];
   while (stack.length) {
     const node = stack.pop()!;
-    let scoped = false;
-    for (let up = node.parent; up; up = up.parent) if (up.type === 'function_definition' || up.type === 'class_definition' || up.type === 'lambda') scoped = true;
-    if (node.type === 'wildcard_import' && !scoped) return true;
-    for (const child of node.namedChildren) if (child) stack.push(child);
+    if (node.type === statement) for (const c of node.namedChildren) if (c?.type === 'identifier') names.push(c.text);
+    for (const c of node.namedChildren) if (c && c.type !== 'function_definition' && c.type !== 'class_definition') stack.push(c);
   }
-  return false;
-}
-
-/** The names a module binds at its own scope by definition or assignment, and whether `__getattr__` can add more. */
-function localNames(root: Node): { names: string[]; open: boolean; all?: string[] } {
-  const names: string[] = [];
-  let open = false;
-  let all: string[] | undefined;
-  const walk = (node: Node) => {
-    for (const child of node.namedChildren) {
-      if (!child) continue;
-      if (child.type === 'function_definition' || child.type === 'class_definition' || child.type === 'decorated_definition') {
-        const name = definitionName(child);
-        if (name === '__getattr__') open = true;
-        if (name) names.push(name);
-        continue;
-      }
-      if (child.type === 'expression_statement') {
-        const expression = child.namedChildren[0];
-        if (!expression || !ASSIGNMENTS.has(expression.type)) continue;
-        // `__all__` names what a star import exports; a computed one leaves the list open.
-        if (expression.childForFieldName('left')?.text === '__all__') {
-          const listed = literalAll(expression);
-          if (listed) all ??= listed;
-          else open = true;
-          continue;
-        }
-        names.push(...dotted(expression.childForFieldName('left')));
-        continue;
-      }
-      // `if`, `try` and `with` run at module scope, so the names their bodies bind are the module's too.
-      if (BLOCKS.has(child.type)) walk(child);
-    }
-  };
-  walk(root);
-  return { names, open, ...(all && { all }) };
+  return names;
 }
 
 /**
- * The names a Python module exports by its own definitions and assignments, in source order, and whether the list is
- * complete: a wildcard import, a `def __getattr__` or a computed `__all__` mean names can come from anywhere.
+ * The names a module exports: each name bound once at module scope. A name bound more than once (two branches, an
+ * import and a definition, a reassignment) has no provable binding, so it is left out and the list is not complete.
+ * A wildcard import or a module `__getattr__` can add names nobody lists.
  */
-export function moduleExports(root: Node): { exports: ModuleExports; all?: string[] } {
-  const local = localNames(root);
+export function moduleExports(bindings: readonly PyBinding[], wildcard: boolean): ModuleExports {
+  const byName = new Map<string, PyBinding[]>();
+  // A star import can rebind any module name after the line that defines it: no name is provable.
+  if (wildcard) return { names: [], complete: false };
+  for (const b of bindings) if (b.scope === '') byName.set(b.name, [...(byName.get(b.name) ?? []), b]);
   const names: ModuleExports['names'] = [];
-  for (const name of local.names) {
-    if (names.some((n) => n.name === name)) continue;
-    names.push({ name });
-  }
-  return { exports: { names, complete: !hasWildcard(root) && !local.open }, ...(local.all && { all: local.all }) };
-}
-
-/** An assignment whose right side is a plain call of a plain name: `service = PaymentService("x")`. */
-function construction(expression: Node): { name?: string; built?: string } {
-  if (expression.type !== 'assignment') return {};
-  const [name] = dotted(expression.childForFieldName('left'));
-  const value = expression.childForFieldName('right');
-  const callee = value?.type === 'call' ? value.childForFieldName('function') : undefined;
-  return { name, ...(name && callee?.type === 'identifier' && { built: callee.text }) };
-}
-
-/** `name = Class(…)` bindings at module or function scope, which a `name.method()` call can follow to the method. */
-export function constructed(root: Node): { name: string; constructor: string; scope: string[] }[] {
-  const out: { name: string; constructor: string; scope: string[] }[] = [];
-  const walk = (node: Node, scope: string[]) => {
-    for (const child of node.namedChildren) {
-      if (!child) continue;
-      if (child.type === 'function_definition' || child.type === 'class_definition' || child.type === 'decorated_definition') {
-        const inner = child.type === 'decorated_definition' ? child.childForFieldName('definition') : child;
-        const name = inner?.childForFieldName('name')?.text;
-        const body = inner?.childForFieldName('body');
-        if (inner?.type === 'function_definition' && body) walk(body, [...scope, ...(name ? [name] : [])]);
-        continue;
-      }
-      if (child.type === 'expression_statement') {
-        const found = construction(child.namedChildren[0] ?? child);
-        if (found.name && found.built) out.push({ name: found.name, constructor: found.built, scope });
-        continue;
-      }
-      // A conditional or loop at module or function scope runs in the same scope.
-      if (BLOCKS.has(child.type) || child.type === 'block') walk(child, scope);
+  let complete = !byName.has('__getattr__');
+  for (const [name, list] of byName) {
+    if (list.length > 1 && !list.every((b) => b.dotted)) {
+      complete = false;
+      continue;
     }
-  };
-  walk(root, []);
-  return out;
+    // An import binding names its own local, which the tracer follows through the import that binds it.
+    names.push(list[0]!.kind === 'import' && !list[0]!.dotted ? { name, local: name } : { name });
+  }
+  return { names, complete };
 }

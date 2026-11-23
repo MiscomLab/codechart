@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
-import type { Query, Tree } from 'web-tree-sitter';
 import { extractCalls } from './calls.js';
 import { loadGrammar } from './grammars.js';
 import { grammarOf, langOf } from './languages.js';
 import { extractImports, type ExportName, type ImportSpec, type ModuleExports } from './imports.js';
 import type { CallRef, CodeSymbol, FileInfo, CodeRange, Import } from './model.js';
 import { extractPythonImports } from './python/imports.js';
+import type { PyBinding } from './python/module-scope.js';
 import { extractSymbols } from './symbols.js';
 import { errorNodes } from './tree.js';
 
@@ -22,8 +22,8 @@ export interface ParsedFile {
   exports: ModuleExports;
   /** Calls by `from` symbol; `name-only` until the link pass proves a target. */
   calls: CallRef[];
-  /** Python `name = Class(…)` bindings, which let a `name.method()` call find the class's method. */
-  assignments?: { name: string; constructor: string; scope: string[] }[];
+  /** Python only: every name each scope binds, which decides what a called name means where it is called. */
+  bindings?: PyBinding[];
   /** The file edits `sys.path`, so its absolute Python imports have no provable target. Absent for other files. */
   sysPathEdited?: boolean;
 }
@@ -78,9 +78,9 @@ function keepLastGoodImports(
 
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** Whether the text still names an export: the exported name as a whole word, `export default` for a default. */
+/** Whether the text still names an export: `export default` for a default, else the exported name as a whole word. */
 const stillWritten = (text: string, name: ExportName): boolean =>
-  (name.name === 'default' ? /(?:\bexport\s+default|\bdefault\b)/ : new RegExp(`(?<![\\w$])${escapeRegExp(name.name)}(?![\\w$])`)).test(text);
+  (name.name === 'default' ? /\bexport\s+default\b/ : new RegExp(`(?<![\\w$])${escapeRegExp(name.name)}(?![\\w$])`)).test(text);
 
 /**
  * Own exports hidden by a syntax error keep their last good names, so barrel lookups do not flicker. As with imports,
@@ -115,15 +115,6 @@ function unlinked(imp: Import): Import {
 }
 
 /**
- * The imports, exports and Python-only evidence the grammar's own query finds. Python states imports and exports in
- * its own way, so it gets a reader of its own; the JavaScript grammars share one.
- */
-function extractStated(path: string, tree: Tree, query: Query, python: boolean) {
-  if (!python) return { ...extractImports(path, tree, query), assignments: undefined, sysPathEdited: undefined };
-  return extractPythonImports(path, tree, query);
-}
-
-/**
  * Parses one file in isolation. `path` is repo-relative with `/`; `lastGood` is the file's previous parse, whose
  * symbols, imports and exports stand in for what a syntax error hides. A file in a v1 language without a symbol
  * grammar yet gets no symbols.
@@ -142,8 +133,8 @@ export async function parseCode(path: string, text: string, lastGood?: LastGood)
     const errors = tree.rootNode.hasError ? errorNodes(tree.rootNode) : [];
     const extracted = extractSymbols(path, tree, tags, grammar);
     const good = keepLastGood(extracted, Array.isArray(lastGood) ? lastGood : previous?.symbols);
-    const stated = extractStated(path, tree, query, grammar === 'python');
-    const python = grammar === 'python' ? (stated as ReturnType<typeof extractPythonImports>) : undefined;
+    const python = grammar === 'python' ? extractPythonImports(path, tree, query, extracted.symbols) : undefined;
+    const stated = python ?? extractImports(path, tree, query);
     return {
       file,
       ...good,
@@ -151,7 +142,7 @@ export async function parseCode(path: string, text: string, lastGood?: LastGood)
       imports: keepLastGoodImports(stated.imports, stated.hidden, extracted.errors, previous, text).map(unlinked),
       exports: keepLastGoodExports(stated.exports, extracted.errors, previous, text),
       calls: extractCalls(tree, tags, good, errors, python ? 'python' : undefined),
-      ...(python?.assignments.length ? { assignments: python.assignments } : {}),
+      ...(python && { bindings: python.bindings }),
       ...(python?.sysPathEdited && { sysPathEdited: true }),
     };
   } finally {

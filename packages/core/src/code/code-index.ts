@@ -5,6 +5,7 @@ import { parseCode, type ParsedFile } from './parse.js';
 import { listCodeFiles, readCodeFile } from './repo.js';
 import { buildReverse, importerClosure, nameUsers, namesOf, Probes, type ReverseIndex } from './reverse.js';
 import { linkResolved, resolveImports } from './resolve/link.js';
+import { pythonProbeKeys } from './resolve/python.js';
 import { createResolver, type Resolver } from './resolve/resolver.js';
 
 export interface CodeIndexOptions {
@@ -36,10 +37,15 @@ export interface CodeIndex {
   update(paths?: readonly string[]): Promise<CodeUpdate>;
 }
 
-const CONFIG_FILE = /(^|\/)(package\.json|pnpm-workspace\.ya?ml|(?:ts|js)config[^/]*\.json|__init__\.py|pyproject\.toml|setup\.cfg|setup\.py|Pipfile|requirements[^/]*\.txt)$/;
+const CONFIG_FILE = /(^|\/)(package\.json|pnpm-workspace\.ya?ml|(?:ts|js)config[^/]*\.json)$/;
 const sorted = (set: Iterable<string>): string[] => [...set].sort();
 
 const hashOf = (text: string): string => createHash('sha256').update(text).digest('hex');
+
+const configHash = (root: string, path: string): string | null => {
+  const text = readCodeFile(root, path);
+  return text === undefined ? null : hashOf(text);
+};
 
 const emptyUpdate = (): CodeUpdate => ({ changed: [], parsed: [], relinked: [], removed: [] });
 
@@ -112,6 +118,8 @@ class Index implements CodeIndex {
   private readonly probes = new Probes();
   /** Paths config lookups depend on; never shrinks between full re-resolves, so a stale entry costs time, not truth. */
   private configDeps: Set<string>;
+  /** The content hash of each config path last time it was read, null when absent; catches edits to unlisted files. */
+  private configHashes = new Map<string, string | null>();
   private queue: Promise<void> = Promise.resolve();
 
   constructor(
@@ -123,6 +131,7 @@ class Index implements CodeIndex {
   ) {
     this.byPath = files;
     this.configDeps = configDeps;
+    this.configHashes = new Map([...this.configDeps].map((path) => [path, configHash(root, path)]));
     this.reverse = buildReverse(files.values());
     for (const path of files.keys()) this.probes.set(path, probed.get(path) ?? new Set());
   }
@@ -151,6 +160,8 @@ class Index implements CodeIndex {
     const next = new Map(before);
     const pending = this.collect(listed, listedSet, before, next);
     await this.parseChanged(paths, listed, listedSet, before, next, pending);
+    // A project file such as pyproject.toml is not a code file, so only its hash shows it changed.
+    for (const [path, hash] of this.configHashes) if (configHash(this.root, path) !== hash) pending.changed.add(path);
     if (!pending.changed.size) return emptyUpdate();
     return this.relink(listed, before, next, pending);
   }
@@ -220,6 +231,7 @@ class Index implements CodeIndex {
     for (const path of update.removed) this.probes.delete(path);
     for (const path of imports) this.probes.set(path, recorded.get(path) ?? new Set());
     this.configDeps = configChanged ? config : new Set([...this.configDeps, ...config]);
+    this.configHashes = new Map([...this.configDeps].map((path) => [path, configHash(this.root, path)]));
     return {
       changed: sorted(update.changed),
       parsed: sorted(update.parsed),
@@ -238,7 +250,8 @@ class Index implements CodeIndex {
     if (configChanged) return new Set([...next.keys()]);
     const imports = new Set([...update.parsed].filter(present));
     // Only a resolution that checked for an added or removed path can come out differently.
-    for (const path of this.probes.users([...update.added, ...update.removed])) if (present(path)) imports.add(path);
+    const keys = [...update.added, ...update.removed].flatMap((path) => [path, ...pythonProbeKeys(path)]);
+    for (const path of this.probes.users(keys)) if (present(path)) imports.add(path);
     // Changed files that are still present, including config files and files the ripple does not reach.
     for (const path of update.changed) if (present(path) && !update.removed.has(path)) imports.add(path);
     return imports;

@@ -7,7 +7,7 @@ import { inPackage, packageEntry, splitPackageSpec, workspacePackages } from './
 import { PythonResolver } from './python.js';
 import { createTsconfigs, matchAlias } from './tsconfig.js';
 
-export type Resolution = Pick<Import, 'status' | 'resolved'>;
+export type Resolution = Pick<Import, 'status' | 'resolved' | 'packageFolder'>;
 
 /** What a resolution needs beyond the specifier: whether the importing Python file edits `sys.path`. */
 export interface ResolveContext {
@@ -152,13 +152,13 @@ export function createResolver(files: Iterable<string>, read: (path: string) => 
   let map: Map<string, string | undefined> | undefined;
   const workspaces = () => (map ??= workspacePackages(configFiles, readPackage, readConfig));
   const repo: Repo = { listed, readPackage, workspaces, tsconfigs: createTsconfigs(configFiles, readConfig, { dir: (name) => workspaces().get(name), read: readPackage }) };
-  const python = new PythonResolver(listed, (path) => read(path), (path) => probes.path?.(path));
+  // Project files (pyproject.toml, setup.py, setup.cfg) set Python's source roots; they are read as config.
+  const python = new PythonResolver(listed, readConfig, (key) => probes.path?.(key));
   return {
     resolve: (from, spec, kind, context) => {
       // Python's rules are its own: dots, packages and source roots, not `package.json` and tsconfig.
       if (from.endsWith('.py') || from.endsWith('.pyi')) {
-        const hit = python.resolve(from, spec, context?.sysPathEdited ?? false);
-        return hit.status === 'resolved' && hit.resolved ? { status: 'resolved', resolved: hit.resolved } : { status: hit.status };
+        return python.resolve(from, spec, context?.sysPathEdited ?? false);
       }
       return resolveSpec(repo, from, spec, kind === 'require' ? 'require' : 'import');
     },

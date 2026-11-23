@@ -31,8 +31,13 @@ describe('Python imports on the py-src fixture', () => {
       ['.', 'resolved', 'src/shop/__init__.py'],
       ['.billing', 'resolved', 'src/shop/billing.py'],
       ['.utils', 'resolved', 'src/shop/utils/__init__.py'],
-      ['..other.policies', 'resolved', 'src/other/policies.py'],
+      ['.policies', 'resolved', 'src/shop/policies.py'],
     ]);
+  });
+
+  it('resolves a two-dot relative import from a subpackage to the package root', () => {
+    expect(importsOf('src/shop/jobs/nightly.py')).toEqual([['..policies', 'resolved', 'src/shop/policies.py']]);
+    expect(callOf('src/shop/jobs/nightly.py', 'allow')).toMatchObject({ to: 'src/shop/policies.py::allow::function', evidence: 'resolved' });
   });
 
   it('reads stdlib, absolute and relative imports, and marks a TYPE_CHECKING import', () => {
@@ -45,6 +50,18 @@ describe('Python imports on the py-src fixture', () => {
       ['.models', 'unknown', undefined],
     ]);
     expect(fileOf('src/shop/billing.py').imports[5]).toMatchObject({ typeOnly: true, names: [{ imported: 'Receipt', local: 'Receipt' }] });
+  });
+
+  it('binds exactly the names each statement binds', () => {
+    expect(fileOf('src/shop/billing.py').imports.map((i) => [i.spec, i.names])).toEqual([
+      ['__future__', []],
+      ['os', [{ imported: '*', local: 'os' }]],
+      ['typing', [{ imported: 'TYPE_CHECKING', local: 'TYPE_CHECKING' }]],
+      ['.utils', [{ imported: 'slug', local: 'slug', definedIn: 'src/shop/utils/text.py' }]],
+      ['.utils.text', [{ imported: 'pad', local: 'pad', definedIn: 'src/shop/utils/text.py' }]],
+      ['.models', [{ imported: 'Receipt', local: 'Receipt', typeOnly: true }]],
+    ]);
+    expect(fileOf('nspkg/consumer.py').imports.map((i) => i.names?.map((n) => n.local))).toEqual([['plugin'], ['log']]);
   });
 
   it('keeps a namespace package itself unknown but resolves the modules inside it', () => {
@@ -76,21 +93,20 @@ describe('Python imports on the py-src fixture', () => {
       [['billing', 'src/shop/billing.py']],
       [['PaymentService', 'src/shop/billing.py'], ['charge', 'src/shop/billing.py']],
       [['make_slug', 'src/shop/utils/text.py']],
-      [['allow', 'src/other/policies.py']],
+      [['allow', 'src/shop/policies.py']],
     ]);
   });
 });
 
 describe('Python calls on the py-src fixture', () => {
-  it('resolves a grouped import and the method of a constructed class', () => {
-    expect(callOf('src/shop/app.py', 'allow')).toMatchObject({ via: 'bare', to: 'src/other/policies.py::allow::function' });
+  it('resolves a grouped import, a submodule bound by from-import and the method of a constructed class', () => {
+    expect(callOf('src/shop/app.py', 'allow')).toMatchObject({ via: 'bare', to: 'src/shop/policies.py::allow::function' });
     expect(callOf('src/shop/app.py', 'make_slug')).toMatchObject({ via: 'bare', to: 'src/shop/utils/text.py::slug::function' });
     expect(callOf('src/shop/app.py', 'PaymentService')).toMatchObject({ via: 'bare', to: 'src/shop/billing.py::PaymentService::class' });
-    expect(callOf('src/shop/app.py', 'service') ?? callOf('src/shop/app.py', 'charge')).toBeTruthy();
     const method = fileOf('src/shop/app.py').calls.filter((c) => c.from === 'src/shop/app.py::run_service::function').find((c) => c.name === 'charge');
-    expect(method).toMatchObject({ via: 'member', receiver: 'service', to: 'src/shop/billing.py::PaymentService.charge::method' });
-    // `billing.charge()` is a module attribute call; only a proven module binding links it, and `import` is not one yet.
-    expect(callOf('src/shop/app.py', 'charge')).toMatchObject({ via: 'member', receiver: 'billing', evidence: 'name-only' });
+    expect(method).toMatchObject({ via: 'member', receiver: 'service', to: 'src/shop/billing.py::PaymentService.charge::method', evidence: 'resolved' });
+    // `from . import billing` binds the module src/shop/billing.py, so `billing.charge()` is its top-level `charge`.
+    expect(callOf('src/shop/app.py', 'charge')).toMatchObject({ via: 'member', receiver: 'billing', to: 'src/shop/billing.py::charge::function', evidence: 'resolved' });
   });
 
   it('resolves a bare call through a barrel and a self call to its method', () => {

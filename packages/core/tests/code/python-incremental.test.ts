@@ -40,8 +40,7 @@ describe('openCodeIndex on Python', () => {
   it('starts with the fixture resolved', () => {
     expect(importOutcome('src/shop/app.py', '.billing')).toEqual(['resolved', 'src/shop/billing.py', ['src/shop/billing.py', 'src/shop/billing.py']]);
     expect(callOutcome('src/shop/billing.py', 'pad')).toEqual(['src/shop/utils/text.py::pad::function', 'resolved']);
-    // `import shop.billing` binds the package `shop`, which the repo does not define as a module of its own.
-    expect(importOutcome('tools/script.py', 'shop.billing')).toEqual(['resolved', 'src/shop/billing.py', [undefined, 'src/shop/billing.py']]);
+    expect(importOutcome('tools/script.py', 'shop.billing')).toEqual(['resolved', 'src/shop/billing.py', ['src/shop/billing.py']]);
   });
 
   it('re-parses one file and relinks only what its edit can reach', async () => {
@@ -65,14 +64,14 @@ describe('openCodeIndex on Python', () => {
   });
 
   it('turns a namespace package into a regular one when its __init__.py appears', async () => {
-    expect(importOutcome('nspkg/consumer.py', 'nspkg')).toEqual(['unknown', undefined, [undefined, undefined]]);
+    expect(importOutcome('nspkg/consumer.py', 'nspkg')).toEqual(['unknown', undefined, ['nspkg/plugin.py']]);
     write('nspkg/__init__.py', 'from .common import log\n');
     const update = await index.update(['nspkg/__init__.py']);
     expect(update.parsed).toEqual(['nspkg/__init__.py']);
     // The new package file changes what `nspkg` resolves to, so every importer of it is re-resolved.
     expect(update.relinked).toContain('nspkg/consumer.py');
-    // `nspkg` binds the package module itself; `plugin` is then its submodule file.
-    expect(importOutcome('nspkg/consumer.py', 'nspkg')).toEqual(['resolved', 'nspkg/__init__.py', [undefined, 'nspkg/plugin.py']]);
+    // `__init__.py` does not define `plugin`, so `from nspkg import plugin` still binds the submodule.
+    expect(importOutcome('nspkg/consumer.py', 'nspkg')).toEqual(['resolved', 'nspkg/__init__.py', ['nspkg/plugin.py']]);
   });
 
   it('resolves a module that appears under the package', async () => {
@@ -83,16 +82,27 @@ describe('openCodeIndex on Python', () => {
     expect(importOutcome('src/shop/billing.py', '.models')).toEqual(['resolved', 'src/shop/models.py', [undefined]]);
   });
 
-  it('marks a package declared in pyproject.toml external, and re-resolves when it declares another', async () => {
-    write('src/shop/report.py', 'import requests\n\n\ndef build() -> None:\n    requests.get("x")\n');
-    await index.update(['src/shop/report.py']);
-    expect(importOutcome('src/shop/report.py', 'requests')).toEqual(['external', undefined, [undefined]]);
-    write('pyproject.toml', '[project]\nname = "shop"\ndependencies = ["requests>=2", "pydantic", "rich"]\n');
+  it('imports a package found nowhere in the repo as external, and unknown once a module of that name appears', async () => {
     write('src/shop/report.py', 'import rich\n\n\ndef build() -> None:\n    rich.print("x")\n');
-    // The config change re-resolves the whole repo, so the new declaration counts in the same update.
-    const update = await index.update(['src/shop/report.py', 'pyproject.toml']);
-    expect(update.parsed).toEqual(['src/shop/report.py']);
+    await index.update(['src/shop/report.py']);
     expect(importOutcome('src/shop/report.py', 'rich')).toEqual(['external', undefined, [undefined]]);
+    // scripts/rich.py is not on report.py's sys.path, so whether `rich` is site-packages or that file is not provable.
+    write('scripts/rich.py', 'def print(x: str) -> None:\n    pass\n');
+    const update = await index.update(['scripts/rich.py']);
+    expect(update.relinked).toContain('src/shop/report.py');
+    expect(importOutcome('src/shop/report.py', 'rich')).toEqual(['unknown', undefined, [undefined]]);
+  });
+
+  it('re-resolves when only a project file changes the source roots', async () => {
+    write('lib/src/libpkg/__init__.py', 'def x() -> None:\n    pass\n');
+    write('lib/tools/use.py', 'from libpkg import x\n');
+    await index.update(['lib/src/libpkg/__init__.py', 'lib/tools/use.py']);
+    expect(importOutcome('lib/tools/use.py', 'libpkg')).toEqual(['unknown', undefined, [undefined]]);
+    // lib/pyproject.toml makes lib/ a project with a src layout, so lib/src is on its files' sys.path.
+    write('lib/pyproject.toml', '[project]\nname = "lib"\n');
+    const update = await index.update(['lib/pyproject.toml']);
+    expect(update.relinked).toContain('lib/tools/use.py');
+    expect(importOutcome('lib/tools/use.py', 'libpkg')).toEqual(['resolved', 'lib/src/libpkg/__init__.py', ['lib/src/libpkg/__init__.py']]);
   });
 
   it('keeps the sys.path edit and its unknown imports across an unrelated edit', async () => {
@@ -100,6 +110,6 @@ describe('openCodeIndex on Python', () => {
     const update = await index.update(['tools/hack.py']);
     expect(update.parsed).toEqual(['tools/hack.py']);
     expect(index.file('tools/hack.py')?.sysPathEdited).toBe(true);
-    expect(importOutcome('tools/hack.py', 'shop.billing')).toEqual(['unknown', undefined, [undefined, undefined]]);
+    expect(importOutcome('tools/hack.py', 'shop.billing')).toEqual(['unknown', undefined, [undefined]]);
   });
 });

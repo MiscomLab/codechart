@@ -18,12 +18,13 @@ function callOf(ref: Node, python: boolean): Node | undefined {
   return undefined;
 }
 
-/** A Python attribute chain's names, outermost first: `a.b.f` → `['a', 'b', 'f']`. */
-const attrs = (node: Node | null | undefined): string[] => {
-  if (!node) return [];
-  if (node.type === 'identifier') return [node.text];
-  if (node.type === 'attribute') return [...attrs(node.childForFieldName('object')), ...attrs(node.childForFieldName('attribute'))];
-  return [];
+/** A Python attribute chain's names, outermost first (`a.b.f` → `['a', 'b', 'f']`); undefined unless all are names. */
+const attrs = (node: Node | null | undefined): string[] | undefined => {
+  if (node?.type === 'identifier') return [node.text];
+  if (node?.type !== 'attribute') return undefined;
+  const object = attrs(node.childForFieldName('object'));
+  const name = node.childForFieldName('attribute')?.text;
+  return object && name ? [...object, name] : undefined;
 };
 
 /** How the callee is written, so linking can tell a bare name from `this.name` and from `receiver.name`. */
@@ -31,11 +32,11 @@ function calleeOf(call: Node, python: boolean): Callee {
   const fn = call.childForFieldName('function');
   if (fn?.type === 'identifier') return { via: 'bare' };
   if (python && fn?.type === 'attribute') {
-    // `a.b.f()`: the name is the last segment; the chain before it decides what `a` is.
     const path = attrs(fn);
-    const receiver = path[0];
-    if (receiver === 'self' || receiver === 'cls') return { via: 'this' };
-    return { via: 'member', ...(receiver && { receiver }), ...(path.length > 2 && { receiverPath: path.slice(0, -1) }) };
+    if (!path) return { via: 'member' };
+    // Only `self.f()` / `cls.f()` call the enclosing class; `self.child.f()` calls whatever `child` holds.
+    if (path.length === 2 && (path[0] === 'self' || path[0] === 'cls')) return { via: 'this' };
+    return { via: 'member', receiver: path[0]!, ...(path.length > 2 && { receiverPath: path.slice(0, -1) }) };
   }
   if (fn?.type === 'member_expression') {
     const object = fn.childForFieldName('object');

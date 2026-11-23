@@ -48,6 +48,10 @@ export const importSchema = z.object({
   spec: z.string(),
   resolved: z.string().min(1).optional(),
   status: z.enum(['resolved', 'unknown', 'external']),
+  /** Python: the folder of a namespace package (no `__init__.py`) the import names; the import itself stays `unknown`. */
+  packageFolder: z.string().optional(),
+  /** Python `importlib.import_module('.x', 'pkg')`: the absolute module the relative spec names, resolved instead of it. */
+  anchored: z.string().min(1).optional(),
   /** `export` is a re-export (`export … from`); `require` and `dynamic` (`import()`) name no bindings. */
   kind: z.enum(IMPORT_KINDS),
   /** `import type`, `export type`, `typeof import()`. */

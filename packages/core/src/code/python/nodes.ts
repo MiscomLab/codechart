@@ -1,14 +1,17 @@
 import type { Node } from 'web-tree-sitter';
 import type { ImportedName } from '../model.js';
 
-/** The text of a plain string literal, or undefined for anything else. */
+/** The text of a plain string literal (no f-string, no bytes, no interpolation, no escapes), or undefined. */
 export function literal(node: Node | null | undefined): string | undefined {
   if (node?.type !== 'string') return undefined;
-  const text = node.text;
-  const quote = text.match(/^(?:[rbuf]{0,2})('''|"""|'|")/i)?.[1];
-  if (!quote || !text.endsWith(quote)) return undefined;
-  const body = text.slice(quote.length, -quote.length);
-  return body.includes('\\') ? undefined : body;
+  const start = node.namedChildren.find((c) => c?.type === 'string_start')?.text ?? '';
+  const prefix = start.replace(/['"]+$/, '').toLowerCase();
+  // `b'x'` is bytes, which import functions reject; `f'x'` is computed at run time.
+  if (prefix.includes('b') || prefix.includes('f') || prefix.includes('t')) return undefined;
+  if (node.namedChildren.some((c) => c?.type === 'interpolation')) return undefined;
+  const content = node.namedChildren.filter((c) => c?.type === 'string_content');
+  if (content.some((c) => c!.namedChildren.some((e) => e?.type === 'escape_sequence'))) return undefined;
+  return content.map((c) => c!.text).join('');
 }
 
 /** The identifiers of a dotted name or attribute chain; empty for anything else. */
@@ -19,119 +22,141 @@ export function dotted(node: Node | null | undefined): string[] {
   return [];
 }
 
-/** The number of dots a `relative_import` starts with and the module after them. */
-function relative(node: Node): { level: number; rest: string } {
+/** The module a from-import names, as a spec: `a.b`, `.a.b` or `..`. */
+function fromSpec(node: Node): string | undefined {
+  const name = node.childForFieldName('module_name');
+  if (!name) return undefined;
+  if (name.type !== 'relative_import') return dotted(name).join('.') || undefined;
   let level = 0;
   let rest = '';
-  for (const child of node.namedChildren) {
+  for (const child of name.namedChildren) {
     if (child?.type === 'import_prefix') level += child.text.length;
     else rest = dotted(child).join('.');
   }
-  return { level, rest };
+  return '.'.repeat(level) + rest;
 }
 
-/** The module a from-import names, as a spec: `a.b`, `.a.b` or `..`. */
-export function fromSpec(node: Node): string | undefined {
-  const name = node.childForFieldName('module_name');
-  if (!name) return undefined;
-  if (name.type === 'relative_import') {
-    const { level, rest } = relative(name);
-    return '.'.repeat(level) + rest;
-  }
-  const parts = dotted(name);
-  return parts.length ? parts.join('.') : undefined;
-}
-
-/** The names a from-import binds: `name` and `name as alias` after the module. */
-export function fromNames(node: Node): ImportedName[] {
-  return node.namedChildren.flatMap((child) => {
+/** The names a from-import binds: only the `name` fields, never the module it imports from. */
+function fromNames(node: Node): ImportedName[] {
+  return node.childrenForFieldName('name').flatMap((child): ImportedName[] => {
     if (child?.type === 'dotted_name') {
-      const [first] = dotted(child);
-      return first ? [{ imported: first, local: first }] : [];
+      const name = dotted(child).join('.');
+      return name ? [{ imported: name, local: name }] : [];
     }
     if (child?.type === 'aliased_import') {
-      const name = dotted(child.childForFieldName('name'))[0];
-      const alias = dotted(child.childForFieldName('alias'))[0];
+      const name = dotted(child.childForFieldName('name')).join('.');
+      const alias = child.childForFieldName('alias')?.text;
       return name && alias ? [{ imported: name, local: alias }] : [];
     }
     return [];
   });
 }
 
-/**
- * The names `import a.b as c` binds. `import a.b` binds the package `a` while the import resolves to `a/b.py`, so only
- * a one-segment module or an alias binds the module itself; the rest gets no binding and stays name-only.
- */
-export function importNames(node: Node): ImportedName[] {
-  return node.namedChildren.flatMap((child) => {
-    if (child?.type === 'dotted_name') {
-      const parts = dotted(child);
-      return parts.length === 1 ? [{ imported: '*', local: parts[0]! }] : [];
-    }
+/** One module an `import` statement names. `dotted` is `import a.b` without an alias, which binds `a`, not `a.b`. */
+export interface ImportedModule {
+  spec: string;
+  names: ImportedName[];
+  kind: 'import' | 'dynamic';
+  dotted?: string;
+  /** `importlib.import_module('.x', 'pkg')`: the absolute module the relative name means. */
+  anchored?: string;
+}
+
+/** `import a, b.c as d`: one module per name; a one-part name or an alias binds the module itself. */
+function importModules(node: Node): ImportedModule[] {
+  return node.childrenForFieldName('name').flatMap((child): ImportedModule[] => {
     if (child?.type === 'aliased_import') {
-      const alias = dotted(child.childForFieldName('alias'))[0];
-      return alias ? [{ imported: '*', local: alias }] : [];
+      const spec = dotted(child.childForFieldName('name')).join('.');
+      const alias = child.childForFieldName('alias')?.text;
+      return spec && alias ? [{ spec, kind: 'import', names: [{ imported: '*', local: alias }] }] : [];
     }
-    return [];
+    const parts = dotted(child);
+    if (!parts.length) return [];
+    const spec = parts.join('.');
+    return parts.length === 1 ? [{ spec, kind: 'import', names: [{ imported: '*', local: spec }] }] : [{ spec, kind: 'import', names: [], dotted: parts[0]! }];
   });
 }
 
-const SCOPES = new Set(['function_definition', 'lambda', 'class_definition']);
+/** `.x` anchored at package `a.b` (`importlib.import_module('.x', 'a.b')`) as an absolute name; undefined above `a`. */
+function anchored(spec: string, pkg: string): string | undefined {
+  const level = spec.length - spec.replace(/^\.+/, '').length;
+  const parts = pkg.split('.');
+  if (level - 1 >= parts.length) return undefined;
+  return [...parts.slice(0, parts.length - (level - 1)), ...(spec.slice(level) ? [spec.slice(level)] : [])].join('.');
+}
 
-/** The nearest function, lambda or class around a node: undefined in module scope, `if`, `try` and `with` included. */
-export function owner(node: Node | null | undefined): Node | undefined {
-  for (let up = node?.parent; up; up = up.parent) if (SCOPES.has(up.type)) return up;
-  return undefined;
+/**
+ * A module a call names at run time, and the name its result is bound to. `importlib.import_module('a.b')` returns
+ * `a.b`, and a relative name is anchored at its literal `package` argument. `__import__('a.b')` returns the top-level
+ * package `a`, so only a one-part `__import__` binds the module; any further `__import__` argument (fromlist, level)
+ * changes what it returns, as does a keyword argument, so those are not read.
+ */
+function dynamicModule(node: Node): ImportedModule | undefined {
+  const args = node.childForFieldName('arguments')?.namedChildren.filter((c): c is Node => !!c) ?? [];
+  const isDunder = node.childForFieldName('function')?.type === 'identifier';
+  const spec = literal(args[0]);
+  if (!spec || args.some((a) => a.type === 'keyword_argument') || args.length > (isDunder ? 1 : 2)) return undefined;
+  const pkg = spec.startsWith('.') ? literal(args[1]) : undefined;
+  const absolute = pkg ? anchored(spec, pkg) : undefined;
+  if (spec.startsWith('.') && !absolute) return undefined;
+  const left = node.parent?.type === 'assignment' ? node.parent.childForFieldName('left') : undefined;
+  const binds = left?.type === 'identifier' && !(isDunder && spec.includes('.'));
+  return { spec, kind: 'dynamic', names: binds ? [{ imported: '*', local: left.text }] : [], ...(absolute && { anchored: absolute }) };
+}
+
+/** The modules one import statement or import call states. */
+export function statedModules(main: Node, capture: string): ImportedModule[] {
+  if (main.type === 'future_import_statement') return [{ spec: '__future__', names: [], kind: 'import' }];
+  if (main.type === 'call') {
+    const found = dynamicModule(main);
+    return found ? [found] : [];
+  }
+  if (capture === 'from') {
+    const spec = fromSpec(main);
+    return spec === undefined ? [] : [{ spec, names: fromNames(main), kind: 'import' }];
+  }
+  return importModules(main);
 }
 
 const isTypeChecking = (test: Node | null): boolean =>
   test?.type === 'identifier' ? test.text === 'TYPE_CHECKING' : test?.type === 'attribute' && test.childForFieldName('attribute')?.text === 'TYPE_CHECKING';
 
-/** Whether a node sits where only a type checker runs it: `if TYPE_CHECKING:` or an `except ImportError:` body. */
+const SCOPES = new Set(['function_definition', 'class_definition', 'lambda']);
+
+/** Whether a node runs only under a type checker: inside the body of `if TYPE_CHECKING:`, not its `else`. */
 export function typeGuarded(node: Node): boolean {
-  for (let up = node.parent; up; up = up.parent) {
-    if (up.type === 'if_statement' && isTypeChecking(up.childForFieldName('condition'))) return true;
-    if (up.type === 'except_clause') {
-      const type = up.namedChildren[0];
-      if (type?.text === 'ImportError' || (type?.type === 'tuple' && type.namedChildren.some((c) => c?.text === 'ImportError'))) return true;
-    }
-    if (SCOPES.has(up.type)) break;
+  let child: Node = node;
+  for (let up = node.parent; up; child = up, up = up.parent) {
+    if (up.type === 'if_statement' && isTypeChecking(up.childForFieldName('condition')) && up.childForFieldName('consequence')?.id === child.id) return true;
+    if (SCOPES.has(up.type)) return false;
   }
   return false;
 }
 
-/** A module spec a call names at run time, and the name its result is bound to. */
-export function dynamic(node: Node): { spec: string; bind?: string } | undefined {
-  const args = node.childForFieldName('arguments');
-  const spec = literal(args?.namedChildren.find((c) => c?.type === 'string'));
-  if (!spec) return undefined;
-  const parent = node.parent;
-  const bind = parent?.type === 'assignment' ? dotted(parent.childForFieldName('left'))[0] : undefined;
-  return { spec, ...(bind && { bind }) };
-}
+const SYS_PATH_EDITS = new Set(['insert', 'append', 'extend', 'remove', 'pop', 'clear', '__setitem__', '__delitem__', '__iadd__', 'reverse', 'sort']);
 
-/** Whether a file edits `sys.path`, which makes every absolute import's target unprovable. */
+const isSysPath = (node: Node | null | undefined): boolean => node?.type === 'attribute' && node.text.replace(/\s/g, '') === 'sys.path';
+
+/** Whether the target of a write is `sys.path` itself or an item or slice of it. */
+const writesSysPath = (target: Node | null | undefined): boolean =>
+  !!target && (isSysPath(target) || (target.type === 'subscript' && isSysPath(target.childForFieldName('value'))));
+
+/**
+ * Whether a file changes `sys.path`: assigns or augments it or an item of it, deletes from it, or calls a mutating
+ * method on it (`insert`, `append`, …), or adds a site directory. Reading `sys.path` changes nothing.
+ */
 export function editsSysPath(root: Node): boolean {
   const stack: Node[] = [root];
   while (stack.length) {
     const node = stack.pop()!;
-    if (node.type === 'attribute' && node.childForFieldName('object')?.text === 'sys' && node.childForFieldName('attribute')?.text === 'path') return true;
+    if ((node.type === 'assignment' || node.type === 'augmented_assignment') && writesSysPath(node.childForFieldName('left'))) return true;
+    if (node.type === 'delete_statement' && node.namedChildren.some((c) => writesSysPath(c))) return true;
+    if (node.type === 'call') {
+      const fn = node.childForFieldName('function');
+      if (fn?.type === 'attribute' && isSysPath(fn.childForFieldName('object')) && SYS_PATH_EDITS.has(fn.childForFieldName('attribute')?.text ?? '')) return true;
+      if (fn?.type === 'attribute' && fn.text.replace(/\s/g, '') === 'site.addsitedir') return true;
+    }
     for (const child of node.namedChildren) if (child) stack.push(child);
   }
   return false;
-}
-
-/** What one import statement states, once its spec and bindings are read. */
-export function stated(main: Node, capture: string): { spec: string; names: ImportedName[]; kind: 'import' | 'dynamic' } | undefined {
-  if (main.type === 'future_import_statement') return { spec: '__future__', names: [], kind: 'import' };
-  if (main.type === 'call') {
-    const found = dynamic(main);
-    return found ? { spec: found.spec, names: found.bind ? [{ imported: '*', local: found.bind }] : [], kind: 'dynamic' } : undefined;
-  }
-  if (capture === 'from') {
-    const spec = fromSpec(main);
-    return spec === undefined ? undefined : { spec, names: fromNames(main), kind: 'import' };
-  }
-  const spec = dotted(main.childForFieldName('name')).join('.');
-  return spec ? { spec, names: importNames(main), kind: 'import' } : undefined;
 }
