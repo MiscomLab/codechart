@@ -240,7 +240,8 @@ describe('entities and references on broken text (Live map #11)', () => {
     const css = '@import "a\\.css";\n';
     const goodCss = await parse('web/s.css', css);
     expect(goodCss.refs.map((r) => [r.spec, r.written])).toEqual([['a.css', 'a\\.css']]);
-    const brokenCss = await parse('web/s.css', css.replace('";', '" {{;'), goodCss);
+    // The parser loses this @import; only the last good parse still has it.
+    const brokenCss = await parse('web/s.css', css.replace('@import "', '@import {{ "'), goodCss);
     expect(brokenCss.parseErrors.length).toBeGreaterThan(0);
     expect(brokenCss.refs.map((r) => r.spec)).toEqual(['a.css']);
 
@@ -253,7 +254,11 @@ describe('entities and references on broken text (Live map #11)', () => {
   });
 
   it('records no separate spelling when the spec is written as is', async () => {
-    expect((await parse('web/style.css')).refs.every((r) => r.written === undefined)).toBe(true);
+    expect((await parse('web/style.css')).refs.map((r) => [r.spec, r.written])).toEqual([
+      ['base.css', undefined],
+      ['https://fonts.example.com/f.css', undefined],
+      ['./missing.css', undefined],
+    ]);
   });
 
   it('drops a reference that was deleted, not hidden', async () => {
