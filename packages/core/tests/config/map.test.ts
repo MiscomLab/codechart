@@ -558,3 +558,16 @@ describe('a pattern names what it applies to', () => {
     expect(parseMap(rule({ pattern: '((class_definition) @entity)', lang: 'python', kind: 'table' })).ok).toBe(true);
   });
 });
+
+describe('pinned names read the same in YAML 1.1 tools', () => {
+  it('quotes what a YAML 1.1 reader would turn into a boolean, date or number', () => {
+    const words = ['yes', 'no', 'on', 'off', 'y', 'n', 'Yes', 'NO', '2024-01-01', '1_000', '0b101', '012', '1:20', '.5', 'null', '~', '<<', '='];
+    const pins = Object.fromEntries(words.flatMap((w, i) => [[`box-${String(i).padStart(2, '0')}`, { name: w, reason: w }]]));
+    const keyed = Object.fromEntries(['yes', 'on', 'null', 'true'].map((id) => [id, { name: 'x' }]));
+    for (const p of [pins, keyed]) {
+      const out = writePinned('', p);
+      expect((parse(out, { version: '1.1' }) as { map: { pinned: object } }).map.pinned).toEqual(p);
+      expect((parse(out) as { map: { pinned: object } }).map.pinned).toEqual(p);
+    }
+  });
+});

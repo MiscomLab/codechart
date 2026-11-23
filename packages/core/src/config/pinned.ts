@@ -21,7 +21,10 @@ function lineEndAfter(text: string, end: number): number {
 
 const byCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
-/** `pinned:` and its entries, sorted by id in code-unit order, `name` before `reason`, `indent` deep with `step`. */
+/**
+ * `pinned:` and its entries, sorted by id in code-unit order, `name` before `reason`, `indent` deep with `step`. Written
+ * with YAML 1.1's rules, so `yes`, `on` or `2024-01-01` get quotes and read as text in 1.1 tools as well as in 1.2.
+ */
 function renderPinned(pinned: Pinned, indent: number, step: number, eol: string): string {
   const sorted = Object.fromEntries(
     Object.keys(pinned)
@@ -31,7 +34,7 @@ function renderPinned(pinned: Pinned, indent: number, step: number, eol: string)
         return [id, reason === undefined ? { name } : { name, reason }];
       }),
   );
-  return indentLines(stringify({ pinned: sorted }, { indent: step, lineWidth: 0, minContentWidth: 0 }), indent, eol);
+  return indentLines(stringify({ pinned: sorted }, { indent: step, lineWidth: 0, minContentWidth: 0, version: '1.1' }), indent, eol);
 }
 
 const indentLines = (block: string, indent: number, eol: string) =>
