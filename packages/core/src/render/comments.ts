@@ -44,11 +44,12 @@ const BRACKETS: Record<string, string> = { '[': ']', '(': ')', '{': '}', '<': '>
 const RUBY: Syntax = {
   lines: [/(?<!\?)#/y],
   blocks: [{ open: /(?<![^\n])=begin\b/y, close: () => /\n=end(?=\s|$)/y }],
-  quotes: [DOUBLE, SINGLE, { open: /(?<![\w)\]}])%[qQwWiIrsx]?([[({<])/y, close: (m) => BRACKETS[m[1]!]!, escape: 'backslash', lines: true }],
+  quotes: [DOUBLE, SINGLE, { open: /(?<![\w)\]}])%[qQwWiIrsx]?([[({<])/y, close: (m) => BRACKETS[m[1]!]!, nests: (m) => m[1]!, escape: 'backslash', lines: true }],
   regex: RUBY_REGEX,
 };
-// Make: `#` anywhere, but a tab-indented recipe line is shell, where it opens a comment only at a word start.
-const makefile = (text: string) => text.split('\n').map((line) => scan(line, line.startsWith('\t') ? WORD_HASHES : HASHES)).join('\n');
+// Make: `#` anywhere but escaped (`\#`); a tab-indented recipe line is shell, where it opens a comment only at a word start.
+const MAKE_LINE: Syntax = { lines: [/(?<!\\)#/y], blocks: [], quotes: [DOUBLE, SINGLE] };
+const makefile = (text: string) => text.split('\n').map((line) => scan(line, line.startsWith('\t') ? WORD_HASHES : MAKE_LINE)).join('\n');
 const TOML: Syntax = { lines: [HASH], blocks: [], quotes: [q(/"""/y, '"""', 'backslash', true), q(/'''/y, "'''", 'none', true), DOUBLE, q(/'/y, "'", 'none')] };
 const GRAPHQL: Syntax = { lines: [HASH], blocks: [], quotes: [TRIPLE_DOUBLE, DOUBLE] };
 const HCL: Syntax = { lines: [HASH, SLASHES], blocks: [C_BLOCK], quotes: [DOUBLE] };

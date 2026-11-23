@@ -15,6 +15,8 @@ export interface Quote {
   lines?: boolean;
   /** A JS template literal: code inside `${…}` is read as code. */
   interpolation?: boolean;
+  /** Ruby's `%w[a[b]]`: the opening bracket, whose pairs nest inside. */
+  nests?: (m: RegExpExecArray) => string;
 }
 
 export interface Syntax {
@@ -34,12 +36,19 @@ export interface Syntax {
 export const blank = (s: string) => ` ${s.replace(/[^\n]/g, '')}`;
 
 /** Index just past the string whose body starts at `j`; at a line end for a one-line string left open. */
-export function stringEnd(text: string, j: number, close: string, quote: Quote): number {
+export function stringEnd(text: string, j: number, close: string, quote: Quote, opener?: string): number {
+  let depth = 0;
   while (j < text.length) {
     if (quote.escape === 'backslash' && text[j] === '\\') j += 2;
-    else if (text.startsWith(close, j)) {
+    else if (opener !== undefined && text[j] === opener) {
+      depth++;
+      j++;
+    } else if (text.startsWith(close, j)) {
       if (quote.escape === 'double' && text.startsWith(close, j + close.length)) j += 2 * close.length;
-      else return j + close.length;
+      else if (depth > 0) {
+        depth--;
+        j += close.length;
+      } else return j + close.length;
     } else if (text[j] === '\n' && !quote.lines) return j;
     else j++;
   }
@@ -92,6 +101,8 @@ interface State {
   /** The last code character that isn't a space (a line end counts), the same with line ends skipped, and the one before this character. */
   last: string;
   code: string;
+  /** The code character before `code`: `++` and `--` end an operand. */
+  before: string;
   prev: string;
   /** The word ending at `last`, and the statement's first word. */
   word: string;
@@ -124,6 +135,7 @@ function track(st: State, ch: string): void {
   } else if (!/\s/.test(ch)) {
     st.statement = st.depth === 0 && (ch === ';' || (ch === ':' && opensBody(st)));
     st.last = ch;
+    st.before = st.code;
     st.code = ch;
     if (!ident) st.word = '';
   }
@@ -165,7 +177,8 @@ function regexEnd(text: string, i: number): number | undefined {
 }
 
 // A line end decides nothing: `a\n/b/g` is a division, as JS reads it.
-const regexStarts = (st: State, keywords: ReadonlySet<string>) => BEFORE_REGEX.includes(st.code) || (IDENT.test(st.code) && keywords.has(st.word));
+const regexStarts = (st: State, keywords: ReadonlySet<string>) =>
+  (BEFORE_REGEX.includes(st.code) && !((st.code === '+' || st.code === '-') && st.before === st.code)) || (IDENT.test(st.code) && keywords.has(st.word));
 
 /** A comment at `i`: its stand-in and where it ends. */
 function commentAt(text: string, i: number, s: Syntax): [string, number] | undefined {
@@ -196,7 +209,7 @@ function stringAt(text: string, i: number, s: Syntax, st: State): number | undef
       literal(st, text.slice(i, end));
       return end;
     }
-    const end = stringEnd(text, i + m[0].length, typeof quote.close === 'string' ? quote.close : quote.close(m), quote);
+    const end = stringEnd(text, i + m[0].length, typeof quote.close === 'string' ? quote.close : quote.close(m), quote, quote.nests?.(m));
     if (s.docstrings && st.statement && !/[fF]/.test(m[0])) st.out += blank(text.slice(i, end));
     else literal(st, text.slice(i, end));
     return end;
@@ -226,7 +239,7 @@ function codeAt(text: string, i: number, s: Syntax, st: State): number {
 }
 
 export function scan(text: string, s: Syntax): string {
-  const st: State = { out: '', statement: true, depth: 0, braces: 0, templates: [], last: '', code: '', prev: '', word: '', head: '', inHead: false };
+  const st: State = { out: '', statement: true, depth: 0, braces: 0, templates: [], last: '', code: '', before: '', prev: '', word: '', head: '', inHead: false };
   let i = 0;
   while (i < text.length) {
     const comment = commentAt(text, i, s);
