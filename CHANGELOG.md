@@ -11,7 +11,7 @@ What's new in each codechart release. Update with `codechart update`; the [relea
 
 ### Fixed
 
-- A map arrow's check no longer counts a comment as a mention of the other box: a file name or label that appears only in a comment (or a Python docstring) now gets the "no mention" warning, in the languages codechart knows; other files are read as before. Field checks are unchanged. ([#95](https://github.com/MiscomLab/codechart/issues/95))
+- `@codechart/core` 0.5.1: a map arrow's check no longer counts a comment as a mention of the other box: a file name or label that appears only in a comment (or a Python docstring) now gets the "no mention" warning, in the languages codechart knows; other files are read as before. Field checks are unchanged. ([#95](https://github.com/MiscomLab/codechart/issues/95))
 - An arrow from a Helm template to a `.tpl` file passes when the template calls one of its named templates with `include "name"` or `template "name"`, as `_helpers.tpl` is normally used. ([#95](https://github.com/MiscomLab/codechart/issues/95))
 
 ## 1.0.2 (2026-11-20)

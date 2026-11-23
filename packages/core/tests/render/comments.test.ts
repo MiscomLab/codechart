@@ -21,6 +21,26 @@ describe('withoutComments: C-style languages', () => {
     ['escaped slashes in a URL regex', 'a.ts', 'const u = /^https?:\\/\\//.test(s) && fetchOrder(s);', 'const u = /^https?:\\/\\//.test(s) && fetchOrder(s);'],
     ['a Java char literal holding a quote', 'A.java', 'char c = \'"\'; // order\nx();', 'char c = \'"\';  \nx();'],
     ['a Go rune holding a quote', 'a.go', 'r := \'"\' // order', 'r := \'"\'  '],
+    ['a regex holding /*', 'a.ts', 'const re = /[/*]/;\nimport { send } from "./mailer";\n/** note */', 'const re = /[/*]/;\nimport { send } from "./mailer";\n '],
+    ['a regex after return', 'a.ts', 'return /[/*]/.test(s) && send();\n/* c */', 'return /[/*]/.test(s) && send();\n '],
+    ['a regex holding a quote', 'a.ts', 'x = s.replace(/"/g, "") // c', 'x = s.replace(/"/g, "")  '],
+    ['a slash inside a regex class', 'a.ts', 'const re = /[a/b/*]/;\nimport { x } from "./order";\n/** d */', 'const re = /[a/b/*]/;\nimport { x } from "./order";\n '],
+    ['a regex after &&', 'a.ts', 'x && /[/*]/.test(s)\n/** d */', 'x && /[/*]/.test(s)\n '],
+    ['a regex after :', 'a.ts', 'y = c ? a : /[/*]/\n/** d */', 'y = c ? a : /[/*]/\n '],
+    ['a regex after !', 'a.ts', 'z = !/[/*]/.test(s)\n/** d */', 'z = !/[/*]/.test(s)\n '],
+    ['a regex at the file start', 'a.ts', '/[/*]/.test(s)\n/** d */', '/[/*]/.test(s)\n '],
+    ['a regex on the line after {', 'a.ts', 'if (x) {\n  /[/*]/.test(s)\n}\n/** d */', 'if (x) {\n  /[/*]/.test(s)\n}\n '],
+    ['a / starting a line after an operand divides', 'a.ts', 'a = b\n/ c /* d */', 'a = b\n/ c  '],
+    ['an escaped slash ends no regex', 'a.ts', 'const r = /\\/[/*]/;\n/** d */', 'const r = /\\/[/*]/;\n '],
+    ['division is not a regex', 'a.ts', 'a = b / c /* x */ / d', 'a = b / c   / d'],
+    ['a comment inside ${}', 'a.ts', 'const s = `${ /* mailer */ value }`;', 'const s = `${   value }`;'],
+    ['template text after ${}', 'a.ts', 'x = `${a} // keep` + order()', 'x = `${a} // keep` + order()'],
+    ['an object literal in ${}', 'a.ts', 'x = `${ {k: 1}.k } // keep`', 'x = `${ {k: 1}.k } // keep`'],
+    ['a comment after an object literal in ${}', 'a.ts', 'x = `${ {k: 1}.k /* c */ }`', 'x = `${ {k: 1}.k   }`'],
+    ['an escaped ${ opens no code', 'a.ts', 'x = `\\${ /* keep */ }`', 'x = `\\${ /* keep */ }`'],
+    ['an escaped ${', 'a.ts', 'x = `\\${x} // keep`', 'x = `\\${x} // keep`'],
+    ['a template literal nested in ${}', 'a.ts', 'x = `${`in ${x} // keep`}`', 'x = `${`in ${x} // keep`}`'],
+    ['a template literal: braces, strings and nesting in ${}', 'a.ts', 'x = `a ${ f("}", `b ${c}`) } // lit`; // c', 'x = `a ${ f("}", `b ${c}`) } // lit`;  '],
     ['a Rust raw string', 'a.rs', 'let s = r#"a " // b"#; order(); // c', 'let s = r#"a " // b"#; order();  '],
   ])('%s', (_, path, text, expected) => {
     expect(withoutComments(path, text)).toBe(expected);
@@ -54,6 +74,32 @@ describe('withoutComments: Python', () => {
     expect(withoutComments('a.py', text)).toBe(text);
   });
 
+  it.each([
+    ['an f-string call', 'f"{mailer.send()}"'],
+    ['an rf-string', 'rf"{mailer}"'],
+  ])('keeps %s at a statement start: it runs', (_, text) => {
+    expect(withoutComments('a.py', text)).toBe(text);
+  });
+
+  it('drops a docstring on the def or class line', () => {
+    expect(withoutComments('a.py', 'def send(): "Uses mailer"\nclass A: \'doc\'')).toBe('def send():  \nclass A:  ');
+  });
+
+  it.each([
+    ['match', 'match: "Order" = None'],
+    ['case', 'case: "Order" = None'],
+  ])('keeps an annotation on a variable named %s', (_, text) => {
+    expect(withoutComments('a.py', text)).toBe(text);
+  });
+
+  it('drops a string on a case line', () => {
+    expect(withoutComments('a.py', 'match x:\n    case 1: "order"')).toBe('match x:\n    case 1:  ');
+  });
+
+  it('drops a docstring after a match header', () => {
+    expect(withoutComments('a.py', 'match x:\n    """doc"""')).toBe('match x:\n     ');
+  });
+
   it('drops a bare string after ;', () => {
     expect(withoutComments('a.py', 'x = 1; "order"')).toBe('x = 1;  ');
   });
@@ -72,6 +118,22 @@ describe('withoutComments: other languages', () => {
     ['SQL', 'a.sql', "SELECT '--x' FROM t -- orders\n/* orders */", "SELECT '--x' FROM t  \n "],
     ['SQL: a doubled quote stays in the string', 'a.sql', "SELECT 'a'' -- x' FROM t", "SELECT 'a'' -- x' FROM t"],
     ['SQL: a doubled quote at a string end', 'a.sql', "SELECT 'a''' -- x", "SELECT 'a'''  "],
+    ['Ruby: # right after code', 'a.rb', 'value = 1# mailer', 'value = 1 '],
+    ['Ruby: # in a regex', 'a.rb', 'id = s[/#(\\d+)/, 1]; Order.find(id)\nx =~ /#{q}/ # c', 'id = s[/#(\\d+)/, 1]; Order.find(id)\nx =~ /#{q}/  '],
+    ['Ruby: a regex after when', 'a.rb', 'case s\nwhen /#{pat}/ then Order.find(id)\nend', 'case s\nwhen /#{pat}/ then Order.find(id)\nend'],
+    ['Ruby: a regex after if', 'a.rb', 'x = 1 if /#\\d/ =~ s; Order.new', 'x = 1 if /#\\d/ =~ s; Order.new'],
+    ['Ruby: an escaped bracket in a %w[] literal', 'a.rb', 'w = %w[a\\] #b] # c', 'w = %w[a\\] #b]  '],
+    ['JS: or is a name, so / after it divides', 'a.ts', 'y = or / 2; // c', 'y = or / 2;  '],
+    ['Ruby: a ?# character', 'a.rb', 'c = ?#; Order.find(1)', 'c = ?#; Order.find(1)'],
+    ['Ruby: # in a %w[] literal', 'a.rb', 'w = %w[a#b]; Order.new', 'w = %w[a#b]; Order.new'],
+    ['TOML: # right after code, multi-line strings', 'a.toml', 'v = 1# c\na = """\n# mailer\n"""\nb = \'\'\'\n# x\n\'\'\' # c', 'v = 1 \na = """\n# mailer\n"""\nb = \'\'\'\n# x\n\'\'\'  '],
+    ['GraphQL: block strings, # after }', 'a.graphql', '"""\n# mailer\n"""\ntype A { b: Int }# c', '"""\n# mailer\n"""\ntype A { b: Int } '],
+    ['R', 'a.r', 'x <- 1# c', 'x <- 1 '],
+    ['Makefile', 'Makefile', 'a: b# c', 'a: b '],
+    ['Makefile: a space-indented line is not a recipe', 'Makefile', '  X := a#b', '  X := a '],
+    ['Makefile: a recipe line is shell', 'Makefile', 'all:\n\tcurl http://x/#frag && ./order.sh # c', 'all:\n\tcurl http://x/#frag && ./order.sh  '],
+    ['Lua long strings', 'a.lua', 'local t = [[-- mailer]] -- c\nlocal u = [==[ ]] -- x ]==]', 'local t = [[-- mailer]]  \nlocal u = [==[ ]] -- x ]==]'],
+    ['PostgreSQL dollar quotes', 'a.sql', 'SELECT $$--mailer$$; -- c\nSELECT $fn$ /* x */ $fn$;', 'SELECT $$--mailer$$;  \nSELECT $fn$ /* x */ $fn$;'],
     ['Ruby =begin/=end', 'a.rb', '=begin\norder\n=end\nx = 1', ' \n\n\nx = 1'],
     ['Ruby: =endless does not end a block', 'a.rb', '=begin\na\n=endless\nb\n=end\nc', ' \n\n\n\n\nc'],
     ['Ruby: =begin only at a line start', 'a.rb', 'x = 1 =begin\norder\n=end\n', 'x = 1 =begin\norder\n=end\n'],
@@ -80,6 +142,8 @@ describe('withoutComments: other languages', () => {
     ['Lua long brackets', 'a.lua', 'x = 1 --[==[ order\n]] still ]==] y -- order', 'x = 1  \n y  '],
     ['Haskell nested comments', 'a.hs', 'a {- x {- y -} order -} b', 'a   b'],
     ['Markdown: an apostrophe is prose', 'a.md', "Don't <!-- order --> go", "Don't   go"],
+    ['Vue: template literal text', 'a.vue', '<script>\nconst s = `a // keep`\n</script>', '<script>\nconst s = `a // keep`\n</script>'],
+    ['Vue: a comment inside ${}', 'a.vue', '<script>\nconst s = `${ /* c */ order }`\n</script>', '<script>\nconst s = `${   order }`\n</script>'],
     ['Vue: HTML and script comments', 'a.vue', '<template><!-- order --></template>\n<script>\n// import x from "./order"\n</script>', '<template> </template>\n<script>\n \n</script>'],
     ['Dockerfile', 'Dockerfile', 'FROM node\n# order', 'FROM node\n '],
     ['an upper-case extension', 'A.PY', '# order', ' '],
@@ -100,6 +164,26 @@ describe('withoutComments: YAML and Helm templates', () => {
     expect(withoutComments('a.yml', '- run: |\n    # keep\n  name: x # drop')).toBe('- run: |\n    # keep\n  name: x  ');
   });
 
+  it('reads an explicit block indent', () => {
+    expect(withoutComments('a.yaml', 'text: |2\n    first\n  # mailer\nnext: 1 # c')).toBe('text: |2\n    first\n  # mailer\nnext: 1  ');
+    expect(withoutComments('a.yaml', '- run: |1\n   x\n  # c')).toBe('- run: |1\n   x\n   ');
+  });
+
+  it('keeps a quoted scalar after an anchor or tag', () => {
+    const text = 'a: &shared "see # mailer"\nb: !!str "x # y"\n- &a \'z # w\'';
+    expect(withoutComments('a.yaml', text)).toBe(text);
+  });
+
+  it('ends an action at }} outside its strings', () => {
+    expect(withoutComments('templates/t.yaml', 'x: {{ list "}} #a" }} # c')).toBe('x: {{ list "}} #a" }}  ');
+  });
+
+  it('keeps {{/* */}} in plain YAML outside a chart\'s templates/', () => {
+    const text = 'example: "{{/* mailer */}}"\n';
+    expect(withoutComments('config/app.yaml', text)).toBe(text);
+    expect(withoutComments('chart/templates/app.yaml', text)).toBe('example: " "\n');
+  });
+
   it('keeps a double-quoted scalar across lines', () => {
     const text = 'a: "x\n  # kept"\n';
     expect(withoutComments('a.yaml', text)).toBe(text);
@@ -112,6 +196,11 @@ describe('withoutComments: YAML and Helm templates', () => {
 
   it('keeps a quote and # inside an action whole', () => {
     expect(withoutComments('t.yaml', 'x: {{ .Values.a | default " #1" }} # order')).toBe('x: {{ .Values.a | default " #1" }}  ');
+  });
+
+  it('reads a .tpl file as a template outside templates/ too, and only a folder named templates', () => {
+    expect(withoutComments('helpers/_x.tpl', '{{/* c */}}')).toBe(' ');
+    expect(withoutComments('mytemplates/a.yaml', 'a: "{{/* c */}}"')).toBe('a: "{{/* c */}}"');
   });
 
   it('reads a .tpl file the same way', () => {

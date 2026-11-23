@@ -169,7 +169,8 @@ function fieldWarnings(c: AnchorCtx, spec: Spec): Mismatch[] {
 /** The file's text with comments blanked; undefined when it can't be read. */
 function codeText(c: AnchorCtx, path: string): string | undefined {
   const loaded = load(c, path);
-  return loaded.lines !== null && Array.isArray(loaded.lines) ? withoutComments(loaded.path, loaded.lines.join('\n')) : undefined;
+  // Repo-relative, so a `templates/` folder above the repo doesn't make its YAML a Helm template.
+  return loaded.lines !== null && Array.isArray(loaded.lines) ? withoutComments(repoPath(c.root, loaded.path), loaded.lines.join('\n')) : undefined;
 }
 
 /** Whether `code` calls a named template defined in the Helm `.tpl` file at `path`. */

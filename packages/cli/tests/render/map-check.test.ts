@@ -354,6 +354,22 @@ describe('checkMapNodes: a mention in a comment proves nothing', () => {
     expect(warns(path, text, to)).toEqual(expected);
   });
 
+  it('reads {{/* */}} as a template comment only under the repo\'s own templates/ folder', () => {
+    const root = join(base, 'templates', 'app');
+    const text = 'example: "{{/* mailer */}}"\n';
+    for (const path of ['config/app.yaml', 'chart/templates/app.yaml']) {
+      mkdirSync(join(root, path, '..'), { recursive: true });
+      writeFileSync(join(root, path), text);
+    }
+    const shorts = (path: string) => {
+      const s = map('summary', { path, status: 'context' }, { ...mailer, status: 'context' });
+      s.edges = [{ from: 'n0', to: 'n1', kind: 'reads' }];
+      return (checkMapNodes(s, root).warnings ?? []).map((w) => w.short);
+    };
+    expect(shorts('config/app.yaml')).toEqual([]);
+    expect(shorts('chart/templates/app.yaml')).toEqual(['no mention of mailer']);
+  });
+
   it('reads the file a ./ path names', () => {
     expect(warns('src/pay.ts', '// order\n', order, { path: './src/pay.ts' })).toEqual(['no mention of order']);
   });
@@ -379,6 +395,9 @@ describe('checkMapNodes: Helm named templates', () => {
     ['no spaces inside the braces', '{{include "mychart.backendEnv" .}}\n'],
     ['a tab and two spaces', '{{- include \t "mychart.backendEnv" . -}}\n'],
     ['a raw-string name', '{{ include `mychart.backendEnv` . }}\n'],
+    ['a "}}" earlier in the action', '{{ $_ := list "}}" (include "mychart.backendEnv" .) }}\n'],
+    ['a name with an octal escape', '{{ include "mychart\\056backendEnv" . }}\n'],
+    ['a name with an escape', '{{ include "mychart\\x2ebackendEnv" . }}\n'],
     ['a mention in a comment next to a real include', '{{/* see templates/_helpers.tpl */}}\n{{ include "mychart.backendEnv" . }}\n'],
   ])('passes: %s', (_, src) => {
     expect(helm(src)).toEqual([]);
@@ -401,6 +420,7 @@ describe('checkMapNodes: Helm named templates', () => {
     ['include in a # comment', '# {{ include "mychart.backendEnv" . }}\nkind: Job\n'],
     ['include in a template comment', '{{/* include "mychart.backendEnv" */}}\nkind: Job\n'],
     ['a name built at run time', '{{ include (printf "%s.backendEnv" .Chart.Name) . }}\n'],
+    ['include inside a string', '{{ printf `include "mychart.backendEnv" .` }}\n'],
     ['a field named include', '{{ .Values.include "mychart.backendEnv" }}\n'],
     ['a function ending in include', '{{ myinclude "mychart.backendEnv" . }}\n'],
     ['a method named template', '{{ $x.template "mychart.backendEnv" }}\n'],
