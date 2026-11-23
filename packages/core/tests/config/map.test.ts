@@ -603,3 +603,23 @@ describe('gate 2: errors stay one line and comments outside pinned stay', () => 
     expect(() => writePinned('map: { pinned: [1] }\n', B)).toThrow(/pinned/);
   });
 });
+
+describe('greptile on #98', () => {
+  const B = { billing: { name: 'B' } };
+  it('adds pins to map: null and map: ~, keeping a comment', () => {
+    expect(writePinned('map: null\n', B)).toBe('map:\n  pinned:\n    billing:\n      name: B\n');
+    expect(writePinned('map: ~  # c\nignore: []\n', B)).toBe('map:  # c\n  pinned:\n    billing:\n      name: B\nignore: []\n');
+  });
+
+  it('unpinning keeps a comment on the map: line', () => {
+    expect(writePinned('map: # shared names\n  pinned:\n    a:\n      name: A\nignore: []\n', {})).toBe('map: # shared names\nignore: []\n');
+  });
+
+  it('digit-only box ids sort by code unit too', () => {
+    const out = writePinned('', { '2': { name: 'Two' }, '10': { name: 'Ten' }, a: { name: 'A' } });
+    const order = ['10', '2', 'a'].map((id) => out.search(new RegExp(`^ {4}"?${id}"?:`, 'm')));
+    expect(order.every((i) => i > 0)).toBe(true);
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    expect((parse(out) as { map: { pinned: object } }).map.pinned).toEqual({ '2': { name: 'Two' }, '10': { name: 'Ten' }, a: { name: 'A' } });
+  });
+});

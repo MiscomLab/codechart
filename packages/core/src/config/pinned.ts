@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
-import { isAlias, isMap, isScalar, parseAllDocuments, stringify, visit, type Node, type Pair, type YAMLMap } from 'yaml';
+import { Document, isAlias, isMap, isScalar, parseAllDocuments, stringify, visit, YAMLMap, type Node, type Pair } from 'yaml';
 import { parsePinned, type Pinned } from './schema.js';
 
 type Range = [number, number, number];
@@ -26,15 +26,17 @@ const byCodeUnit = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
  * with YAML 1.1's rules, so `yes`, `on` or `2024-01-01` get quotes and read as text in 1.1 tools as well as in 1.2.
  */
 function renderPinned(pinned: Pinned, indent: number, step: number, eol: string): string {
-  const sorted = Object.fromEntries(
-    Object.keys(pinned)
-      .sort(byCodeUnit)
-      .map((id) => {
-        const { name, reason } = pinned[id]!;
-        return [id, reason === undefined ? { name } : { name, reason }];
-      }),
-  );
-  return indentLines(stringify({ pinned: sorted }, { indent: step, lineWidth: 0, minContentWidth: 0, version: '1.1' }), indent, eol);
+  // Pairs in a YAMLMap keep this order; a JS object would put digit-only ids (`2`, `10`) first, in numeric order.
+  const doc = new Document(null, { version: '1.1' });
+  const entries = new YAMLMap();
+  for (const id of Object.keys(pinned).sort(byCodeUnit)) {
+    const { name, reason } = pinned[id]!;
+    entries.items.push(doc.createPair(id, reason === undefined ? { name } : { name, reason }));
+  }
+  const root = new YAMLMap();
+  root.items.push(doc.createPair('pinned', entries));
+  doc.contents = root;
+  return indentLines(doc.toString({ indent: step, lineWidth: 0, minContentWidth: 0 }), indent, eol);
 }
 
 const indentLines = (block: string, indent: number, eol: string) =>
@@ -91,7 +93,9 @@ function rewriteMap(text: string, mapPair: Pair, pins: Pinned, eol: string): str
     if (old !== undefined && !isNull(old) && !isMap(old)) throw new Error('map.pinned must be a mapping of ids to names');
   }
   const start = lineStart(text, rangeOf(mapPair.key)![0]);
-  const valueRange = isMap(value) ? rangeOf(value)! : undefined;
+  // A flow map, or a written null (`null`, `~`): what stands after `map:` goes, a comment after it stays.
+  const written = rangeOf(value);
+  const valueRange = written && written[1] > written[0] ? written : undefined;
   const end = lineEndAfter(text, valueRange?.[1] ?? rangeOf(mapPair.key)![1]);
   const tail = text.slice(valueRange?.[1] ?? rangeOf(mapPair.key)![1], end).replace(/\r?\n$/, '');
   const head = valueRange ? text.slice(start, valueRange[0]).trimEnd() + tail : text.slice(start, end).replace(/\r?\n$/, '');
@@ -118,8 +122,8 @@ function editBlockMap(text: string, mapPair: Pair, map: YAMLMap, pins: Pinned, e
   const start = lineStart(text, rangeOf(pinnedPair.key)![0]);
   const end = lineEndAfter(text, endOf(pinnedPair));
   if (!empty) return text.slice(0, start) + renderPinned(pins, indent, step, eol) + text.slice(end);
-  // The map holds only pinned, with nothing written between them: it goes too.
-  const onlyPinned = map.items.length === 1 && text.slice(lineEndAfter(text, rangeOf(mapPair.key)![1]), start).trim() === '';
+  // The map holds only pinned, with nothing written between them or on the `map:` line: it goes too.
+  const onlyPinned = map.items.length === 1 && text.slice(rangeOf(mapPair.key)![1], start).replace(':', '').trim() === '';
   return text.slice(0, onlyPinned ? lineStart(text, rangeOf(mapPair.key)![0]) : start) + text.slice(end);
 }
 
