@@ -298,7 +298,7 @@
               ]
             },
             "pinned": {
-              "description": "Names a person pinned, by box id or node id (file::path::kind); written sorted by id",
+              "description": "Names a person pinned, by rule box id (billing), folder box id (folder:src/payments) or node id (file::path::kind); written sorted by id",
               "anyOf": [
                 {
                   "type": "object",

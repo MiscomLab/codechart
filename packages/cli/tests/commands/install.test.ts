@@ -376,7 +376,7 @@ describe('templates/codechart.yaml', () => {
     const end = lines.findIndex((l, i) => i > start && !l.startsWith('# '));
     const map = parse(lines.slice(start, end).map((l) => l.slice(2)).join('\n')) as { map: { rules: unknown[]; pinned: object } };
     expect(map.map.rules).toHaveLength(4);
-    expect(Object.keys(map.map.pinned)).toHaveLength(2);
+    expect(Object.keys(map.map.pinned)).toEqual(['billing', 'folder:src/payments', 'src/pay.ts::PaymentService.charge::method']);
     expect(parseConfigFile(map)).toEqual({ ok: true, config: map });
   });
 

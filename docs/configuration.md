@@ -59,6 +59,8 @@ map:
     billing:
       name: Billing
       reason: Invoices and payouts, apart from checkout
+    folder:src/payments:
+      name: Payments
     src/pay.ts::PaymentService.charge::method:
       name: Charge a card
 ```
@@ -77,10 +79,17 @@ It then does exactly one thing:
 
 **`guidance`**: plain words for the model that names and groups the boxes, up to 2000 characters. Line breaks and tabs are fine; other control and invisible characters are rejected.
 
-**`pinned`**: names a person accepted or edited in the app, by id. The app writes this block and keeps it sorted by id, so diffs stay small; names the model suggests stay on your machine until someone pins them. An id is either:
+**`pinned`**: names a person accepted or edited in the app, by id. The app writes this block and keeps it sorted by id, so diffs stay small; names the model suggests stay on your machine until someone pins them. An id is one of three forms, told apart by how it is written:
 
-- a **box id**: up to 64 lowercase letters, digits or hyphens, not starting with a hyphen (`billing`), the same id a rule's `box` uses;
-- a **node id**: `file::path::kind`, the id codechart's code layer gives a symbol or entity. `file` is repo-relative with `/`, `path` the names from the outermost in, joined with `.` (`PaymentService.charge`), `kind` in lowercase letters (`method`, `table`). A second node with the same id in a file gets `~2`, a third `~3`. The file ends at the first `::` and the kind starts after the last one, so a name may hold `::`; a file path may not. Up to 1000 characters.
+- a **node id** contains `::`;
+- a **folder box id** starts with `folder:`, followed by the folder's repo-relative path: `folder:src/payments`. Most boxes are folders, and a box inside another is a folder inside it. The path uses `/`, with no leading or trailing `/`, no empty, `.` or `..` part, no backslash and no `::`;
+- anything else is a **rule box id**: the name a rule's `box` gives, up to 64 lowercase letters, digits or hyphens, not starting with a hyphen (`billing`). Rule boxes don't nest.
+
+Folder ids carry the prefix so the form alone says what an id is: a folder named `billing` (`folder:billing`) and a rule box `billing` are two boxes, and adding or removing a rule never changes what a pin points at.
+
+A **node id** is `file::path::kind`, the id codechart's code layer gives a symbol or entity. `file` is repo-relative with `/`, `path` the names from the outermost in, joined with `.` (`PaymentService.charge`), `kind` in lowercase letters (`method`, `table`). A second node with the same id in a file gets `~2`, a third `~3`. The file ends at the first `::` and the kind starts after the last one, so a name may hold `::`; a file path may not. Any id is up to 1000 characters.
+
+`map:` is read only from the repo's `.codechart.yaml`, since it's the team's shared settings: one in the global config is ignored, with a warning.
 
 Each entry has a `name` (one line, up to 80 characters) and an optional `reason` (one line, up to 300 characters). When the app writes `pinned`, it replaces only that block, from the `pinned:` line to its last entry, at the indent your `map:` already uses (else 2 spaces): comments in those lines are not kept, and the rest of the file stays as it was, byte for byte. A `map:` written in flow style (`map: { … }`) is rewritten as lines, keeping the comment on its `map:` line. It won't edit a `map:` that uses YAML aliases or merge keys (`*name`, `<<:`), or a file with several documents.
 
@@ -106,6 +115,8 @@ Repo `.codechart.yaml` and global `~/.config/codechart/config.yaml`. Editor sche
 | `map.rules`, `map.guidance`, `map.pinned` | the desktop app's map: see [Map](#map-desktop-app). The CLI doesn't use them | none |
 | `useBuiltinRules` | built-in migration/model/infrastructure path rules, `related-files`, `behaviour-flow` | `true` |
 | `rules` | your own, run before the built-ins | none |
+
+Repo only: `map` (in the global config it is ignored, with a warning).
 
 Global only:
 

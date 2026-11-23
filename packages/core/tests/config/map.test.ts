@@ -96,6 +96,9 @@ describe('map.rules', () => {
 
   it('a box is a box id', () => {
     expect(errorsOf(rule({ paths: ['a/**'], box: 'Billing' })).join('\n')).toMatch(/^map\.rules\[0\]\.box: /m);
+    // Rule boxes stay flat slugs: a folder box comes from the folder, not from a rule.
+    expect(errorsOf(rule({ paths: ['a/**'], box: 'folder:src' })).join('\n')).toMatch(/^map\.rules\[0\]\.box: /m);
+    expect(errorsOf(rule({ paths: ['a/**'], box: 'src/payments' })).join('\n')).toMatch(/^map\.rules\[0\]\.box: /m);
   });
 
   it('unknown keys are errors, with their path', () => {
@@ -138,6 +141,10 @@ describe('map.pinned', () => {
       'db/schema.sql::public.orders::table': { name: 'Orders' },
       'src/a.ts::handler::function~2': { name: 'Second handler' },
       'app/models.py::Order::model': { name: 'Order' },
+      'folder:src/payments': { name: 'Payments' },
+      'folder:src': { name: 'Source' },
+      'folder:billing': { name: 'Billing folder', reason: 'A folder named like the rule box billing; both can be pinned' },
+      'folder:apps/my app/.github-like/x:y': { name: 'Odd but valid folder' },
     };
     expect(parseMap({ pinned })).toEqual({ ok: true, config: { map: { pinned } } });
   });
@@ -159,6 +166,20 @@ describe('map.pinned', () => {
     ['a ~0 suffix', 'src/a.ts::handler::function~0'],
     ['a line break', 'src/a.ts::handler\n::function'],
     ['a bidi override', 'src/a.ts::hand\u202eler::function'],
+    ['an unprefixed folder path', 'src/payments'],
+    ['an empty folder', 'folder:'],
+    ['an absolute folder', 'folder:/src'],
+    ['a folder with a trailing slash', 'folder:src/'],
+    ['a folder with an empty segment', 'folder:src//a'],
+    ['a folder with a . segment', 'folder:./src'],
+    ['a folder ending in a . segment', 'folder:src/.'],
+    ['a folder with a .. segment', 'folder:src/../x'],
+    ['a folder with a backslash', 'folder:src\\a'],
+    ['a folder with ::', 'folder:a::b'],
+    ['a folder with a line break', 'folder:src\na'],
+    ['a folder with a bidi override', 'folder:sr\u202ec'],
+    ['an uppercase prefix', 'Folder:src'],
+    ['a folder id over 1000 characters', `folder:${'a/'.repeat(497)}abc`],
   ])('rejects %s, naming the id and the formats', (_, id) => {
     const errors = errorsOf({ pinned: { [id]: { name: 'X' } } });
     expect(errors).toHaveLength(1);
@@ -468,11 +489,27 @@ describe('gate: loading', () => {
     expect(loadConfig({ cwd: repo, home, env: {} })).not.toHaveProperty('map');
   });
 
-  it('a global config with a map section loads without a warning', () => {
-    writeFileSync(join(home, '.config', 'codechart', 'config.yaml'), 'map:\n  guidance: Group by domain.\n');
+  it('map is repo-only: a global config with one loads, with a warning that it is ignored', () => {
+    const globalPath = join(home, '.config', 'codechart', 'config.yaml');
+    writeFileSync(globalPath, 'map:\n  guidance: Group by domain.\n');
     const warnings: string[] = [];
     expect(() => loadConfig({ cwd: repo, home, env: {}, warn: (l) => warnings.push(l) })).not.toThrow();
-    expect(warnings).toEqual([]);
+    expect(warnings).toEqual([`${globalPath}: map is repo-only; ignored`]);
+  });
+
+  it('a repo map gives no warning, next to a global one', () => {
+    const globalPath = join(home, '.config', 'codechart', 'config.yaml');
+    writeFileSync(globalPath, 'map:\n  guidance: g\nweb:\n  keep: 3\n');
+    writeFileSync(join(repo, '.codechart.yaml'), 'map:\n  guidance: r\n');
+    const warnings: string[] = [];
+    const config = loadConfig({ cwd: repo, home, env: {}, warn: (l) => warnings.push(l) });
+    expect(warnings).toEqual([`${globalPath}: map is repo-only; ignored`]);
+    expect(config.web.keep).toBe(3);
+  });
+
+  it('an invalid global map is still an error: the file must be valid config', () => {
+    writeFileSync(join(home, '.config', 'codechart', 'config.yaml'), 'map:\n  colour: red\n');
+    expect(() => loadConfig({ cwd: repo, home, env: {} })).toThrow(/config\.yaml: map: .*"colour"/);
   });
 });
 
@@ -575,14 +612,14 @@ describe('pinned names read the same in YAML 1.1 tools', () => {
 describe('gate 2: errors stay one line and comments outside pinned stay', () => {
   it('an invalid id never reaches an error line raw, entry errors included', () => {
     const errors = errorsOf({ pinned: { 'x\ny‮': { name: '', zz: 1 }, 'Bad\nid': { name: 'A', zz: 1 } } });
-    expect(errors.join('\n')).toContain('map.pinned: "x\\ny\\u202e": use a box id');
+    expect(errors.join('\n')).toContain('map.pinned: "x\\ny\\u202e": use a rule box id');
     for (const e of errors) expect(e).not.toMatch(/[\n‮]/);
   });
 
   it('a long invalid id is cut in the error', () => {
     const id = `${'A'.repeat(150)}`;
     const [error] = errorsOf({ pinned: { [id]: { name: 'X' } } });
-    expect(error).toBe(`map.pinned: "${'A'.repeat(100)}…": use a box id (1-64 lowercase letters, digits or hyphens, not starting with a hyphen) or a node id (file::path::kind, file repo-relative)`);
+    expect(error).toBe(`map.pinned: "${'A'.repeat(100)}…": use a rule box id (1-64 lowercase letters, digits or hyphens, not starting with a hyphen), a folder box id (folder: and a repo-relative folder, e.g. folder:src/payments) or a node id (file::path::kind, file repo-relative)`);
   });
 
   it('a pattern over 2000 characters is too long, @entity or not', () => {
@@ -621,5 +658,47 @@ describe('greptile on #98', () => {
     expect(order.every((i) => i > 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
     expect((parse(out) as { map: { pinned: object } }).map.pinned).toEqual({ '2': { name: 'Two' }, '10': { name: 'Ten' }, a: { name: 'A' } });
+  });
+});
+
+describe('folder box ids', () => {
+  it('pins folder boxes, rule boxes and nodes side by side, sorted by code unit', () => {
+    const pins = {
+      'src/a.ts::x::function': { name: 'X' },
+      'folder:src/payments': { name: 'Payments', reason: 'Renamed from the folder name' },
+      billing: { name: 'Billing' },
+      'folder:src': { name: 'Source' },
+    };
+    const out = writePinned('', pins);
+    expect(out).toBe(
+      [
+        'map:',
+        '  pinned:',
+        '    billing:',
+        '      name: Billing',
+        '    folder:src:',
+        '      name: Source',
+        '    folder:src/payments:',
+        '      name: Payments',
+        '      reason: Renamed from the folder name',
+        '    src/a.ts::x::function:',
+        '      name: X',
+        '',
+      ].join('\n'),
+    );
+    expect(parseConfigFile(parse(out))).toEqual({ ok: true, config: { map: { pinned: pins } } });
+  });
+});
+
+describe('pinnedIdKind', () => {
+  it('tells the three id forms apart by syntax alone', () => {
+    expect(core.pinnedIdKind('billing')).toBe('rule-box');
+    expect(core.pinnedIdKind('folder:billing')).toBe('folder');
+    expect(core.pinnedIdKind('folder:src/payments')).toBe('folder');
+    expect(core.pinnedIdKind('src/pay.ts::PaymentService.charge::method')).toBe('node');
+    expect(core.pinnedIdKind('folder:a.ts::x::function')).toBe('node');
+    expect(core.pinnedIdKind('src/payments')).toBeUndefined();
+    expect(core.pinnedIdKind('folder:src/')).toBeUndefined();
+    expect(core.FOLDER_BOX_PREFIX).toBe('folder:');
   });
 });

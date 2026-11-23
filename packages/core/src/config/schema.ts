@@ -93,9 +93,20 @@ const MULTI_LINE_MESSAGE = 'line breaks and tabs only; no other control or invis
 const BOX_ID = RULE_NAME;
 // `symbolId`/`entityId`: repo-relative file, names joined with `.`, lowercase kind, `~2` on for a repeat.
 const NODE_ID = /^(?!\/)(?:[^:\\]|:(?!:))+::.+::[a-z]+(?:~(?:[2-9]|[1-9][0-9]+))?$/;
-const ID_MESSAGE = 'use a box id (1-64 lowercase letters, digits or hyphens, not starting with a hyphen) or a node id (file::path::kind, file repo-relative)';
-const isPinnedId = (id: string) =>
-  ONE_LINE_VISIBLE.test(id) && id.length <= 1000 && (BOX_ID.test(id) || (NODE_ID.test(id) && id.split('::')[0]!.split('/').every((seg) => seg !== '' && seg !== '.' && seg !== '..')));
+/** Prefix of a folder box's id: `folder:src/payments`. */
+export const FOLDER_BOX_PREFIX = 'folder:';
+const ID_MESSAGE =
+  'use a rule box id (1-64 lowercase letters, digits or hyphens, not starting with a hyphen), a folder box id (folder: and a repo-relative folder, e.g. folder:src/payments) or a node id (file::path::kind, file repo-relative)';
+// Repo-relative with `/`: no leading or trailing `/`, no empty, `.` or `..` segment, no backslash.
+const isRepoPath = (path: string) => !path.includes('\\') && path.split('/').every((seg) => seg !== '' && seg !== '.' && seg !== '..');
+
+/** Which pinned id this is, by syntax alone: `::` makes a node, a `folder:` prefix a folder box, else a rule box slug. */
+export function pinnedIdKind(id: string): 'node' | 'folder' | 'rule-box' | undefined {
+  if (!ONE_LINE_VISIBLE.test(id) || id.length > 1000) return undefined;
+  if (id.includes('::')) return NODE_ID.test(id) && isRepoPath(id.split('::')[0]!) ? 'node' : undefined;
+  if (id.startsWith(FOLDER_BOX_PREFIX)) return isRepoPath(id.slice(FOLDER_BOX_PREFIX.length)) ? 'folder' : undefined;
+  return BOX_ID.test(id) ? 'rule-box' : undefined;
+}
 
 const quoted = (s: string) => quotedVisible(s.length > 100 ? `${s.slice(0, 100)}…` : s);
 
@@ -123,13 +134,13 @@ const pinnedEntrySchema = z.strictObject({
 
 const pinnedSchema = z.record(z.string(), pinnedEntrySchema).superRefine((pinned, ctx) => {
   // The id goes in the message, escaped, so a line break or bidi character in it can't reshape the error.
-  for (const id of Object.keys(pinned)) if (!isPinnedId(id)) ctx.addIssue({ code: 'custom', message: `${quoted(id)}: ${ID_MESSAGE}` });
+  for (const id of Object.keys(pinned)) if (!pinnedIdKind(id)) ctx.addIssue({ code: 'custom', message: `${quoted(id)}: ${ID_MESSAGE}` });
 });
 
 const mapSchema = z.strictObject({
   rules: z.array(mapRuleSchema).nullish().describe("Top-down, first match wins, before the app's built-in rules"),
   guidance: z.string().min(1).max(2000).regex(MULTI_LINE_VISIBLE, MULTI_LINE_MESSAGE).nullish().describe('Plain words for the model that names and groups boxes'),
-  pinned: pinnedSchema.nullish().describe('Names a person pinned, by box id or node id (file::path::kind); written sorted by id'),
+  pinned: pinnedSchema.nullish().describe('Names a person pinned, by rule box id (billing), folder box id (folder:src/payments) or node id (file::path::kind); written sorted by id'),
 });
 
 export type MapRule = z.infer<typeof mapRuleSchema>;

@@ -24,7 +24,7 @@
 
 # ignore: ["generated/**"]   # files the desktop app's live map never reads (the CLI doesn't use it)
 
-# map:                         # the desktop app's map (the CLI doesn't use it); not the agent rules under rules:
+# map:                         # the desktop app's map, repo only (the CLI doesn't use it); not the agent rules under rules:
 #   rules:                     # top-down, first match wins, before the app's built-in ones
 #     - paths: ["app/models/**"]   # globs, a tree-sitter pattern (with lang), or both
 #       kind: model                # table | model | service | endpoint | component | config
@@ -38,9 +38,11 @@
 #   guidance: |                # plain words for the model that names boxes, up to 2000 characters
 #     Group by business domain, not by technical layer.
 #   pinned:                    # names a person accepted or edited; the app writes these, sorted by id
-#     billing:                                   # a box id
+#     billing:                                   # a rule box id (a rule's box:)
 #       name: Billing
 #       reason: Invoices and payouts, apart from checkout
+#     folder:src/payments:                       # a folder box id: folder: + the repo-relative folder
+#       name: Payments
 #     src/pay.ts::PaymentService.charge::method:  # a node id: file::path::kind
 #       name: Charge a card
 
