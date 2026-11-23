@@ -61,3 +61,14 @@ describe('incremental update when a second namespace portion appears', () => {
     expect(main.calls).toEqual(fresh.file('tools/main.py')!.calls);
   });
 });
+
+describe("CPython's installed test package", () => {
+  // python3 -I: `import test.support` -> .../lib/python3.14/test/support/__init__.py, a package outside the repo.
+  it('imports test from outside the repo as external when the repo has no test module or folder', async () => {
+    const files = await link({ 'main.py': 'import test\nimport test.support\n' });
+    expect(files.get('main.py')!.imports.map((i) => [i.spec, i.status, i.resolved])).toEqual([
+      ['test', 'external', undefined],
+      ['test.support', 'external', undefined],
+    ]);
+  });
+});

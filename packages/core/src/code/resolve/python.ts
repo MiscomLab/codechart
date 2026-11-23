@@ -212,8 +212,8 @@ export class PythonResolver {
     const parts = spec.split('.');
     if (parts.some((p) => !p)) return { status: 'unknown' };
     const roots = this.roots(from);
-    // CPython installs a regular `test` package (left out of `sys.stdlib_module_names`): only a regular repo `test` beats it.
-    if (parts[0] === 'test' && this.lookup(roots, ['test'])?.kind !== 'file') return { status: 'unknown' };
+    // CPython installs a regular `test` package (left out of `sys.stdlib_module_names`), which beats a repo namespace folder.
+    if (parts[0] === 'test' && this.lookup(roots, ['test'])?.kind === 'namespace') return { status: 'unknown' };
     return this.toResolution(this.lookup(roots, parts), () => this.missing(parts[0]!));
   }
 
