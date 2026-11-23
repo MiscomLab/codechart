@@ -10,7 +10,7 @@ import { createTsconfigs, matchAlias } from './tsconfig.js';
 export type Resolution = Pick<Import, 'status' | 'resolved' | 'packageFolder'>;
 
 /** What a resolution needs beyond the specifier: whether the importing Python file edits `sys.path`. */
-export interface ResolveContext {
+interface ResolveContext {
   sysPathEdited?: boolean;
 }
 

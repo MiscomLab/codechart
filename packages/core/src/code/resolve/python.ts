@@ -47,8 +47,8 @@ const STDLIB = new Set([
 const PROJECT_FILES = ['pyproject.toml', 'setup.py', 'setup.cfg'];
 
 /** Probe keys for facts that are not one file's presence: a folder holding Python files, a module name anywhere. */
-export const pyDirKey = (dir: string): string => `py-dir:${dir}`;
-export const pyNameKey = (name: string): string => `py-name:${name}`;
+const pyDirKey = (dir: string): string => `py-dir:${dir}`;
+const pyNameKey = (name: string): string => `py-name:${name}`;
 
 /** The probe keys a Python file's arrival or removal can change: the folders holding it and the module names it adds. */
 export function pythonProbeKeys(path: string): string[] {

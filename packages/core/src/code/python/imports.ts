@@ -21,7 +21,7 @@ export const PYTHON_IMPORTS_QUERY = `
 `;
 
 /** An import as one file states it, before resolution. */
-export type ImportSpec = Omit<Import, 'resolved' | 'status'>;
+type ImportSpec = Omit<Import, 'resolved' | 'status'>;
 
 /** What parsing a Python file brings to `ParsedFile`, beyond its symbols and calls. */
 export interface PythonFile {

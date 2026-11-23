@@ -2,7 +2,7 @@ import type { Node } from 'web-tree-sitter';
 import type { ImportedName } from '../model.js';
 
 /** The text of a plain string literal (no f-string, no bytes, no interpolation, no escapes), or undefined. */
-export function literal(node: Node | null | undefined): string | undefined {
+function literal(node: Node | null | undefined): string | undefined {
   if (node?.type !== 'string') return undefined;
   const start = node.namedChildren.find((c) => c?.type === 'string_start')?.text ?? '';
   const prefix = start.replace(/['"]+$/, '').toLowerCase();
@@ -15,7 +15,7 @@ export function literal(node: Node | null | undefined): string | undefined {
 }
 
 /** The identifiers of a dotted name or attribute chain; empty for anything else. */
-export function dotted(node: Node | null | undefined): string[] {
+function dotted(node: Node | null | undefined): string[] {
   if (!node) return [];
   if (node.type === 'identifier') return [node.text];
   if (node.type === 'dotted_name' || node.type === 'attribute') return node.namedChildren.flatMap((c) => dotted(c));
