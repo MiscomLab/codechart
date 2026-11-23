@@ -571,3 +571,35 @@ describe('pinned names read the same in YAML 1.1 tools', () => {
     }
   });
 });
+
+describe('gate 2: errors stay one line and comments outside pinned stay', () => {
+  it('an invalid id never reaches an error line raw, entry errors included', () => {
+    const errors = errorsOf({ pinned: { 'x\ny‮': { name: '', zz: 1 }, 'Bad\nid': { name: 'A', zz: 1 } } });
+    expect(errors.join('\n')).toContain('map.pinned: "x\\ny\\u202e": use a box id');
+    for (const e of errors) expect(e).not.toMatch(/[\n‮]/);
+  });
+
+  it('a long invalid id is cut in the error', () => {
+    const id = `${'A'.repeat(150)}`;
+    const [error] = errorsOf({ pinned: { [id]: { name: 'X' } } });
+    expect(error).toBe(`map.pinned: "${'A'.repeat(100)}…": use a box id (1-64 lowercase letters, digits or hyphens, not starting with a hyphen) or a node id (file::path::kind, file repo-relative)`);
+  });
+
+  it('a pattern over 2000 characters is too long, @entity or not', () => {
+    const pattern = `(${'x'.repeat(1991)}) @entity`;
+    expect(pattern).toHaveLength(2001);
+    expect(errorsOf(rule({ pattern, lang: 'python', kind: 'table' })).join('\n')).toMatch(/^map\.rules\[0\]\.pattern: Too big/m);
+  });
+
+  const B = { billing: { name: 'B' } };
+  it('keeps the comment on a `map:` line it rewrites', () => {
+    expect(writePinned('map:   # desktop app\nignore: []\n', B)).toBe('map:   # desktop app\n  pinned:\n    billing:\n      name: B\nignore: []\n');
+    expect(writePinned('map: { guidance: x }  # keep\nignore: []\n', B)).toBe('map:  # keep\n  guidance: x\n  pinned:\n    billing:\n      name: B\nignore: []\n');
+    expect(writePinned('map: { pinned: { a: { name: A } } }  # keep\n', {})).toBe('map:  # keep\n');
+    expect(writePinned('map:   # desktop app\n', {})).toBe('map:   # desktop app\n');
+  });
+
+  it('a flow pinned that is not a mapping is refused like a block one', () => {
+    expect(() => writePinned('map: { pinned: [1] }\n', B)).toThrow(/pinned/);
+  });
+});

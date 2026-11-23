@@ -1,7 +1,7 @@
 import { isAbsolute, win32 } from 'node:path';
 import { z } from 'zod';
 import { LANGS } from '../code/model.js';
-import { formatIssues } from '../spec/shared.js';
+import { formatIssues, quotedVisible } from '../spec/shared.js';
 
 const OUTPUTS = ['auto', 'cli', 'web', 'both', 'none'] as const;
 const CONTEXT_MODES = ['short', 'full'] as const;
@@ -97,8 +97,7 @@ const ID_MESSAGE = 'use a box id (1-64 lowercase letters, digits or hyphens, not
 const isPinnedId = (id: string) =>
   ONE_LINE_VISIBLE.test(id) && id.length <= 1000 && (BOX_ID.test(id) || (NODE_ID.test(id) && id.split('::')[0]!.split('/').every((seg) => seg !== '' && seg !== '.' && seg !== '..')));
 
-const quoted = (s: string) =>
-  JSON.stringify(s.length > 100 ? `${s.slice(0, 100)}\u2026` : s).replace(/[\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+const quoted = (s: string) => quotedVisible(s.length > 100 ? `${s.slice(0, 100)}…` : s);
 
 const boxId = z.string().regex(BOX_ID, 'use 1-64 lowercase letters, digits or hyphens, not starting with a hyphen');
 const oneLine = (max: number) => z.string().min(1).max(max).regex(ONE_LINE_VISIBLE, CHARS_MESSAGE);

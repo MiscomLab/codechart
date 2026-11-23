@@ -82,7 +82,7 @@ It then does exactly one thing:
 - a **box id**: up to 64 lowercase letters, digits or hyphens, not starting with a hyphen (`billing`), the same id a rule's `box` uses;
 - a **node id**: `file::path::kind`, the id codechart's code layer gives a symbol or entity. `file` is repo-relative with `/`, `path` the names from the outermost in, joined with `.` (`PaymentService.charge`), `kind` in lowercase letters (`method`, `table`). A second node with the same id in a file gets `~2`, a third `~3`. The file ends at the first `::` and the kind starts after the last one, so a name may hold `::`; a file path may not. Up to 1000 characters.
 
-Each entry has a `name` (one line, up to 80 characters) and an optional `reason` (one line, up to 300 characters). When the app writes `pinned`, it replaces only that block, at the indent your `map:` already uses (else 2 spaces): comments inside it are not kept, and the rest of the file stays as it was, byte for byte. It won't edit a `map:` that uses YAML aliases or merge keys (`*name`, `<<:`), or a file with several documents.
+Each entry has a `name` (one line, up to 80 characters) and an optional `reason` (one line, up to 300 characters). When the app writes `pinned`, it replaces only that block, from the `pinned:` line to its last entry, at the indent your `map:` already uses (else 2 spaces): comments in those lines are not kept, and the rest of the file stays as it was, byte for byte. A `map:` written in flow style (`map: { … }`) is rewritten as lines, keeping the comment on its `map:` line. It won't edit a `map:` that uses YAML aliases or merge keys (`*name`, `<<:`), or a file with several documents.
 
 An empty `map:`, or one whose keys are all commented out, is the same as none.
 

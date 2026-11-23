@@ -80,13 +80,26 @@ const withoutEmptyMap = (value: unknown) => {
   return Object.keys(asRecord(v.map)).length ? v : omit(v, 'map');
 };
 
-/** `map:` with nothing, or a flow mapping: the whole map value is written again as a block. */
-function rewriteMap(text: string, mapStart: number, mapEnd: number, value: unknown, pins: Pinned, eol: string): string {
+/**
+ * `map:` with nothing, or a flow mapping: the whole map value is written again as a block, under the `map:` line, which
+ * keeps its comment.
+ */
+function rewriteMap(text: string, mapPair: Pair, pins: Pinned, eol: string): string {
+  const value = mapPair.value;
+  if (isMap(value)) {
+    const old = value.items.find((p) => keyIs(p, 'pinned'))?.value;
+    if (old !== undefined && !isNull(old) && !isMap(old)) throw new Error('map.pinned must be a mapping of ids to names');
+  }
+  const start = lineStart(text, rangeOf(mapPair.key)![0]);
+  const valueRange = isMap(value) ? rangeOf(value)! : undefined;
+  const end = lineEndAfter(text, valueRange?.[1] ?? rangeOf(mapPair.key)![1]);
+  const tail = text.slice(valueRange?.[1] ?? rangeOf(mapPair.key)![1], end).replace(/\r?\n$/, '');
+  const head = valueRange ? text.slice(start, valueRange[0]).trimEnd() + tail : text.slice(start, end).replace(/\r?\n$/, '');
   const rest = omit(asRecord(isMap(value) ? value.toJSON() : {}), 'pinned');
   const empty = Object.keys(pins).length === 0;
-  if (empty && Object.keys(rest).length === 0) return text.slice(0, mapStart) + text.slice(mapEnd);
+  if (empty && Object.keys(rest).length === 0) return text.slice(0, start) + (tail.trim() ? head + eol : '') + text.slice(end);
   const others = Object.keys(rest).length ? indentLines(stringify(rest, { indent: 2, lineWidth: 0 }), 2, eol) : '';
-  return text.slice(0, mapStart) + `map:${eol}${others}${empty ? '' : renderPinned(pins, 2, 2, eol)}` + text.slice(mapEnd);
+  return text.slice(0, start) + head + eol + others + (empty ? '' : renderPinned(pins, 2, 2, eol)) + text.slice(end);
 }
 
 /** A block `map`: replace, remove or add its `pinned`, at the map's own indent. */
@@ -121,7 +134,8 @@ function splice(text: string, root: YAMLMap | undefined, pins: Pinned, eol: stri
   const value = mapPair.value;
   if (!isNull(value) && !isMap(value)) throw new Error('map must be a mapping (key: value lines)');
   if (isMap(value) && !value.flow && value.items.length) return editBlockMap(text, mapPair, value, pins, eol);
-  return rewriteMap(text, lineStart(text, rangeOf(mapPair.key)![0]), lineEndAfter(text, endOf(mapPair)), value, pins, eol);
+  if (isNull(value) && Object.keys(pins).length === 0) return text;
+  return rewriteMap(text, mapPair, pins, eol);
 }
 
 /**
