@@ -2,7 +2,7 @@
 
 What's new in each codechart release. Update with `codechart update`; the [releases page](https://github.com/MiscomLab/codechart/releases) has the same notes.
 
-## Unreleased
+## 1.1.0 (2026-11-23)
 
 ### New
 
@@ -11,13 +11,11 @@ What's new in each codechart release. Update with `codechart update`; the [relea
 ### Changed
 
 - A config or spec error about a key that holds control or invisible characters (a line break, a bidi override) shows that key quoted and escaped (`"a\u202eb"`), so the error stays on one line and reads as written.
-- `@codechart/core` 0.6.0 reads files that have no imports. It finds SQL tables, GitHub Actions jobs and steps, docker-compose services, npm scripts and Bash functions. It also records the files they reference: a script a workflow step or npm script runs, a Bash `source`, HTML `<script src>` and `<link href>`, and CSS `@import`. A reference resolves to a repo file only where the folder it's relative to is fixed (the page, the package, the step's working directory after a checkout, or the script's own folder written with `dirname "$0"` or `BASH_SOURCE`). A URL is external, and anything else stays unknown. The CLI doesn't use this yet. `ParsedFile` gains required `entities` and `refs`, and `Resolver` gains `ref`. A reference also keeps its spelling in the source (`written`) when that differs from its value, so one hidden by a syntax error is still recognised. The core package now ships grammars for HTML, CSS, Bash, JSON, YAML and SQL. The SQL one is 13 MB unpacked, built from DerekStride's grammar by `scripts/build-sql-grammar.sh`.
-- `@codechart/core` 0.5.0 reads Python too: symbols, imports resolved following CPython's path finder over the project's source roots (relative imports, packages, `src/` layout, namespace packages; stdlib and packages found nowhere in the repo are external; in a file that edits `sys.path`, absolute imports of non-stdlib modules are unknown), and calls resolved only through the one binding Python uses at the call site. The CLI doesn't use it yet. `Import` gains optional `packageFolder` and `anchored`, `CallRef` gains optional `receiverPath`, and `ParsedFile` gains optional `bindings` and `sysPathEdited` (Python files only).
-- `@codechart/core` 0.4.0 records calls (resolved only through a resolved import or a same-file definition, otherwise name-only) and keeps the code layer current one file at a time, with imports surviving syntax errors. The CLI doesn't use it yet. `ParsedFile` has a new required `calls` field, and `linkImports` resolves imports only: use `linkCode` for imports and calls.
+- `@codechart/core` 0.7.0 reads a repo's code for the coming desktop app's live map: TypeScript, JavaScript and Python symbols, imports and calls, plus SQL tables, GitHub Actions jobs, docker-compose services, npm scripts, Bash functions and the files HTML, CSS, workflows and scripts reference. Anything it can't prove stays unknown. The CLI doesn't use it yet. It ships its language grammars, so the package is now 1.66 MB to download (19 MB unpacked).
 
 ### Fixed
 
-- `@codechart/core` 0.5.1: a map arrow's check no longer counts a comment as a mention of the other box: a file name or label that appears only in a comment (or a Python docstring) now gets the "no mention" warning, in the languages codechart knows; other files are read as before. Field checks are unchanged. ([#95](https://github.com/MiscomLab/codechart/issues/95))
+- A map arrow's check no longer counts a comment as a mention of the other box: a file name or label that appears only in a comment (or a Python docstring) now gets the "no mention" warning, in the languages codechart knows; other files are read as before. Field checks are unchanged. ([#95](https://github.com/MiscomLab/codechart/issues/95))
 - An arrow from a Helm template to a `.tpl` file passes when the template calls one of its named templates with `include "name"` or `template "name"`, as `_helpers.tpl` is normally used. ([#95](https://github.com/MiscomLab/codechart/issues/95))
 
 ## 1.0.2 (2026-11-20)
