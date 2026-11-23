@@ -123,6 +123,14 @@ export const codeRefSchema = z.object({
    */
   to: z.string().min(1).optional(),
   /**
+   * A `relation` on the side that holds the foreign key: the field's `@relation(fields: […], references: […])` as
+   * written, with this model's key fields, the other model's fields they reference, and the attribute's range as proof.
+   * Absent on the other side (a list or back-relation field) and wherever the attribute does not state both lists.
+   */
+  foreignKey: z
+    .object({ fields: z.array(z.string().min(1)).min(1), references: z.array(z.string().min(1)).min(1), range: codeRangeSchema })
+    .optional(),
+  /**
    * The repo path the spec names, when the folder it is relative to is fixed (the page, the package, the step's working
    * directory, the script's own folder) and the path stays in the repo; absent otherwise, and the reference stays unknown.
    */

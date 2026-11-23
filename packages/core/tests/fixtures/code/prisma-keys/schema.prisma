@@ -1,0 +1,30 @@
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://localhost:5432/keys"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Tenant {
+  region String
+  code   String
+  users  User[]
+  admins User[] @relation("Admins")
+
+  @@id([region, code])
+}
+
+model User {
+  id           Int     @id
+  tenantRegion String
+  tenantCode   String
+  tenant       Tenant  @relation(fields: [tenantRegion, tenantCode], references: [region, code]) // the tenant's key
+  adminOf      Tenant? @relation(name: "Admins", references: [region, code], fields: [adminRegion, adminCode], onDelete: SetNull)
+  adminRegion  String?
+  adminCode    String?
+  manager      User?   @relation("Manages", fields: [managerId], references: [id])
+  managerId    Int?
+  reports      User[]  @relation("Manages")
+}

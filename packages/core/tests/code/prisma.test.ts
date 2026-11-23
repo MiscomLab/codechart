@@ -138,7 +138,15 @@ describe('Prisma relations', () => {
       [`${order}::OrderLine::model`, 'Order', `${order}::Order::model`, 11],
     ]);
     const cross = (await parse(order)).refs[0]!;
-    expect(cross).toEqual({ file: order, from: `${order}::Order::model`, spec: 'User', kind: 'relation', status: 'unknown', range: { start: { line: 3, column: 9 }, end: { line: 3, column: 13 } } } satisfies CodeRef);
+    expect(cross).toEqual({
+      file: order,
+      from: `${order}::Order::model`,
+      spec: 'User',
+      kind: 'relation',
+      foreignKey: { fields: ['userId'], references: ['id'], range: { start: { line: 3, column: 20 }, end: { line: 3, column: 65 } } },
+      status: 'unknown',
+      range: { start: { line: 3, column: 9 }, end: { line: 3, column: 13 } },
+    } satisfies CodeRef);
   });
 
   it('keeps a relation to another file unknown after the link pass', async () => {
@@ -221,6 +229,13 @@ describe('Prisma relations', () => {
       ['a.prisma::View::model', 'Model', 'a.prisma::Model::model', 21],
     ]);
     expect(parsed.refs[0]!.range).toEqual({ start: { line: 3, column: 8 }, end: { line: 3, column: 12 } });
+    // Prisma itself wants a field's attributes on one line; the grammar reads this one whole, so the key is as written.
+    expect(parsed.refs[0]!.foreignKey).toEqual({
+      fields: ['typeA', 'typeB'],
+      references: ['a', 'b'],
+      range: { start: { line: 3, column: 15 }, end: { line: 6, column: 3 } },
+    });
+    expect(parsed.refs.slice(1).map((r) => r.foreignKey)).toEqual([undefined, undefined, { fields: ['modelId'], references: ['id'], range: { start: { line: 21, column: 16 }, end: { line: 21, column: 62 } } }]);
   });
 
   it('makes no reference to a name the file declares twice', async () => {
@@ -381,5 +396,147 @@ describe('the committed Prisma grammar', () => {
   it('is the build of scripts/build-prisma-grammar.sh', () => {
     const wasm = readFileSync(join(import.meta.dirname, '..', '..', 'grammars', 'tree-sitter-prisma.wasm'));
     expect(createHash('sha256').update(wasm).digest('hex')).toBe('5df064fd975d5b8edaf907042097b7be10099261469564ed260101e5e4f67d90');
+  });
+});
+
+// Expected key fields are Prisma's DMMF `relationFromFields` / `relationToFields` for the same fields; DMMF's empty
+// lists (back-relations, implicit many-to-many) are no key here.
+describe('Prisma foreign keys', () => {
+  const keys = (parsed: ParsedFile) => parsed.refs.map((r) => [r.from, r.spec, r.foreignKey?.fields, r.foreignKey?.references]);
+  const KEYS = 'prisma-keys/schema.prisma';
+  const keysText = () => readFileSync(join(FIXTURE, '..', 'prisma-keys', 'schema.prisma'), 'utf8');
+
+  it('marks the side of each relation that holds the key, as DMMF does', async () => {
+    expect(keys(await parse(BLOG))).toEqual([
+      [blog('User'), 'Post', undefined, undefined],
+      [blog('User'), 'Profile', undefined, undefined],
+      [blog('Profile'), 'User', ['userId'], ['id']],
+      [blog('Post'), 'User', ['authorId'], ['id']],
+      [blog('Post'), 'Category', undefined, undefined],
+      [blog('Category'), 'Post', undefined, undefined],
+      [blog('Category'), 'Category', ['parentId'], ['id']],
+      [blog('Category'), 'Category', undefined, undefined],
+    ]);
+    expect(keys(await parse('mongo/schema.prisma'))).toEqual([
+      ['mongo/schema.prisma::Customer::model', 'Order', undefined, undefined],
+      ['mongo/schema.prisma::Order::model', 'Customer', ['customerId'], ['id']],
+    ]);
+  });
+
+  it('reads compound keys, a named relation and arguments in any order', async () => {
+    const user = `${KEYS}::User::model`;
+    const tenant = `${KEYS}::Tenant::model`;
+    expect(keys(await parse(KEYS, keysText()))).toEqual([
+      [tenant, 'User', undefined, undefined],
+      [tenant, 'User', undefined, undefined],
+      [user, 'Tenant', ['tenantRegion', 'tenantCode'], ['region', 'code']],
+      [user, 'Tenant', ['adminRegion', 'adminCode'], ['region', 'code']],
+      [user, 'User', ['managerId'], ['id']],
+      [user, 'User', undefined, undefined],
+    ]);
+  });
+
+  it('proves the key with the range of the @relation attribute', async () => {
+    const ref = (await parse(KEYS, keysText())).refs[2]!;
+    expect(ref).toEqual({
+      file: KEYS,
+      from: `${KEYS}::User::model`,
+      spec: 'Tenant',
+      kind: 'relation',
+      candidate: KEYS,
+      to: `${KEYS}::Tenant::model`,
+      foreignKey: {
+        fields: ['tenantRegion', 'tenantCode'],
+        references: ['region', 'code'],
+        range: { start: { line: 23, column: 23 }, end: { line: 23, column: 96 } },
+      },
+      status: 'unknown',
+      range: { start: { line: 23, column: 15 }, end: { line: 23, column: 21 } },
+    } satisfies CodeRef);
+    codeRefSchema.parse(ref);
+  });
+
+  it('keeps the key on a relation to a model another file declares', async () => {
+    const order = 'multi/prisma/schema/order.prisma';
+    expect(keys(await parse(order))).toEqual([
+      [`${order}::Order::model`, 'User', ['userId'], ['id']],
+      [`${order}::Order::model`, 'OrderLine', undefined, undefined],
+      [`${order}::Order::model`, 'Status', undefined, undefined],
+      [`${order}::OrderLine::model`, 'Order', ['orderId'], ['id']],
+    ]);
+  });
+
+  it.each([
+    ['only fields', '@relation(fields: [bId])'],
+    ['only references', '@relation(references: [id])'],
+    ['empty lists', '@relation(fields: [], references: [])'],
+    ['a string in the list', '@relation(fields: ["bId"], references: [id])'],
+    ['fields that are not a list', '@relation(fields: bId, references: id)'],
+    ['a name only', '@relation("AB")'],
+    ['no arguments', '@relation'],
+    ['another attribute', '@map(fields: [bId], references: [id])'],
+    ['a member expression in the list', '@relation(fields: [b.id], references: [id])'],
+    ['a string among identifiers', '@relation(fields: [bId, "x"], references: [id, y])'],
+    ['a call in the list', '@relation(fields: [bId()], references: [id])'],
+    ['a namespaced attribute', '@db.relation(fields: [bId], references: [id])'],
+    ['fields given twice', '@relation(fields: [bId], references: [id], fields: [cId])'],
+    ['two @relation attributes', '@relation(fields: [bId], references: [id]) @relation(fields: [cId], references: [id])'],
+    ['positional lists', '@relation([bId], [id])'],
+    ['lists of different lengths', '@relation(fields: [bId, cId], references: [id])'],
+  ])('gives no key for %s', async (_, attribute) => {
+    const parsed = await parse('a.prisma', `model A {\n  id  Int @id\n  bId Int\n  b   B   ${attribute}\n}\nmodel B {\n  id Int @id\n}\n`);
+    expect(parsed.refs.map((r) => [r.spec, r.foreignKey])).toEqual([['B', undefined]]);
+  });
+
+  it('gives no key on a list field: only the side with one model holds it', async () => {
+    const parsed = await parse('a.prisma', 'model A {\n  id  Int @id\n  bId Int\n  b   B[] @relation(fields: [bId], references: [id])\n}\nmodel B {\n  id Int @id\n}\n');
+    expect(parsed.refs.map((r) => [r.spec, r.foreignKey])).toEqual([['B', undefined]]);
+  });
+
+  it('rejects a key with an empty list in the schema', () => {
+    const ref = { file: 'a.prisma', spec: 'B', kind: 'relation', status: 'unknown', range: { start: { line: 1, column: 0 }, end: { line: 1, column: 1 } } };
+    const range = ref.range;
+    expect(codeRefSchema.safeParse({ ...ref, foreignKey: { fields: ['bId'], references: ['id'], range } }).success).toBe(true);
+    expect(codeRefSchema.safeParse({ ...ref, foreignKey: { fields: [], references: ['id'], range } }).success).toBe(false);
+    expect(codeRefSchema.safeParse({ ...ref, foreignKey: { fields: ['bId'], references: [], range } }).success).toBe(false);
+  });
+
+  it('moves the key range with its line', async () => {
+    const before = (await parse(BLOG)).refs.find((r) => r.foreignKey)!.foreignKey!;
+    const after = (await parse(BLOG, `// header\n\n${fixture(BLOG)}`)).refs.find((r) => r.foreignKey)!.foreignKey!;
+    expect(after.range).toEqual({ start: { ...before.range.start, line: before.range.start.line + 2 }, end: { ...before.range.end, line: before.range.end.line + 2 } });
+  });
+
+  it('keeps the key of a relation from an intact model to a broken one', async () => {
+    const parsed = await parse(BLOG, fixture(BLOG).replace('model User {', 'model User {{'), await parse(BLOG));
+    expect(parsed.refs.find((r) => r.from === blog('Profile') && r.spec === 'User')!.foreignKey).toEqual({
+      fields: ['userId'],
+      references: ['id'],
+      range: { start: { line: 25, column: 16 }, end: { line: 25, column: 80 } },
+    });
+  });
+
+  it('keeps the key when the last good relation stands in, and after the link pass', async () => {
+    const broken = fixture(BLOG).replace('model Post {', 'model Post {{');
+    const parsed = await parse(BLOG, broken, await parse(BLOG));
+    expect(parsed.refs.find((r) => r.from === blog('Post') && r.spec === 'User')!.foreignKey).toEqual({
+      fields: ['authorId'],
+      references: ['id'],
+      range: { start: { line: 32, column: 24 }, end: { line: 32, column: 71 } },
+    });
+    const repo = mkdtempSync(join(tmpdir(), 'codechart-prisma-'));
+    try {
+      cpSync(join(FIXTURE, '..', 'prisma-keys'), repo, { recursive: true });
+      execFileSync('git', ['init', '-q'], { cwd: repo });
+      const stated = (await parse('schema.prisma', keysText())).refs.map((r) => r.foreignKey);
+      for (const files of [await parseRepo(repo), (await openCodeIndex(repo)).files]) {
+        const file = files.find((f) => f.file.path === 'schema.prisma')!;
+        expect(file.refs.map((r) => r.status)).toEqual(Array(6).fill('resolved'));
+        expect(file.refs.map((r) => r.foreignKey)).toEqual(stated);
+      }
+      expect(stated.map((k) => k?.fields)).toEqual([undefined, undefined, ['tenantRegion', 'tenantCode'], ['adminRegion', 'adminCode'], ['managerId'], undefined]);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
   });
 });
