@@ -79,11 +79,19 @@ export function labelIssues(label: string, noun: string, fileField: string, exam
 
 export type ValidationResult<T> = { ok: true; spec: T } | { ok: false; errors: string[] };
 
+// Control, line-break, bidi and invisible characters.
+const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]/g;
+
+/** `s` in double quotes, with control and invisible characters as `\uXXXX`, so it can't break or reorder an error line. */
+export const quotedVisible = (s: string): string =>
+  JSON.stringify(s).replace(INVISIBLE, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+
 export function formatPath(path: PropertyKey[]): string {
   if (path.length === 0) return '$';
   return path.reduce<string>((acc, seg) => {
     if (typeof seg === 'number') return `${acc}[${seg}]`;
-    const s = String(seg);
+    const raw = String(seg);
+    const s = new RegExp(INVISIBLE.source).test(raw) ? quotedVisible(raw) : raw;
     return acc ? `${acc}.${s}` : s;
   }, '');
 }

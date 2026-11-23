@@ -73,6 +73,15 @@ function dropGlobalOnly(file: ConfigFile | undefined, path: string, warn?: (line
   return { ...rest, ...(file.web && { web }), ...(file.release && { release }) };
 }
 
+// The map's rules, guidance and pinned names are the team's, in the shared repo file (Storage #1): repo only.
+function dropRepoOnly(file: ConfigFile | undefined, path: string | undefined, warn?: (line: string) => void): ConfigFile | undefined {
+  if (!file || !('map' in file)) return file;
+  const rest = { ...file };
+  delete rest.map;
+  warn?.(`${path}: map is repo-only; ignored`);
+  return rest;
+}
+
 function firstByName<T extends { rule: Rule }>(items: T[]): T[] {
   const seen = new Set<string>();
   return items.filter(({ rule }) => !seen.has(rule.name) && seen.add(rule.name));
@@ -155,7 +164,7 @@ export function loadConfigWithSources(opts: LoadOptions): ConfigWithSources {
   const root = findRepoRoot(opts.cwd) ?? resolve(opts.cwd);
   const globalPath = globalConfigPath(opts.env ?? process.env, home);
   const repoPath = join(root, '.codechart.yaml');
-  const global = globalPath ? readConfigFile(globalPath) : undefined;
+  const global = dropRepoOnly(globalPath ? readConfigFile(globalPath) : undefined, globalPath, opts.warn);
   const repo = dropGlobalOnly(readConfigFile(repoPath, root), repoPath, opts.warn);
   const globalSource = `global: ${globalPath}`;
   const repoSource = `repo: ${repoPath}`;

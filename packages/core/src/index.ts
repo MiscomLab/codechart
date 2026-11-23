@@ -16,6 +16,7 @@ export * from './config/builtin-rules.js';
 export * from './config/load.js';
 export * from './config/repo-root.js';
 export * from './config/schema.js';
+export * from './config/pinned.js';
 export * from './rules/git-files.js';
 export * from './rules/git-log.js';
 export * from './rules/git-preview.js';

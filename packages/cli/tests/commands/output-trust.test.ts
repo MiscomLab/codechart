@@ -122,3 +122,16 @@ describe('global outDir cannot be steered by the repo (S-4)', () => {
   });
 
 });
+
+describe('map is repo-only', () => {
+  it('a global map is ignored with one warning line, from check and config', async () => {
+    writeFileSync(globalFile, 'map:\n  guidance: Group by domain.\n');
+    expect((await run(['check', '--files', 'a.py'])).err).toBe(`codechart: ${globalFile}: map is repo-only; ignored\n`);
+    expect((await run(['config'])).err).toBe(`codechart: ${globalFile}: map is repo-only; ignored\n`);
+  });
+
+  it('a repo map gives no warning', async () => {
+    writeFileSync(repoFile, 'map:\n  guidance: Group by domain.\n');
+    expect((await run(['check', '--files', 'a.py'])).err).toBe('');
+  });
+});

@@ -1,6 +1,7 @@
 import { isAbsolute, win32 } from 'node:path';
 import { z } from 'zod';
-import { formatIssues } from '../spec/shared.js';
+import { LANGS } from '../code/model.js';
+import { formatIssues, quotedVisible } from '../spec/shared.js';
 
 const OUTPUTS = ['auto', 'cli', 'web', 'both', 'none'] as const;
 const CONTEXT_MODES = ['short', 'full'] as const;
@@ -82,6 +83,78 @@ const ruleSchema = z
     message: 'context applies only to map rules',
   });
 
+/** What a map rule can make of code (Code model #4). */
+export const MAP_ENTITY_KINDS = ['table', 'model', 'service', 'endpoint', 'component', 'config'] as const;
+export type MapEntityKind = (typeof MAP_ENTITY_KINDS)[number];
+
+// Like ONE_LINE_VISIBLE, but line breaks and tabs are allowed.
+const MULTI_LINE_VISIBLE = /^[^\u0000-\u0008\u000b-\u001f\u007f-\u009f\u200b\u200c\u200e\u200f\u2028-\u202e\u2060-\u2069\ufeff]*$/;
+const MULTI_LINE_MESSAGE = 'line breaks and tabs only; no other control or invisible characters';
+const BOX_ID = RULE_NAME;
+// `symbolId`/`entityId`: repo-relative file, names joined with `.`, lowercase kind, `~2` on for a repeat.
+const NODE_ID = /^(?!\/)(?:[^:\\]|:(?!:))+::.+::[a-z]+(?:~(?:[2-9]|[1-9][0-9]+))?$/;
+/** Prefix of a folder box's id: `folder:src/payments`. */
+export const FOLDER_BOX_PREFIX = 'folder:';
+const ID_MESSAGE =
+  'use a rule box id (1-64 lowercase letters, digits or hyphens, not starting with a hyphen), a folder box id (folder: and a repo-relative folder, e.g. folder:src/payments) or a node id (file::path::kind, file repo-relative)';
+// Repo-relative with `/`: no leading or trailing `/`, no empty, `.` or `..` segment, no backslash.
+const isRepoPath = (path: string) => !path.includes('\\') && path.split('/').every((seg) => seg !== '' && seg !== '.' && seg !== '..');
+
+/** Which pinned id this is, by syntax alone: `::` makes a node, a `folder:` prefix a folder box, else a rule box slug. */
+export function pinnedIdKind(id: string): 'node' | 'folder' | 'rule-box' | undefined {
+  if (!ONE_LINE_VISIBLE.test(id) || id.length > 1000) return undefined;
+  if (id.includes('::')) return NODE_ID.test(id) && isRepoPath(id.split('::')[0]!) ? 'node' : undefined;
+  if (id.startsWith(FOLDER_BOX_PREFIX)) return isRepoPath(id.slice(FOLDER_BOX_PREFIX.length)) ? 'folder' : undefined;
+  return BOX_ID.test(id) ? 'rule-box' : undefined;
+}
+
+const quoted = (s: string) => quotedVisible(s.length > 100 ? `${s.slice(0, 100)}…` : s);
+
+const boxId = z.string().regex(BOX_ID, 'use 1-64 lowercase letters, digits or hyphens, not starting with a hyphen');
+const oneLine = (max: number) => z.string().min(1).max(max).regex(ONE_LINE_VISIBLE, CHARS_MESSAGE);
+
+const mapRuleSchema = z
+  .strictObject({
+    paths: z.array(glob).min(1).optional().describe('Globs the rule matches'),
+    pattern: z.string().min(1).max(2000).regex(MULTI_LINE_VISIBLE, MULTI_LINE_MESSAGE).regex(/@entity(?![\w.-])/, 'capture the node the rule applies to as @entity').optional().describe('Tree-sitter query; the @entity capture is what the rule applies to'),
+    lang: z.enum(LANGS).optional().describe("The pattern's tree-sitter grammar"),
+    kind: z.enum(MAP_ENTITY_KINDS).optional().describe('The code is an entity of this kind'),
+    box: boxId.optional().describe('The code belongs to this box'),
+    ignore: z.literal(true).optional().describe('The code is read but left off the map'),
+  })
+  .refine((r) => r.paths !== undefined || r.pattern !== undefined, { message: 'set paths, pattern or both' })
+  .refine((r) => [r.kind, r.box, r.ignore].filter((v) => v !== undefined).length === 1, { message: 'set exactly one of kind, box or ignore' })
+  .refine((r) => r.pattern === undefined || r.lang !== undefined, { message: 'a pattern needs lang (its tree-sitter grammar)' })
+  .refine((r) => r.lang === undefined || r.pattern !== undefined, { message: 'lang applies only to a pattern' });
+
+const pinnedEntrySchema = z.strictObject({
+  name: oneLine(80),
+  reason: oneLine(300).optional(),
+});
+
+const pinnedSchema = z.record(z.string(), pinnedEntrySchema).superRefine((pinned, ctx) => {
+  // The id goes in the message, escaped, so a line break or bidi character in it can't reshape the error.
+  for (const id of Object.keys(pinned)) if (!pinnedIdKind(id)) ctx.addIssue({ code: 'custom', message: `${quoted(id)}: ${ID_MESSAGE}` });
+});
+
+const mapSchema = z.strictObject({
+  rules: z.array(mapRuleSchema).nullish().describe("Top-down, first match wins, before the app's built-in rules"),
+  guidance: z.string().min(1).max(2000).regex(MULTI_LINE_VISIBLE, MULTI_LINE_MESSAGE).nullish().describe('Plain words for the model that names and groups boxes'),
+  pinned: pinnedSchema.nullish().describe('Names a person pinned, by rule box id (billing), folder box id (folder:src/payments) or node id (file::path::kind); written sorted by id'),
+});
+
+export type MapRule = z.infer<typeof mapRuleSchema>;
+export type PinnedEntry = z.infer<typeof pinnedEntrySchema>;
+export type Pinned = Record<string, PinnedEntry>;
+export type MapConfig = z.infer<typeof mapSchema>;
+
+/** Checks pins before they are written: formatIssues lines, paths starting at `pinned`. */
+export function parsePinned(input: unknown): { ok: true; pinned: Pinned } | { ok: false; errors: string[] } {
+  const result = pinnedSchema.safeParse(input);
+  if (result.success) return { ok: true, pinned: result.data };
+  return { ok: false, errors: formatIssues(result.error).map((e) => `pinned${e.startsWith('$') ? e.slice(1) : `.${e}`}`) };
+}
+
 const configFileSchema = z.strictObject({
   defaults: z
     .strictObject({
@@ -114,6 +187,8 @@ const configFileSchema = z.strictObject({
   ignore: z.array(glob).optional().describe("Paths the desktop app's live map never reads, as globs, on top of .gitignore, dependencies and build output. The CLI doesn't use it."),
   updateCheck: z.boolean().optional().describe('Global only: look up the newest codechart on npm at most once a day and say when there is one (default true)'),
   rules: z.array(ruleSchema).optional(),
+  // `map:` with its children commented out reads as null, like the template's.
+  map: mapSchema.nullish().describe("The desktop app's map: its rules, guidance for the model and pinned names. The CLI doesn't use it."),
 });
 
 export type ConfigFile = z.infer<typeof configFileSchema>;
