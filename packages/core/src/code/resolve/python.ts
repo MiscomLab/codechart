@@ -180,16 +180,6 @@ export class PythonResolver {
     return otherwise();
   }
 
-  /** The folder holding a file's top-level regular package, or undefined when its folder is not a regular package. */
-  private packageParent(dir: string): string | undefined {
-    let top: string | undefined;
-    for (let d = dir; d; d = dirOf(d)) {
-      if (!this.has(`${d}/__init__.py`)) break;
-      top = d;
-    }
-    return top === undefined ? undefined : dirOf(top);
-  }
-
   /** The nearest folder at or above `dir` with a project file; the repo root when there is none. */
   private project(dir: string): string {
     let found = this.projects.get(dir);
@@ -221,32 +211,36 @@ export class PythonResolver {
   private absolute(from: string, spec: string): PythonResolution {
     const parts = spec.split('.');
     if (parts.some((p) => !p)) return { status: 'unknown' };
-    return this.toResolution(this.lookup(this.roots(from), parts), () => this.missing(parts[0]!));
+    const roots = this.roots(from);
+    // CPython installs a regular `test` package (left out of `sys.stdlib_module_names`): only a regular repo `test` beats it.
+    if (parts[0] === 'test' && this.lookup(roots, ['test'])?.kind !== 'file') return { status: 'unknown' };
+    return this.toResolution(this.lookup(roots, parts), () => this.missing(parts[0]!));
   }
 
   /**
-   * A relative import, from the importing file's package: the folders between the `sys.path` entry it is imported from
-   * and the file. A file directly on a root has no package, and dots cannot climb above the top-level package.
+   * A relative import, as the absolute name it means: the file's package is its folder path below the deepest source
+   * root holding it, and each dot after the first climbs one package. That name is then looked up like any absolute
+   * one, so a namespace package with portions on several roots stays unknown. A file directly on a root has no
+   * package, dots cannot climb above the top-level package, and a file whose own package the import system would find
+   * elsewhere never runs under that name.
    */
   private relative(from: string, spec: string): PythonResolution {
     const level = spec.length - spec.replace(/^\.+/, '').length;
     const rest = spec.slice(level).split('.').filter(Boolean);
     const dir = dirOf(from);
-    const parent = this.packageParent(dir);
-    const root =
-      parent ??
-      this.sources(this.project(dir))
-        .filter((r) => r !== dir && (r === '' || dir.startsWith(`${r}/`)))
-        .sort((a, b) => b.length - a.length)[0];
+    const roots = this.roots(from);
+    const root = roots.filter((r) => r !== dir && (r === '' || dir.startsWith(`${r}/`))).sort((a, b) => b.length - a.length)[0];
     if (root === undefined) return { status: 'unknown' };
-    const pkg = (root ? dir.slice(root.length + 1) : dir).split('/').filter(Boolean);
+    const pkg = (root ? dir.slice(root.length + 1) : dir).split('/');
     if (level > pkg.length) return { status: 'unknown' };
-    const base = join(root, pkg.slice(0, pkg.length - (level - 1)).join('/'));
-    if (!rest.length) {
-      if (this.has(`${base}/__init__.py`)) return { status: 'resolved', resolved: `${base}/__init__.py` };
-      return { status: 'unknown', packageFolder: base };
-    }
-    return this.toResolution(this.lookup([base], rest), () => ({ status: 'unknown' }));
+    const own = this.lookup(roots, pkg);
+    const runsHere = own?.kind === 'file' ? own.file === `${dir}/__init__.py` : own?.kind === 'namespace' && own.dirs.includes(dir);
+    // A standard-library module or package of the same name beats a namespace folder. `sys.stdlib_module_names` leaves
+    // out the `test` package, but CPython installs it, so a `test/` folder without __init__.py never runs as `test`.
+    const top = this.lookup(roots, pkg.slice(0, 1));
+    if ((STDLIB.has(pkg[0]!) || pkg[0] === 'test') && top?.kind !== 'file') return { status: 'unknown' };
+    if (!runsHere) return { status: 'unknown' };
+    return this.toResolution(this.lookup(roots, [...pkg.slice(0, pkg.length - (level - 1)), ...rest]), () => ({ status: 'unknown' }));
   }
 
   /**

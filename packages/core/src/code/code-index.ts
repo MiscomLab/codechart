@@ -96,7 +96,7 @@ function repoPaths(root: string, paths: readonly string[]): Set<string> {
 
 /** The parts of an import that resolution decides; `definedIn` and line ranges do not count as a new resolution. */
 const importShape = (imp: ParsedFile['imports'][number]) =>
-  [imp.kind, imp.spec, imp.status, imp.resolved ?? '', imp.typeOnly ?? false, (imp.names ?? []).map((n) => [n.imported, n.local, n.typeOnly ?? false])] as const;
+  [imp.kind, imp.spec, imp.status, imp.resolved ?? '', imp.packageFolder ?? '', imp.typeOnly ?? false, (imp.names ?? []).map((n) => [n.imported, n.local, n.typeOnly ?? false])] as const;
 
 const sameImports = (a: readonly ParsedFile['imports'][number][], b: readonly ParsedFile['imports'][number][]): boolean =>
   isDeepStrictEqual(a.map(importShape), b.map(importShape));
