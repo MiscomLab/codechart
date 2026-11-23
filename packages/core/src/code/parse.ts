@@ -4,7 +4,9 @@ import { loadGrammar } from './grammars.js';
 import { grammarOf, langOf } from './languages.js';
 import { extractImports, type ExportName, type ImportSpec, type ModuleExports } from './imports.js';
 import type { CallRef, CodeSymbol, FileInfo, CodeRange, Import } from './model.js';
-import { extractSymbols, type Extracted } from './symbols.js';
+import { extractPythonImports } from './python/imports.js';
+import type { PyBinding } from './python/module-scope.js';
+import { extractSymbols } from './symbols.js';
 import { errorNodes } from './tree.js';
 
 /** One file of the code layer. */
@@ -20,6 +22,10 @@ export interface ParsedFile {
   exports: ModuleExports;
   /** Calls by `from` symbol; `name-only` until the link pass proves a target. */
   calls: CallRef[];
+  /** Python only: every name each scope binds, which decides what a called name means where it is called. */
+  bindings?: PyBinding[];
+  /** The file edits `sys.path`, so its absolute Python imports have no provable target. Absent for other files. */
+  sysPathEdited?: boolean;
 }
 
 /** The previous parse of a file: symbols, imports and exports that stand in while syntax errors hide them. */
@@ -29,7 +35,7 @@ export type LastGood = ParsedFile | readonly CodeSymbol[];
  * Live map #11: symbols outside syntax errors update; one parsed in or around an error stays only when the last good
  * parse had it, and last good symbols the broken text lost are kept. No new symbol comes from broken text.
  */
-function keepLastGood(extracted: Extracted, lastGood: readonly CodeSymbol[] | undefined): Pick<ParsedFile, 'symbols' | 'kept'> {
+function keepLastGood(extracted: ReturnType<typeof extractSymbols>, lastGood: readonly CodeSymbol[] | undefined): Pick<ParsedFile, 'symbols' | 'kept'> {
   if (!extracted.errors.length) return { symbols: extracted.symbols, kept: [] };
   const good = new Map((lastGood ?? []).map((s) => [s.id, s]));
   const symbols = extracted.symbols.filter((s) => !extracted.broken.has(s.id) || good.has(s.id));
@@ -125,16 +131,19 @@ export async function parseCode(path: string, text: string, lastGood?: LastGood)
   try {
     const previous = Array.isArray(lastGood) ? undefined : (lastGood as ParsedFile | undefined);
     const errors = tree.rootNode.hasError ? errorNodes(tree.rootNode) : [];
-    const extracted = extractSymbols(path, tree, tags);
+    const extracted = extractSymbols(path, tree, tags, grammar);
     const good = keepLastGood(extracted, Array.isArray(lastGood) ? lastGood : previous?.symbols);
-    const { imports, exports, hidden } = extractImports(path, tree, query);
+    const python = grammar === 'python' ? extractPythonImports(path, tree, query, extracted.symbols) : undefined;
+    const stated = python ?? extractImports(path, tree, query);
     return {
       file,
       ...good,
       parseErrors: extracted.errors,
-      imports: keepLastGoodImports(imports, hidden, extracted.errors, previous, text).map(unlinked),
-      exports: keepLastGoodExports(exports, extracted.errors, previous, text),
-      calls: extractCalls(tree, tags, good, errors),
+      imports: keepLastGoodImports(stated.imports, stated.hidden, extracted.errors, previous, text).map(unlinked),
+      exports: keepLastGoodExports(stated.exports, extracted.errors, previous, text),
+      calls: extractCalls(tree, tags, good, errors, python ? 'python' : undefined),
+      ...(python && { bindings: python.bindings }),
+      ...(python?.sysPathEdited && { sysPathEdited: true }),
     };
   } finally {
     tree.delete();

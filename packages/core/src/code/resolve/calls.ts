@@ -1,5 +1,6 @@
 import type { CallRef, CodeSymbol } from '../model.js';
 import type { ParsedFile } from '../parse.js';
+import { pythonCallTarget } from './python-calls.js';
 import type { Found, Tracer } from './trace.js';
 
 type Files = ReadonlyMap<string, ParsedFile>;
@@ -111,9 +112,10 @@ function withTarget(call: CallRef, target: FoundTarget): CallRef {
   return nameOnly;
 }
 
-function resolveCall(parsed: ParsedFile, call: CallRef, trace: Tracer, lookup: SymbolLookup): CallRef {
+function resolveCall(parsed: ParsedFile, files: Files, call: CallRef, trace: Tracer, lookup: SymbolLookup): CallRef {
   const from = lookup.byId(parsed.file.path, call.from);
   if (!from || !call.via) return withTarget(call, undefined);
+  if (parsed.file.lang === 'python') return withTarget(call, pythonCallTarget(parsed, files, call, from, trace));
   if (call.via === 'bare') {
     const same = sameFileTarget(parsed.file.path, call, from, lookup);
     if (same.kind === 'found') return withTarget(call, same.symbol);
@@ -133,7 +135,7 @@ export function resolveCalls(files: Files, paths: ReadonlySet<string>, trace: Tr
     if (!parsed) continue;
     out.set(
       path,
-      parsed.calls.map((call) => resolveCall(parsed, call, trace, lookup)),
+      parsed.calls.map((call) => resolveCall(parsed, files, call, trace, lookup)),
     );
   }
   return out;

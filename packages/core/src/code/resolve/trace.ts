@@ -11,6 +11,23 @@ type Files = ReadonlyMap<string, ParsedFile>;
 
 const isStar = (i: Import) => i.kind === 'export' && (i.names ?? []).some((n) => n.local === '*');
 
+/** The package folder of a Python `__init__` module, or undefined for a file that cannot own submodules. */
+function packageDir(file: string): string | undefined {
+  return file.endsWith('/__init__.py') ? file.slice(0, -'/__init__.py'.length) : undefined;
+}
+
+/** The module `name` is in a Python package folder, as the import system finds it: a regular package before a module. */
+export function submoduleIn(files: Files, folder: string, name: string): string | undefined {
+  const base = folder ? `${folder}/${name}` : name;
+  return [`${base}/__init__.py`, `${base}.py`].find((path) => files.has(path));
+}
+
+/** The module a Python name may be when the package does not bind it: `from pkg import mod` → `pkg/mod.py`. */
+function pythonSubmodule(files: Files, file: string, name: string): string | undefined {
+  const dir = packageDir(file);
+  return dir === undefined ? undefined : submoduleIn(files, dir, name);
+}
+
 function through(files: Files, imp: Import, imported: string, seen: Set<string>): Found {
   if (imp.status !== 'resolved' || !imp.resolved) return 'unknown';
   return imported === '*' ? { file: imp.resolved, binding: '*' } : find(files, imp.resolved, imported, seen);
@@ -38,6 +55,17 @@ function binding(parsed: ParsedFile, kind: Import['kind'], local: string): { imp
   return undefined;
 }
 
+/**
+ * A Python module's own name, from the one module-scope binding its exports were built from: a function-local or
+ * type-checking-only import of the same name binds nothing at module scope.
+ */
+function pythonOwn(files: Files, parsed: ParsedFile, file: string, name: string, seen: Set<string>): Found {
+  const bound = parsed.bindings!.find((b) => b.scope === '' && b.name === name);
+  const imp = bound?.kind === 'import' && !bound.dotted ? parsed.imports[bound.import!] : undefined;
+  const entry = imp?.names?.find((n) => n.local === name);
+  return imp && entry ? through(files, imp, entry.imported, seen) : { file, binding: name };
+}
+
 // `seen` spans one lookup: a cycle adds no name, and a file reached twice gives the same definition.
 function find(files: Files, file: string, name: string, seen: Set<string>): Found {
   const key = `${file}\0${name}`;
@@ -46,6 +74,7 @@ function find(files: Files, file: string, name: string, seen: Set<string>): Foun
   const parsed = files.get(file);
   if (!parsed) return 'unknown';
   const own = parsed.exports.names.find((e) => e.name === name);
+  if (own && parsed.bindings) return pythonOwn(files, parsed, file, name, seen);
   if (own) {
     const imported = own.local === undefined ? undefined : binding(parsed, 'import', own.local);
     return imported ? through(files, imported.imp, imported.imported, seen) : { file, binding: own.local ?? name };
@@ -54,6 +83,12 @@ function find(files: Files, file: string, name: string, seen: Set<string>): Foun
   if (reexport) return through(files, reexport.imp, reexport.imported, seen);
   // `export *` never re-exports `default`.
   if (name === 'default') return parsed.exports.complete ? 'none' : 'unknown';
+  // Python's `from pkg import mod` names a module when the package does not bind `mod` itself.
+  if (parsed.bindings) {
+    if (!parsed.exports.complete) return 'unknown';
+    const submodule = pythonSubmodule(files, file, name);
+    return submodule ? { file: submodule, binding: '*' } : 'none';
+  }
   return viaStars(files, parsed, name, seen);
 }
 

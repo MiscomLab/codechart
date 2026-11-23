@@ -5,6 +5,7 @@ import type { Language, Parser, Query } from 'web-tree-sitter';
 import { GRAMMAR_ASSETS, type GrammarAsset } from './grammar-assets.js';
 import { IMPORTS_QUERY } from './imports.js';
 import type { Grammar } from './languages.js';
+import { PYTHON_IMPORTS_QUERY } from './python/imports.js';
 
 /** Definitions the upstream `tags.scm` files leave out. */
 const EXTRA_JS = `
@@ -25,6 +26,15 @@ const WASM: Record<Grammar, GrammarAsset> = {
   javascript: 'tree-sitter-javascript.wasm',
   typescript: 'tree-sitter-typescript.wasm',
   tsx: 'tree-sitter-tsx.wasm',
+  python: 'tree-sitter-python.wasm',
+};
+
+/** The imports query each grammar reads imports with. */
+const IMPORTS: Record<Grammar, string> = {
+  javascript: IMPORTS_QUERY,
+  typescript: IMPORTS_QUERY,
+  tsx: IMPORTS_QUERY,
+  python: PYTHON_IMPORTS_QUERY,
 };
 
 function assetPath(name: GrammarAsset): string {
@@ -35,6 +45,8 @@ function assetPath(name: GrammarAsset): string {
 }
 
 function tagsSource(grammar: Grammar): string {
+  // Python's tags.scm reads `def` in a class body as a function; `extractSymbols` turns those into methods.
+  if (grammar === 'python') return readFileSync(assetPath('python-tags.scm'), 'utf8');
   const js = readFileSync(assetPath('javascript-tags.scm'), 'utf8');
   if (grammar === 'javascript') return js + EXTRA_JS;
   // TypeScript's tags.scm only adds to JavaScript's.
@@ -63,7 +75,7 @@ async function load(grammar: Grammar): Promise<LoadedGrammar> {
   const language: Language = await ts.Language.load(assetPath(WASM[grammar]));
   const parser = new ts.Parser();
   parser.setLanguage(language);
-  return { parser, tags: new ts.Query(language, tagsSource(grammar)), imports: new ts.Query(language, IMPORTS_QUERY) };
+  return { parser, tags: new ts.Query(language, tagsSource(grammar)), imports: new ts.Query(language, IMPORTS[grammar]) };
 }
 
 /** The grammar, loaded once per process. */

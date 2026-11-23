@@ -94,6 +94,15 @@ describe('call resolution rules', () => {
     expect(callsOf(parsed!, 'run')[0]).toMatchObject({ name: 'pay', to: 's.ts::charge::function', evidence: 'resolved' });
   });
 
+  it('follows a renamed re-export to the function behind it', async () => {
+    const [parsed] = await link({
+      'a.ts': "import { pay } from './barrel';\nexport function run() { pay(); }\n",
+      'barrel.ts': "export { charge as pay } from './s';\n",
+      's.ts': 'export function charge() {}\n',
+    });
+    expect(callsOf(parsed!, 'run')[0]).toMatchObject({ name: 'pay', to: 's.ts::charge::function', evidence: 'resolved' });
+  });
+
   it('resolves a namespace member through a barrel', async () => {
     const [parsed] = await link({
       'a.ts': "import * as ns from './barrel';\nexport function run() { ns.charge(); }\n",

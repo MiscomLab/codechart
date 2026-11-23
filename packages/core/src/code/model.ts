@@ -48,6 +48,10 @@ export const importSchema = z.object({
   spec: z.string(),
   resolved: z.string().min(1).optional(),
   status: z.enum(['resolved', 'unknown', 'external']),
+  /** Python: the folder of a namespace package (no `__init__.py`) the import names; the import itself stays `unknown`. */
+  packageFolder: z.string().optional(),
+  /** Python `importlib.import_module('.x', 'pkg')`: the absolute module the relative spec names, resolved instead of it. */
+  anchored: z.string().min(1).optional(),
   /** `export` is a re-export (`export … from`); `require` and `dynamic` (`import()`) name no bindings. */
   kind: z.enum(IMPORT_KINDS),
   /** `import type`, `export type`, `typeof import()`. */
@@ -68,6 +72,10 @@ export const callRefSchema = z.object({
   via: z.enum(CALL_VIAS).optional(),
   /** For `via: 'member'`, the object when it is a plain identifier (a namespace import, for example). */
   receiver: z.string().min(1).optional(),
+  /**
+   * For a Python dotted callee (`a.b.f()`), the attribute chain before the name. `receiver` holds its first name.
+   */
+  receiverPath: z.array(z.string().min(1)).min(2).optional(),
   to: z.string().min(1).optional(),
   evidence: z.enum(['resolved', 'name-only']),
   range: codeRangeSchema,

@@ -95,8 +95,8 @@ describe('parseCode symbols', () => {
   });
 
   it('lists a v1 file without a symbol grammar yet, and skips other files', async () => {
-    const py = await parse('src/app.py');
-    expect([py.file.lang, py.symbols]).toEqual(['python', []]);
+    const yml = await parse('ci.yml', 'jobs: {}');
+    expect([yml.file.lang, yml.symbols]).toEqual(['yaml', []]);
     expect(await parseCode('README.md', 'hi')).toBeUndefined();
   });
 });
