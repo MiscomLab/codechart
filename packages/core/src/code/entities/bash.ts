@@ -17,7 +17,11 @@ const SCRIPT_DIR_VALUE = new RegExp(`^${SCRIPT_DIR}$`);
 const ABSOLUTE_VALUE = new RegExp(`^${CD}$`);
 const VARIABLE_PREFIX = /^\$(?:([A-Za-z_]\w*)|\{([A-Za-z_]\w*)\})\//;
 
-const unquoted = (text: string): string => text.replace(/["']/g, '');
+/**
+ * The text with double quotes removed, for matching the script-folder idioms. Single-quoted text is literal, `$` and
+ * all, so a word holding one never matches.
+ */
+const unquoted = (text: string): string => (text.includes("'") ? '' : text.replace(/"/g, ''));
 
 function* walk(node: Node): Generator<Node> {
   yield node;
@@ -99,9 +103,9 @@ function holdsScriptDir(name: string, use: Node, script: Script): boolean {
   return !changedBefore(script, use.startIndex) || ABSOLUTE_VALUE.test(unquoted(value.text));
 }
 
-/** The repo path a `source` argument names when it starts with the script's own folder. */
-function sourceCandidate(spec: string, use: Node, script: Script): string | undefined {
-  const plain = unquoted(spec);
+/** The repo path a `source` argument (as written, quotes included) names when it starts with the script's own folder. */
+function sourceCandidate(written: string, use: Node, script: Script): string | undefined {
+  const plain = unquoted(written);
   let rest: string | undefined;
   const direct = SCRIPT_DIR_PREFIX.exec(plain);
   // Written in place, the folder is worked out when `source` runs: after a `cd`, from the wrong folder.
@@ -130,10 +134,10 @@ export function bashRefs(file: string, tree: Tree, lines: Lines, symbols: readon
     if (!arg) continue;
     const inner = arg.type === 'string' || arg.type === 'raw_string';
     const [start, end] = inner ? [arg.startIndex + 1, arg.endIndex - 1] : [arg.startIndex, arg.endIndex];
-    const spec = inner ? arg.text.slice(1, -1) : arg.type === 'word' ? arg.text.replace(/\\(.)/g, '$1') : unquoted(arg.text);
+    const spec = inner ? arg.text.slice(1, -1) : arg.type === 'word' ? arg.text.replace(/\\(.)/g, '$1') : arg.text.replace(/["']/g, '');
     if (!spec) continue;
     const range = lines.range(start, end);
-    refs.push(makeRef(file, spec, 'source', sourceCandidate(spec, node, script), range, around(symbols, range)));
+    refs.push(makeRef(file, spec, 'source', sourceCandidate(arg.text, node, script), range, around(symbols, range)));
   }
   return refs;
 }

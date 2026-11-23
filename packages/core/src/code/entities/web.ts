@@ -48,8 +48,10 @@ export function htmlRefs(file: string, tree: Tree, lines: Lines): CodeRef[] {
   for (const tag of tags) {
     const load = LOADS[tagName(tag) ?? ''];
     const value = load && attributes(tag).get(load.attribute);
-    if (!load || !value?.text.trim()) continue;
-    refs.push(makeRef(file, value.text, load.kind, urlCandidate(dir, decodeEntities(value.text.trim())), lines.range(value.startIndex, value.endIndex)));
+    // The browser reads the value with character references decoded and surrounding spaces stripped.
+    const url = value && decodeEntities(value.text).trim();
+    if (!load || !url) continue;
+    refs.push(makeRef(file, url, load.kind, urlCandidate(dir, url), lines.range(value.startIndex, value.endIndex)));
   }
   return refs;
 }
@@ -65,6 +67,15 @@ function importTarget(statement: Node): Node | undefined {
   return first.namedChildren.find((c) => c?.type === 'arguments')?.namedChildren.find((c) => c?.type === 'string_value' || c?.type === 'plain_value') ?? undefined;
 }
 
+/** A CSS string or URL as the browser reads it: `\2e ` is `.`, `\.` is `.`, an escaped line break is nothing. */
+const decodeCss = (value: string): string =>
+  value.replace(/\\(?:([\da-f]{1,6})[ \t\n]?|(\r\n|[\n\r\f])|([\s\S]))/gi, (_, hex?: string, newline?: string, other?: string) => {
+    if (newline) return '';
+    if (other !== undefined) return other;
+    const code = parseInt(hex!, 16);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : '\ufffd';
+  });
+
 /** `@import` references, relative to the stylesheet. */
 export function cssRefs(file: string, tree: Tree, lines: Lines): CodeRef[] {
   const refs: CodeRef[] = [];
@@ -74,10 +85,12 @@ export function cssRefs(file: string, tree: Tree, lines: Lines): CodeRef[] {
     if (!BEFORE_IMPORT.has(statement.type) && !layer) break;
     if (statement.type !== 'import_statement') continue;
     const target = importTarget(statement);
-    // A string's content sits inside its quotes; an empty string has none.
-    const content = target?.type === 'string_value' ? target.namedChildren.find((c) => c?.type === 'string_content') : target;
-    if (!content?.text) continue;
-    refs.push(makeRef(file, content.text, 'import', urlCandidate(dirOf(file), content.text), lines.range(content.startIndex, content.endIndex)));
+    if (!target) continue;
+    // A string's value sits inside its quotes.
+    const [start, end] = target.type === 'string_value' ? [target.startIndex + 1, target.endIndex - 1] : [target.startIndex, target.endIndex];
+    const url = decodeCss(target.type === 'string_value' ? target.text.slice(1, -1) : target.text);
+    if (!url) continue;
+    refs.push(makeRef(file, url, 'import', urlCandidate(dirOf(file), url), lines.range(start, end)));
   }
   return refs;
 }

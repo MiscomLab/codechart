@@ -82,8 +82,28 @@ describe('commands in scripts and run steps', () => {
     expect(await workflowRefs(workflow('|\n          ./before.sh\n          cd app\n          ./a.sh'))).toEqual([['./before.sh', 'before.sh'], ['./a.sh', undefined]]);
   });
 
-  it("reads $'…' quoting", async () => {
+  it("reads $'…' quoting, numeric escapes included", async () => {
     expect(await script("$'./x.sh'")).toEqual([['./x.sh', 'x.sh']]);
+    expect(await script("$'./\\x78.sh'")).toEqual([['./x.sh', 'x.sh']]);
+    expect(await script("$'./\\170.sh'")).toEqual([['./x.sh', 'x.sh']]);
+    expect(await script("$'./\\u0078.sh'")).toEqual([['./x.sh', 'x.sh']]);
+    // Bash keeps the backslash of an escape it does not know.
+    expect(await script("$'./\\q.sh'")).toEqual([['./\\q.sh', '\\q.sh']]);
+  });
+
+  it('reads the value attached to an option', async () => {
+    expect(await script('node -r./setup.js app.js')).toEqual([['app.js', 'app.js']]);
+    expect(await script('python -Wignore t.py')).toEqual([['t.py', 't.py']]);
+    expect(await script('bash -opipefail a.sh')).toEqual([['a.sh', 'a.sh']]);
+  });
+
+  it('keeps source ranges right after an escaped character outside the BMP', async () => {
+    const text = workflow('"echo \\U0001F600; ./x.sh"');
+    const parsed = await parse('.github/workflows/w.yml', text);
+    const at = text.indexOf('./x.sh');
+    const line = text.slice(0, at).split('\n').length;
+    const column = at - text.lastIndexOf('\n', at) - 1;
+    expect(parsed.refs.map((r) => [r.spec, r.range])).toEqual([['./x.sh', { start: { line, column }, end: { line, column: column + 6 } }]]);
   });
 
   it('leaves `source` of a bare name unfixed: bash searches PATH first', async () => {
@@ -228,7 +248,17 @@ describe('HTML references', () => {
     expect(await html('<script src="app.js#x"></script><script src="b.js?x#y"></script>')).toEqual([['app.js#x', 'web/app.js'], ['b.js?x#y', 'web/b.js']]);
     expect(await html('<script src="my%20file.js"></script><script src="bad%zz.js"></script>')).toEqual([['my%20file.js', 'web/my file.js'], ['bad%zz.js', undefined]]);
     expect(await html('<script src="js\\a.js"></script>')).toEqual([['js\\a.js', 'web/js/a.js']]);
-    expect(await html('<script src="a&amp;b.js"></script><script src="c&#46;js"></script>')).toEqual([['a&amp;b.js', 'web/a&b.js'], ['c&#46;js', 'web/c.js']]);
+    // `spec` is the value unescaped (model.ts), as the browser reads it.
+    expect(await html('<script src="a&amp;b.js"></script><script src="c&#46;js"></script>')).toEqual([['a&b.js', 'web/a&b.js'], ['c.js', 'web/c.js']]);
+  });
+
+  it('calls a URL external after trimming and decoding it', async () => {
+    const parsed = await parse('web/page.html', '<script src=" https://cdn.example/x.js "></script><script src="https&#58;//cdn.example/y.js"></script>');
+    const { resolveRef } = await import('../../src/code/resolve/refs.js');
+    expect(parsed.refs.map((r) => [r.spec, resolveRef(new Set(), r).status])).toEqual([
+      ['https://cdn.example/x.js', 'external'],
+      ['https://cdn.example/y.js', 'external'],
+    ]);
   });
 
   it('fixes no path for other schemes or template syntax', async () => {
@@ -245,6 +275,13 @@ describe('CSS references', () => {
 
   it('reads unquoted url() and import conditions, not comments or other urls', async () => {
     expect(await css('/* @import "x.css"; */\n@import url(base.css);\n@import url("a.css") layer(x) supports(display: grid);\nbody { background: url(i.png); }')).toEqual([
+      ['base.css', 'web/base.css'],
+      ['a.css', 'web/a.css'],
+    ]);
+  });
+
+  it('reads CSS escapes as the characters they stand for', async () => {
+    expect(await css('@import "base\\2e css";\n@import "a\\.css";')).toEqual([
       ['base.css', 'web/base.css'],
       ['a.css', 'web/a.css'],
     ]);
@@ -287,6 +324,12 @@ describe('Bash folder variables and functions', () => {
     expect(await sourced('D="$(dirname "$0")"\ncd /tmp\nsource "$D/a.sh"\n')).toEqual([['$D/a.sh', undefined]]);
     expect(await sourced('D="$(cd "$(dirname "$0")" && pwd)"\ncd /tmp\nsource "$D/a.sh"\n')).toEqual([['$D/a.sh', 'bin/a.sh']]);
     expect(await sourced('source "$(dirname "$0")/a.sh"\ncd /tmp\n')).toEqual([['$(dirname "$0")/a.sh', 'bin/a.sh']]);
+  });
+
+  it('reads single-quoted text literally', async () => {
+    expect(await sourced('D="$(dirname "$0")"\nsource \'$D/lib.sh\'\n')).toEqual([['$D/lib.sh', undefined]]);
+    expect(await sourced("source '$(dirname \"$0\")/lib.sh'\n")).toEqual([['$(dirname "$0")/lib.sh', undefined]]);
+    expect(await sourced("D='$(dirname \"$0\")'\nsource \"$D/lib.sh\"\n")).toEqual([['$D/lib.sh', undefined]]);
   });
 
   it('names nested functions by their path, and reads .bash files', async () => {

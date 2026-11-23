@@ -68,9 +68,12 @@ function launched(words: readonly Word[], launcher: Launcher): Word | undefined 
       }
       const { letters } = launcher;
       if (!letters) continue;
+      // `-ex` groups flags; after one that takes a value, the rest of the word is that value (`-r./setup.js`).
       const flags = value.slice(1);
-      if ([...flags].some((l) => letters.stop.includes(l))) return undefined;
-      if (letters.value.includes(flags.at(-1)!)) k++;
+      const valueAt = [...flags].findIndex((l) => letters.value.includes(l));
+      const grouped = valueAt < 0 ? flags : flags.slice(0, valueAt + 1);
+      if ([...grouped].some((l) => letters.stop.includes(l))) return undefined;
+      if (valueAt === flags.length - 1) k++;
       continue;
     }
     if (subcommand && launcher.subcommands?.has(value)) {

@@ -9,7 +9,27 @@ export interface Word {
 }
 
 const BLANK = new Set([' ', '\t', '\r']);
-const ANSI_C: Record<string, string> = { n: '\n', t: '\t', r: '\r', a: '\x07', b: '\b', e: '\x1b', f: '\f', v: '\v' };
+const ANSI_C: Record<string, string> = { n: '\n', t: '\t', r: '\r', a: '\x07', b: '\b', e: '\x1b', E: '\x1b', f: '\f', v: '\v', '\\': '\\', "'": "'", '"': '"', '?': '?' };
+/** Numeric escapes of `$'…'`: the pattern of their digits after the backslash, and their base. */
+const ANSI_NUMERIC: [RegExp, number][] = [
+  [/^x([\da-fA-F]{1,2})/, 16],
+  [/^u([\da-fA-F]{1,4})/, 16],
+  [/^U([\da-fA-F]{1,8})/, 16],
+  [/^([0-7]{1,3})/, 8],
+];
+
+/** The escape at `j` of a `$'…'` string: what it stands for and how many characters it takes. Bash keeps unknown ones as written. */
+function ansiEscape(text: string, j: number): [string, number] {
+  const rest = text.slice(j + 1, j + 10);
+  for (const [pattern, base] of ANSI_NUMERIC) {
+    const digits = pattern.exec(rest);
+    if (!digits) continue;
+    const code = parseInt(digits[1]!, base);
+    return [code <= 0x10ffff ? String.fromCodePoint(code) : '', 1 + digits[0].length];
+  }
+  const known = ANSI_C[text[j + 1]!];
+  return known === undefined ? [text.slice(j, j + 2), 2] : [known, 2];
+}
 const OPERATOR = new Set([';', '&', '|', '(', ')']);
 
 /** Splits shell text into simple commands of words, as bash does: quotes, escapes, comments, continuations, heredocs. */
@@ -137,8 +157,9 @@ class Lexer {
     let j = this.i + 2;
     while (j < text.length && text[j] !== "'") {
       if (text[j] === '\\' && j + 1 < text.length) {
-        value += ANSI_C[text[j + 1]!] ?? text[j + 1];
-        j += 2;
+        const [chars, length] = ansiEscape(text, j);
+        value += chars;
+        j += length;
       } else value += text[j++];
     }
     this.add(value, Math.min(j + 1, text.length), this.i + 2, j);

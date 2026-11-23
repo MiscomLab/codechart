@@ -9,10 +9,10 @@ export class Decoded {
   private readonly from: number[] = [];
   private readonly to: number[] = [];
 
-  /** Appends `chars`, all coming from source span `[start, end)`. */
+  /** Appends `chars`, all coming from source span `[start, end)`; one entry per UTF-16 unit, as string offsets count. */
   push(chars: string, start: number, end: number): void {
-    for (const ch of chars) {
-      this.text += ch;
+    this.text += chars;
+    for (let k = 0; k < chars.length; k++) {
       this.from.push(start);
       this.to.push(end);
     }
