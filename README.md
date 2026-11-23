@@ -234,7 +234,7 @@ More: [Why you can trust the diagram](docs/trust.md).
 
 ## Cost
 
-A diagram is about **2–3 extra API calls**, roughly 2–3% of a long session's usage, and nothing for trivial changes. That figure was measured on 2026-10-28 with a skill of 7.1k chars; the skill is now 17.0k chars (about 4.2k tokens), so a diagram costs more than that, and the benchmark has not been re-run. The CLI is a 165.8 kB package, plus the 395.3 kB [`@codechart/core`](https://www.npmjs.com/package/@codechart/core) it depends on. Measured runs: [Efficiency](docs/efficiency.md).
+A diagram is about **2–3 extra API calls**, roughly 2–3% of a long session's usage, and nothing for trivial changes. That figure was measured on 2026-10-28 with a skill of 7.1k chars; the skill is now 17.0k chars (about 4.2k tokens), so a diagram costs more than that, and the benchmark has not been re-run. The CLI is a 167.0 kB package, plus the 1.66 MB [`@codechart/core`](https://www.npmjs.com/package/@codechart/core) it depends on. Measured runs: [Efficiency](docs/efficiency.md).
 
 ## Safe to run
 
