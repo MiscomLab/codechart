@@ -4,6 +4,10 @@ What's new in each codechart release. Update with `codechart update`; the [relea
 
 ## Unreleased
 
+### New
+
+- `.codechart.yaml` takes a `map:` section for the coming desktop app's map: `rules` that turn globs or tree-sitter patterns into an entity kind (`table`, `model`, `service`, `endpoint`, `component`, `config`), a box, or nothing (`ignore`); plain-text `guidance` for the model that names boxes; and `pinned` names for boxes and nodes. The CLI doesn't use it yet. `@codechart/core` 0.7.0 defines it, with `writePinned`, which writes the pinned names sorted by id and leaves the rest of the file as it was. ([Configuration](docs/configuration.md#map-desktop-app))
+
 ### Changed
 
 - `@codechart/core` 0.6.0 reads files that have no imports. It finds SQL tables, GitHub Actions jobs and steps, docker-compose services, npm scripts and Bash functions. It also records the files they reference: a script a workflow step or npm script runs, a Bash `source`, HTML `<script src>` and `<link href>`, and CSS `@import`. A reference resolves to a repo file only where the folder it's relative to is fixed (the page, the package, the step's working directory after a checkout, or the script's own folder written with `dirname "$0"` or `BASH_SOURCE`). A URL is external, and anything else stays unknown. The CLI doesn't use this yet. `ParsedFile` gains required `entities` and `refs`, and `Resolver` gains `ref`. A reference also keeps its spelling in the source (`written`) when that differs from its value, so one hidden by a syntax error is still recognised. The core package now ships grammars for HTML, CSS, Bash, JSON, YAML and SQL. The SQL one is 13 MB unpacked, built from DerekStride's grammar by `scripts/build-sql-grammar.sh`.

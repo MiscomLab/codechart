@@ -2,7 +2,8 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSyn
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadConfig } from '@codechart/core';
-import { configJsonSchema } from '@codechart/core';
+import { configJsonSchema, parseConfigFile } from '@codechart/core';
+import { parse } from 'yaml';
 import { readState, skillDirs } from '../../src/update/check.js';
 import { STEP_STATUSES } from '@codechart/core';
 import { STATUSES } from '@codechart/core';
@@ -367,6 +368,16 @@ describe('templates/codechart.yaml', () => {
     writeFileSync(join(repo, '.codechart.yaml'), template);
     const c = loadConfig({ cwd: repo, home, env: {} });
     expect(c).toEqual(builtin);
+  });
+
+  it('the commented map example, uncommented, is a valid config', () => {
+    const lines = template.split('\n');
+    const start = lines.indexOf(lines.find((l) => l.startsWith('# map:'))!);
+    const end = lines.findIndex((l, i) => i > start && !l.startsWith('# '));
+    const map = parse(lines.slice(start, end).map((l) => l.slice(2)).join('\n')) as { map: { rules: unknown[]; pinned: object } };
+    expect(map.map.rules).toHaveLength(4);
+    expect(Object.keys(map.map.pinned)).toHaveLength(2);
+    expect(parseConfigFile(map)).toEqual({ ok: true, config: map });
   });
 
   it('template first line is the $schema comment', () => {

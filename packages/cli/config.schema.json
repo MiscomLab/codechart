@@ -197,6 +197,148 @@
         ],
         "additionalProperties": false
       }
+    },
+    "map": {
+      "description": "The desktop app's map: its rules, guidance for the model and pinned names. The CLI doesn't use it.",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "rules": {
+              "description": "Top-down, first match wins, before the app's built-in rules",
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "paths": {
+                        "description": "Globs the rule matches",
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u200b\\u200c\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u2069\\ufeff]*$"
+                        }
+                      },
+                      "pattern": {
+                        "description": "Tree-sitter query; the @entity capture is what the rule applies to",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000,
+                        "allOf": [
+                          {
+                            "pattern": "^[^\\u0000-\\u0008\\u000b-\\u001f\\u007f-\\u009f\\u200b\\u200c\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u2069\\ufeff]*$"
+                          },
+                          {
+                            "pattern": "@entity(?![\\w.-])"
+                          }
+                        ]
+                      },
+                      "lang": {
+                        "description": "The pattern's tree-sitter grammar",
+                        "type": "string",
+                        "enum": [
+                          "typescript",
+                          "javascript",
+                          "python",
+                          "html",
+                          "css",
+                          "sql",
+                          "bash",
+                          "yaml",
+                          "json"
+                        ]
+                      },
+                      "kind": {
+                        "description": "The code is an entity of this kind",
+                        "type": "string",
+                        "enum": [
+                          "table",
+                          "model",
+                          "service",
+                          "endpoint",
+                          "component",
+                          "config"
+                        ]
+                      },
+                      "box": {
+                        "description": "The code belongs to this box",
+                        "type": "string",
+                        "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+                      },
+                      "ignore": {
+                        "description": "The code is read but left off the map",
+                        "type": "boolean",
+                        "const": true
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "guidance": {
+              "description": "Plain words for the model that names and groups boxes",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000,
+                  "pattern": "^[^\\u0000-\\u0008\\u000b-\\u001f\\u007f-\\u009f\\u200b\\u200c\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u2069\\ufeff]*$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pinned": {
+              "description": "Names a person pinned, by box id or node id (file::path::kind); written sorted by id",
+              "anyOf": [
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80,
+                        "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u200b\\u200c\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u2069\\ufeff]*$"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300,
+                        "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u200b\\u200c\\u200e\\u200f\\u2028-\\u202e\\u2060-\\u2069\\ufeff]*$"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "additionalProperties": false

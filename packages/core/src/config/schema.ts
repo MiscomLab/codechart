@@ -1,5 +1,6 @@
 import { isAbsolute, win32 } from 'node:path';
 import { z } from 'zod';
+import { LANGS } from '../code/model.js';
 import { formatIssues } from '../spec/shared.js';
 
 const OUTPUTS = ['auto', 'cli', 'web', 'both', 'none'] as const;
@@ -82,6 +83,68 @@ const ruleSchema = z
     message: 'context applies only to map rules',
   });
 
+/** What a map rule can make of code (Code model #4). */
+export const MAP_ENTITY_KINDS = ['table', 'model', 'service', 'endpoint', 'component', 'config'] as const;
+export type MapEntityKind = (typeof MAP_ENTITY_KINDS)[number];
+
+// Like ONE_LINE_VISIBLE, but line breaks and tabs are allowed.
+const MULTI_LINE_VISIBLE = /^[^\u0000-\u0008\u000b-\u001f\u007f-\u009f\u200b\u200c\u200e\u200f\u2028-\u202e\u2060-\u2069\ufeff]*$/;
+const MULTI_LINE_MESSAGE = 'line breaks and tabs only; no other control or invisible characters';
+const BOX_ID = RULE_NAME;
+// `symbolId`/`entityId`: repo-relative file, names joined with `.`, lowercase kind, `~2` on for a repeat.
+const NODE_ID = /^(?!\/)(?:[^:\\]|:(?!:))+::.+::[a-z]+(?:~(?:[2-9]|[1-9][0-9]+))?$/;
+const ID_MESSAGE = 'use a box id (1-64 lowercase letters, digits or hyphens, not starting with a hyphen) or a node id (file::path::kind, file repo-relative)';
+const isPinnedId = (id: string) =>
+  ONE_LINE_VISIBLE.test(id) && id.length <= 1000 && (BOX_ID.test(id) || (NODE_ID.test(id) && id.split('::')[0]!.split('/').every((seg) => seg !== '' && seg !== '.' && seg !== '..')));
+
+const quoted = (s: string) =>
+  JSON.stringify(s.length > 100 ? `${s.slice(0, 100)}\u2026` : s).replace(/[\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+
+const boxId = z.string().regex(BOX_ID, 'use 1-64 lowercase letters, digits or hyphens, not starting with a hyphen');
+const oneLine = (max: number) => z.string().min(1).max(max).regex(ONE_LINE_VISIBLE, CHARS_MESSAGE);
+
+const mapRuleSchema = z
+  .strictObject({
+    paths: z.array(glob).min(1).optional().describe('Globs the rule matches'),
+    pattern: z.string().min(1).max(2000).regex(MULTI_LINE_VISIBLE, MULTI_LINE_MESSAGE).regex(/@entity(?![\w.-])/, 'capture the node the rule applies to as @entity').optional().describe('Tree-sitter query; the @entity capture is what the rule applies to'),
+    lang: z.enum(LANGS).optional().describe("The pattern's tree-sitter grammar"),
+    kind: z.enum(MAP_ENTITY_KINDS).optional().describe('The code is an entity of this kind'),
+    box: boxId.optional().describe('The code belongs to this box'),
+    ignore: z.literal(true).optional().describe('The code is read but left off the map'),
+  })
+  .refine((r) => r.paths !== undefined || r.pattern !== undefined, { message: 'set paths, pattern or both' })
+  .refine((r) => [r.kind, r.box, r.ignore].filter((v) => v !== undefined).length === 1, { message: 'set exactly one of kind, box or ignore' })
+  .refine((r) => r.pattern === undefined || r.lang !== undefined, { message: 'a pattern needs lang (its tree-sitter grammar)' })
+  .refine((r) => r.lang === undefined || r.pattern !== undefined, { message: 'lang applies only to a pattern' });
+
+const pinnedEntrySchema = z.strictObject({
+  name: oneLine(80),
+  reason: oneLine(300).optional(),
+});
+
+const pinnedSchema = z.record(z.string(), pinnedEntrySchema).superRefine((pinned, ctx) => {
+  // The id goes in the message, escaped, so a line break or bidi character in it can't reshape the error.
+  for (const id of Object.keys(pinned)) if (!isPinnedId(id)) ctx.addIssue({ code: 'custom', message: `${quoted(id)}: ${ID_MESSAGE}` });
+});
+
+const mapSchema = z.strictObject({
+  rules: z.array(mapRuleSchema).nullish().describe("Top-down, first match wins, before the app's built-in rules"),
+  guidance: z.string().min(1).max(2000).regex(MULTI_LINE_VISIBLE, MULTI_LINE_MESSAGE).nullish().describe('Plain words for the model that names and groups boxes'),
+  pinned: pinnedSchema.nullish().describe('Names a person pinned, by box id or node id (file::path::kind); written sorted by id'),
+});
+
+export type MapRule = z.infer<typeof mapRuleSchema>;
+export type PinnedEntry = z.infer<typeof pinnedEntrySchema>;
+export type Pinned = Record<string, PinnedEntry>;
+export type MapConfig = z.infer<typeof mapSchema>;
+
+/** Checks pins before they are written: formatIssues lines, paths starting at `pinned`. */
+export function parsePinned(input: unknown): { ok: true; pinned: Pinned } | { ok: false; errors: string[] } {
+  const result = pinnedSchema.safeParse(input);
+  if (result.success) return { ok: true, pinned: result.data };
+  return { ok: false, errors: formatIssues(result.error).map((e) => `pinned${e.startsWith('$') ? e.slice(1) : `.${e}`}`) };
+}
+
 const configFileSchema = z.strictObject({
   defaults: z
     .strictObject({
@@ -114,6 +177,8 @@ const configFileSchema = z.strictObject({
   ignore: z.array(glob).optional().describe("Paths the desktop app's live map never reads, as globs, on top of .gitignore, dependencies and build output. The CLI doesn't use it."),
   updateCheck: z.boolean().optional().describe('Global only: look up the newest codechart on npm at most once a day and say when there is one (default true)'),
   rules: z.array(ruleSchema).optional(),
+  // `map:` with its children commented out reads as null, like the template's.
+  map: mapSchema.nullish().describe("The desktop app's map: its rules, guidance for the model and pinned names. The CLI doesn't use it."),
 });
 
 export type ConfigFile = z.infer<typeof configFileSchema>;
