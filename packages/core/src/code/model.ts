@@ -84,3 +84,44 @@ export type CallRef = z.infer<typeof callRefSchema>;
 
 /** Node identity (Live map #9): file + symbol path + kind, so line moves keep the node. */
 export const symbolId = (file: string, path: readonly string[], kind: SymbolKind): string => `${file}::${path.join('.')}::${kind}`;
+
+/** What files without imports define (Code model #3): SQL tables, workflow jobs and steps, compose services, npm scripts. */
+export const ENTITY_KINDS = ['table', 'job', 'step', 'service', 'script'] as const;
+export type EntityKind = (typeof ENTITY_KINDS)[number];
+
+/**
+ * Like a symbol: `id` is `entityId(file, path, kind)`, `~2`, `~3`… for a repeated identity. `path` holds names from the
+ * outermost in: `['public', 'orders']` for a table, `['deploy', 'ship']` for a step of job `deploy`. Path parts are joined
+ * with `.`, so a name holding a dot (`"a.b"`, a `build.web` script) can share an id with a nested path.
+ */
+export const codeEntitySchema = codeSymbolSchema.extend({ kind: z.enum(ENTITY_KINDS) });
+export type CodeEntity = z.infer<typeof codeEntitySchema>;
+
+export const entityId = (file: string, path: readonly string[], kind: EntityKind): string => `${file}::${path.join('.')}::${kind}`;
+
+/**
+ * `run`: a file a workflow step or npm script runs; `source`: a file a shell script sources; `script` and `link`: an
+ * HTML `<script src>` and `<link href>`; `import`: a CSS `@import`.
+ */
+export const REF_KINDS = ['run', 'source', 'script', 'link', 'import'] as const;
+
+export const codeRefSchema = z.object({
+  file: z.string().min(1),
+  /** The id of the entity or symbol the reference sits in, if any. */
+  from: z.string().min(1).optional(),
+  /** The value the program reads: unquoted and unescaped. */
+  spec: z.string().min(1),
+  /** The source text at `range`, when it differs from `spec` (escapes, entities, quotes). */
+  written: z.string().min(1).optional(),
+  kind: z.enum(REF_KINDS),
+  /**
+   * The repo path the spec names, when the folder it is relative to is fixed (the page, the package, the step's working
+   * directory, the script's own folder) and the path stays in the repo; absent otherwise, and the reference stays unknown.
+   */
+  candidate: z.string().min(1).optional(),
+  resolved: z.string().min(1).optional(),
+  /** `resolved` only when `candidate` is a file of the code layer; `external` for a URL. */
+  status: z.enum(['resolved', 'unknown', 'external']),
+  range: codeRangeSchema,
+});
+export type CodeRef = z.infer<typeof codeRefSchema>;

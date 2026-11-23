@@ -70,16 +70,17 @@ function recordingResolver(root: string, listed: readonly string[]): Recording {
   const config = new Set<string>();
   let current: Set<string> | undefined;
   const inner = createResolver(listed, (path) => readCodeFile(root, path), { path: (path) => current?.add(path), config: (path) => config.add(path) });
+  const recording = <T>(from: string, run: () => T): T => {
+    recorded.set(from, (current = recorded.get(from) ?? new Set()));
+    try {
+      return run();
+    } finally {
+      current = undefined;
+    }
+  };
   const resolver: Resolver = {
-    resolve(from, spec, kind, context) {
-      current = recorded.get(from) ?? new Set();
-      recorded.set(from, current);
-      try {
-        return inner.resolve(from, spec, kind, context);
-      } finally {
-        current = undefined;
-      }
-    },
+    resolve: (from, spec, kind, context) => recording(from, () => inner.resolve(from, spec, kind, context)),
+    ref: (ref) => recording(ref.file, () => inner.ref(ref)),
   };
   return { resolver, recorded, config };
 }
@@ -102,7 +103,7 @@ const sameImports = (a: readonly ParsedFile['imports'][number][], b: readonly Pa
   isDeepStrictEqual(a.map(importShape), b.map(importShape));
 
 const sameLinks = (a: ParsedFile | undefined, b: ParsedFile | undefined): boolean =>
-  !!a && !!b && isDeepStrictEqual(a.imports, b.imports) && isDeepStrictEqual(a.calls, b.calls);
+  !!a && !!b && isDeepStrictEqual(a.imports, b.imports) && isDeepStrictEqual(a.calls, b.calls) && isDeepStrictEqual(a.refs, b.refs);
 
 /** What other files can observe: the symbol identities, export bindings and whether the export list is complete. */
 const surface = (parsed: ParsedFile): string =>

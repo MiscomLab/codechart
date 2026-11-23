@@ -7,9 +7,22 @@ export const GRAMMAR_ASSETS = {
   'tree-sitter-typescript.wasm': 'tree-sitter-typescript/tree-sitter-typescript.wasm',
   'tree-sitter-tsx.wasm': 'tree-sitter-typescript/tree-sitter-tsx.wasm',
   'tree-sitter-python.wasm': 'tree-sitter-python/tree-sitter-python.wasm',
+  'tree-sitter-html.wasm': 'tree-sitter-html/tree-sitter-html.wasm',
+  'tree-sitter-css.wasm': 'tree-sitter-css/tree-sitter-css.wasm',
+  'tree-sitter-bash.wasm': 'tree-sitter-bash/tree-sitter-bash.wasm',
+  'tree-sitter-json.wasm': 'tree-sitter-json/tree-sitter-json.wasm',
+  'tree-sitter-yaml.wasm': '@tree-sitter-grammars/tree-sitter-yaml/tree-sitter-yaml.wasm',
   'javascript-tags.scm': 'tree-sitter-javascript/queries/tags.scm',
   'typescript-tags.scm': 'tree-sitter-typescript/queries/tags.scm',
   'python-tags.scm': 'tree-sitter-python/queries/tags.scm',
 } as const;
 
-export type GrammarAsset = keyof typeof GRAMMAR_ASSETS;
+/**
+ * Grammars no package ships compiled, kept in `packages/core/grammars/` (paths relative to `packages/core`) and copied
+ * to `dist/grammars/` too. `scripts/build-sql-grammar.sh` builds the SQL one from `@derekstride/tree-sitter-sql`.
+ */
+export const VENDORED_ASSETS = {
+  'tree-sitter-sql.wasm': 'grammars/tree-sitter-sql.wasm',
+} as const;
+
+export type GrammarAsset = keyof typeof GRAMMAR_ASSETS | keyof typeof VENDORED_ASSETS;

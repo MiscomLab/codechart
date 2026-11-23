@@ -1,0 +1,7 @@
+@import "base.css";
+@import url(https://fonts.example.com/f.css);
+@import url('./missing.css') screen;
+
+:root {
+  --brand: #123456;
+}

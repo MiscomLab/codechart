@@ -1,0 +1,10 @@
+{
+  "name": "entities-fixture",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.js",
+    "test": "vitest run",
+    "deploy": "./scripts/deploy.sh && echo done",
+    "lint": "NODE_ENV=ci bash scripts/lint.sh"
+  }
+}

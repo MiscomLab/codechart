@@ -1,4 +1,4 @@
-import type { Import, ImportedName } from '../model.js';
+import type { CodeRef, Import, ImportedName } from '../model.js';
 import type { ParsedFile } from '../parse.js';
 import { resolveCalls } from './calls.js';
 import type { Resolver } from './resolver.js';
@@ -6,11 +6,16 @@ import { createTracer, submoduleIn, type Tracer } from './trace.js';
 
 const allPaths = (files: readonly ParsedFile[]): Set<string> => new Set(files.map((f) => f.file.path));
 
-/** A file's imports with their current resolution and no evidence from an earlier link pass. */
+/** A file's imports and references with their current resolution and no evidence from an earlier link pass. */
 function withResolvedImports(parsed: ParsedFile, resolver: Resolver): ParsedFile {
   const context = { sysPathEdited: parsed.sysPathEdited ?? false };
   return {
     ...parsed,
+    refs: parsed.refs.map((stated): CodeRef => {
+      const ref: CodeRef = { ...stated, ...resolver.ref(stated) };
+      if (ref.status !== 'resolved') delete ref.resolved;
+      return ref;
+    }),
     imports: parsed.imports.map((stated): Import => {
       const resolution = resolver.resolve(parsed.file.path, stated.anchored ?? stated.spec, stated.kind, context);
       const imp: Import = { ...stated, ...resolution };
@@ -28,7 +33,7 @@ function withResolvedImports(parsed: ParsedFile, resolver: Resolver): ParsedFile
   };
 }
 
-/** Resolves import paths in `only` (all files by default) without parsing; the next pass proves `definedIn`. */
+/** Resolves import and reference paths in `only` (all files by default) without parsing; the next pass proves `definedIn`. */
 export function resolveImports(files: readonly ParsedFile[], resolver: Resolver, only?: ReadonlySet<string>): ParsedFile[] {
   const paths = only ?? allPaths(files);
   return files.map((f) => (paths.has(f.file.path) ? withResolvedImports(f, resolver) : f));

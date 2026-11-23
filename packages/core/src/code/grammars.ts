@@ -2,9 +2,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import type { Language, Parser, Query } from 'web-tree-sitter';
-import { GRAMMAR_ASSETS, type GrammarAsset } from './grammar-assets.js';
+import { GRAMMAR_ASSETS, VENDORED_ASSETS, type GrammarAsset } from './grammar-assets.js';
 import { IMPORTS_QUERY } from './imports.js';
-import type { Grammar } from './languages.js';
+import type { EntityGrammar, Grammar } from './languages.js';
 import { PYTHON_IMPORTS_QUERY } from './python/imports.js';
 
 /** Definitions the upstream `tags.scm` files leave out. */
@@ -22,11 +22,20 @@ const EXTRA_TS = `
   value: [(arrow_function) (function_expression)]) @definition.method
 `;
 
-const WASM: Record<Grammar, GrammarAsset> = {
+/** Bash has no `tags.scm`: functions are its only definitions. */
+const BASH_TAGS = `(function_definition name: (word) @name) @definition.function`;
+
+const WASM: Record<Grammar | EntityGrammar, GrammarAsset> = {
   javascript: 'tree-sitter-javascript.wasm',
   typescript: 'tree-sitter-typescript.wasm',
   tsx: 'tree-sitter-tsx.wasm',
   python: 'tree-sitter-python.wasm',
+  html: 'tree-sitter-html.wasm',
+  css: 'tree-sitter-css.wasm',
+  sql: 'tree-sitter-sql.wasm',
+  bash: 'tree-sitter-bash.wasm',
+  yaml: 'tree-sitter-yaml.wasm',
+  json: 'tree-sitter-json.wasm',
 };
 
 /** The imports query each grammar reads imports with. */
@@ -41,7 +50,8 @@ function assetPath(name: GrammarAsset): string {
   const built = fileURLToPath(new URL(`./grammars/${name}`, import.meta.url));
   if (existsSync(built)) return built;
   // Running from source (tests, dev): the grammar packages are installed as dev dependencies.
-  return createRequire(import.meta.url).resolve(GRAMMAR_ASSETS[name]);
+  if (name in VENDORED_ASSETS) return fileURLToPath(new URL(`../../${VENDORED_ASSETS[name as keyof typeof VENDORED_ASSETS]}`, import.meta.url));
+  return createRequire(import.meta.url).resolve(GRAMMAR_ASSETS[name as keyof typeof GRAMMAR_ASSETS]);
 }
 
 function tagsSource(grammar: Grammar): string {
@@ -61,7 +71,6 @@ export interface LoadedGrammar {
 }
 
 let runtime: Promise<typeof import('web-tree-sitter')> | undefined;
-const loaded = new Map<Grammar, Promise<LoadedGrammar>>();
 
 // Imported on first use, so bundles of core that never parse (the OpenCode plugin) leave web-tree-sitter out.
 const loadRuntime = () =>
@@ -70,20 +79,39 @@ const loadRuntime = () =>
     return ts;
   }));
 
-async function load(grammar: Grammar): Promise<LoadedGrammar> {
+/** A parser set to the grammar's language, and a query maker for it. */
+async function open(grammar: Grammar | EntityGrammar) {
   const ts = await loadRuntime();
   const language: Language = await ts.Language.load(assetPath(WASM[grammar]));
   const parser = new ts.Parser();
   parser.setLanguage(language);
-  return { parser, tags: new ts.Query(language, tagsSource(grammar)), imports: new ts.Query(language, IMPORTS[grammar]) };
+  return { parser, query: (source: string) => new ts.Query(language, source) };
+}
+
+/** Loads each grammar once per process. */
+function once<K, V>(make: (key: K) => Promise<V>): (key: K) => Promise<V> {
+  const loaded = new Map<K, Promise<V>>();
+  return (key) => {
+    let entry = loaded.get(key);
+    if (!entry) loaded.set(key, (entry = make(key)));
+    return entry;
+  };
 }
 
 /** The grammar, loaded once per process. */
-export function loadGrammar(grammar: Grammar): Promise<LoadedGrammar> {
-  let entry = loaded.get(grammar);
-  if (!entry) {
-    entry = load(grammar);
-    loaded.set(grammar, entry);
-  }
-  return entry;
+export const loadGrammar = once(async (grammar: Grammar): Promise<LoadedGrammar> => {
+  const { parser, query } = await open(grammar);
+  return { parser, tags: query(tagsSource(grammar)), imports: query(IMPORTS[grammar]) };
+});
+
+/** A grammar of a language without imports: a parser, and for Bash the query its functions are read with. */
+export interface LoadedEntityGrammar {
+  parser: Parser;
+  tags?: Query;
 }
+
+/** The entity grammar, loaded once per process. */
+export const loadEntityGrammar = once(async (grammar: EntityGrammar): Promise<LoadedEntityGrammar> => {
+  const { parser, query } = await open(grammar);
+  return grammar === 'bash' ? { parser, tags: query(BASH_TAGS) } : { parser };
+});

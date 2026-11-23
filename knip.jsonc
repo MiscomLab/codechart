@@ -11,8 +11,17 @@
     },
     "packages/core": {
       "project": "src/**/*.ts",
-      // resolved by path in grammar-assets.ts: the build copies their .wasm and tags.scm files
-      "ignoreDependencies": ["tree-sitter-javascript", "tree-sitter-python", "tree-sitter-typescript"]
+      // resolved by path in grammar-assets.ts: the build copies their .wasm (and tags.scm) files
+      "ignoreDependencies": [
+        "tree-sitter-javascript",
+        "tree-sitter-python",
+        "tree-sitter-typescript",
+        "tree-sitter-html",
+        "tree-sitter-css",
+        "tree-sitter-bash",
+        "tree-sitter-json",
+        "@tree-sitter-grammars/tree-sitter-yaml"
+      ]
     }
   },
   // demo scripts run from a temp dir where playwright is installed on the fly (scripts/demo/*.sh)

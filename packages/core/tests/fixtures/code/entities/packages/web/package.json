@@ -1,0 +1,6 @@
+{
+  "name": "web",
+  "scripts": {
+    "gen": "tsx src/gen.ts"
+  }
+}
