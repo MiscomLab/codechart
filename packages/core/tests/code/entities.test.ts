@@ -236,6 +236,26 @@ describe('entities and references on broken text (Live map #11)', () => {
     ]);
   });
 
+  it('keeps a hidden reference written with escapes, by its spelling in the source', async () => {
+    const css = '@import "a\\.css";\n';
+    const goodCss = await parse('web/s.css', css);
+    expect(goodCss.refs.map((r) => [r.spec, r.written])).toEqual([['a.css', 'a\\.css']]);
+    const brokenCss = await parse('web/s.css', css.replace('";', '" {{;'), goodCss);
+    expect(brokenCss.parseErrors.length).toBeGreaterThan(0);
+    expect(brokenCss.refs.map((r) => r.spec)).toEqual(['a.css']);
+
+    const html = '<script src="a&amp;b.js"></script>\n';
+    const goodHtml = await parse('web/p.html', html);
+    expect(goodHtml.refs.map((r) => [r.spec, r.written])).toEqual([['a&b.js', 'a&amp;b.js']]);
+    const brokenHtml = await parse('web/p.html', html.replace('<script src', '<script <<src'), goodHtml);
+    expect(brokenHtml.parseErrors.length).toBeGreaterThan(0);
+    expect(brokenHtml.refs.map((r) => r.spec)).toEqual(['a&b.js']);
+  });
+
+  it('records no separate spelling when the spec is written as is', async () => {
+    expect((await parse('web/style.css')).refs.every((r) => r.written === undefined)).toBe(true);
+  });
+
   it('drops a reference that was deleted, not hidden', async () => {
     const good = await parse('web/style.css');
     const broken = await parse('web/style.css', fixture('web/style.css').replace('@import "base.css";\n', '').replace(':root {', ':root {{'), good);

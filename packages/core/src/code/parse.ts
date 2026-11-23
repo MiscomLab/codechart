@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { extractCalls } from './calls.js';
 import { extractEntities } from './entities/index.js';
+import { Lines } from './entities/text.js';
 import { loadEntityGrammar, loadGrammar } from './grammars.js';
 import { entityGrammarOf, grammarOf, langOf, type EntityGrammar } from './languages.js';
 import { extractImports, type ExportName, type ImportSpec, type ModuleExports } from './imports.js';
@@ -126,7 +127,7 @@ function keepLastGoodRefs(refs: readonly CodeRef[], errors: readonly CodeRange[]
       present.set(key(r), left - 1);
       return false;
     }
-    return errors.some((e) => lineOverlap(e, r.range)) && text.includes(r.spec);
+    return errors.some((e) => lineOverlap(e, r.range)) && text.includes(r.written ?? r.spec);
   });
   return [...refs, ...kept.map(unlinkedRef)];
 }
@@ -135,6 +136,15 @@ function unlinkedRef(ref: CodeRef): CodeRef {
   const copy: CodeRef = { ...ref, status: 'unknown' };
   delete copy.resolved;
   return copy;
+}
+
+/** Records each reference's spelling in the source where it differs from the spec, so a hidden one is found again. */
+function withWritten(refs: readonly CodeRef[], text: string): CodeRef[] {
+  const lines = new Lines(text);
+  return refs.map((ref) => {
+    const written = text.slice(lines.index(ref.range.start), lines.index(ref.range.end));
+    return written && written !== ref.spec ? { ...ref, written } : ref;
+  });
 }
 
 /** A file in a language without imports: its entities, references and (Bash) functions. */
@@ -157,7 +167,7 @@ async function parseEntities(file: FileInfo, grammar: EntityGrammar, text: strin
       exports: { names: [], complete: false },
       calls: [],
       entities: entities.items,
-      refs: keepLastGoodRefs(extracted.refs, errors, previous, text),
+      refs: keepLastGoodRefs(withWritten(extracted.refs, text), errors, previous, text),
     };
   } finally {
     tree.delete();

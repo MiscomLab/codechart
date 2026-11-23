@@ -109,8 +109,10 @@ export const codeRefSchema = z.object({
   file: z.string().min(1),
   /** The id of the entity or symbol the reference sits in, if any. */
   from: z.string().min(1).optional(),
-  /** As written, unquoted and unescaped. */
+  /** The value the program reads: unquoted and unescaped. */
   spec: z.string().min(1),
+  /** The source text at `range`, when it differs from `spec` (escapes, entities, quotes). */
+  written: z.string().min(1).optional(),
   kind: z.enum(REF_KINDS),
   /**
    * The repo path the spec names, when the folder it is relative to is fixed (the page, the package, the step's working

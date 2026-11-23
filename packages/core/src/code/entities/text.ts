@@ -52,6 +52,11 @@ export class Lines {
     return { line: lo + 1, column: index - this.starts[lo]! };
   }
 
+  /** The source index of a point. */
+  index(point: CodeRange['start']): number {
+    return this.starts[point.line - 1]! + point.column;
+  }
+
   range(start: number, end: number): CodeRange {
     return { start: this.point(start), end: this.point(end) };
   }
