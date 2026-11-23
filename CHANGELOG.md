@@ -9,6 +9,11 @@ What's new in each codechart release. Update with `codechart update`; the [relea
 - `@codechart/core` 0.5.0 reads Python too: symbols, imports resolved following CPython's path finder over the project's source roots (relative imports, packages, `src/` layout, namespace packages; stdlib and packages found nowhere in the repo are external; in a file that edits `sys.path`, absolute imports of non-stdlib modules are unknown), and calls resolved only through the one binding Python uses at the call site. The CLI doesn't use it yet. `Import` gains optional `packageFolder` and `anchored`, `CallRef` gains optional `receiverPath`, and `ParsedFile` gains optional `bindings` and `sysPathEdited` (Python files only).
 - `@codechart/core` 0.4.0 records calls (resolved only through a resolved import or a same-file definition, otherwise name-only) and keeps the code layer current one file at a time, with imports surviving syntax errors. The CLI doesn't use it yet. `ParsedFile` has a new required `calls` field, and `linkImports` resolves imports only: use `linkCode` for imports and calls.
 
+### Fixed
+
+- A map arrow's check no longer counts a comment as a mention of the other box: a file name or label that appears only in a comment (or a Python docstring) now gets the "no mention" warning, in the languages codechart knows; other files are read as before. Field checks are unchanged. ([#95](https://github.com/MiscomLab/codechart/issues/95))
+- An arrow from a Helm template to a `.tpl` file passes when the template calls one of its named templates with `include "name"` or `template "name"`, as `_helpers.tpl` is normally used. ([#95](https://github.com/MiscomLab/codechart/issues/95))
+
 ## 1.0.2 (2026-11-20)
 
 ### New

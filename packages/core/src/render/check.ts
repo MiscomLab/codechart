@@ -6,6 +6,8 @@ import { findMatch, type FlowSnippets, type Snippet } from './flow/anchors.js';
 import { blockOf, type Block } from './block.js';
 import { plainLabel, stepLabel } from '../labels.js';
 import { arrowNames, loose, mentionsPath } from './check-mentions.js';
+import { withoutComments } from './comments.js';
+import { includesTemplateOf } from './helm.js';
 import { explains } from './omitted.js';
 import type { ChangeStatus, FileChange } from '../rules/git-files.js';
 import type { CheckSummary, Mismatch } from '../check-types.js';
@@ -164,7 +166,20 @@ function fieldWarnings(c: AnchorCtx, spec: Spec): Mismatch[] {
   return warnings;
 }
 
-/** A summary's arrows whose starting file doesn't mention the ending box's file or name. */
+/** The file's text with comments blanked; undefined when it can't be read. */
+function codeText(c: AnchorCtx, path: string): string | undefined {
+  const loaded = load(c, path);
+  return loaded.lines !== null && Array.isArray(loaded.lines) ? withoutComments(loaded.path, loaded.lines.join('\n')) : undefined;
+}
+
+/** Whether `code` calls a named template defined in the Helm `.tpl` file at `path`. */
+function includesHelper(c: AnchorCtx, code: string, path: string): boolean {
+  if (!path.toLowerCase().endsWith('.tpl')) return false;
+  const target = codeText(c, path);
+  return target !== undefined && includesTemplateOf(code, target);
+}
+
+/** A summary's arrows whose starting file's code (not its comments) doesn't mention the ending box's file or name. */
 function arrowWarnings(c: AnchorCtx, spec: Spec): Mismatch[] {
   const byId = new Map(spec.nodes.map((n) => [n.id, n]));
   const warnings: Mismatch[] = [];
@@ -172,10 +187,11 @@ function arrowWarnings(c: AnchorCtx, spec: Spec): Mismatch[] {
     const from = byId.get(edge.from);
     const to = byId.get(edge.to);
     if (from?.path === undefined || to?.path === undefined) continue;
-    const text = looseText(c, from.path);
-    if (text === undefined) continue;
+    const code = codeText(c, from.path);
+    if (code === undefined) continue;
+    const text = loose(code);
     const names = arrowNames(from, to);
-    if (!names.length || names.some((n) => text.includes(loose(n)))) continue;
+    if (!names.length || names.some((n) => text.includes(loose(n))) || includesHelper(c, code, to.path)) continue;
     const list = names.join(' or ');
     warnings.push({
       id: `edge-${i}`,

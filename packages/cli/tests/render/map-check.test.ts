@@ -226,6 +226,12 @@ describe('checkMapNodes: field warnings', () => {
     writeFileSync(join(repo, 'src/huge.ts'), 'x'.repeat(5 * 1024 * 1024 + 1));
     expect(checkMapNodes(map('summary', { ...node, path: 'src/huge.ts' }), repo).warnings).toBeUndefined();
   });
+
+  it('still counts a field named in a comment (only arrows skip comments)', () => {
+    writeFileSync(join(repo, 'src/fields.ts'), '// discount_code\nexport const x = 1;\n');
+    const s = map('summary', { status: 'changed', path: 'src/fields.ts', fields: [{ name: 'discount_code' }], fieldsComplete: false });
+    expect(checkMapNodes(s, repo).warnings).toBeUndefined();
+  });
 });
 
 describe('checkMapNodes: arrow warnings', () => {
@@ -302,6 +308,127 @@ describe('checkMapNodes: arrow mentions', () => {
 
   it('ignores a label shorter than 3 characters', () => {
     expect(warns({ 'src/a.ts': 'const valid = identity(1);\n' }, { path: 'src/a.ts' }, { label: 'id', path: 'src/schema.ts' })).toEqual(['no mention of schema']);
+  });
+
+  it('two boxes in one file: the file or folder name in code proves nothing either', () => {
+    const index = { 'src/billing/index.ts': 'export const billing = 1;\nexport class Charge {}\n' };
+    expect(warns(index, { label: 'Charge', path: 'src/billing/index.ts' }, { label: 'Refund', path: 'src/billing/index.ts' })).toEqual(['no mention of Refund']);
+    const models = { 'src/models.ts': 'export class Customer {}\nconst models = [];\n' };
+    expect(warns(models, { label: 'Customer', path: 'src/models.ts' }, { label: 'Invoice', path: 'src/models.ts' })).toEqual(['no mention of Invoice']);
+    expect(warns(models, { label: 'Customer', path: 'src/models.ts' }, { label: 'Invoice', path: './src/models.ts' })).toEqual(['no mention of Invoice']);
+  });
+});
+
+describe('checkMapNodes: a mention in a comment proves nothing', () => {
+  const warns = (path: string, text: string, to: Partial<SpecNode>, from: Partial<SpecNode> = { path }) => {
+    mkdirSync(join(repo, path, '..'), { recursive: true });
+    writeFileSync(join(repo, path), text);
+    const s = map('summary', { ...from, status: 'context' }, { ...to, status: 'context' });
+    s.edges = [{ from: 'n0', to: 'n1', kind: 'reads' }];
+    return (checkMapNodes(s, repo).warnings ?? []).map((w) => w.short);
+  };
+  const order = { label: 'Order', path: 'src/order.ts' };
+  const mailer = { label: 'mailer', path: 'lib/mailer.py' };
+  const findOrder = { label: 'store.FindOrder', path: 'store/postgres.go' };
+  const orders = { label: 'orders', path: 'db/orders.sql' };
+  const vpc = { label: 'module.vpc', path: 'infra/main.tf' };
+  const deployment = { label: 'Deployment api', path: 'k8s/deployment.yaml' };
+
+  it.each([
+    ['TS //', 'src/pay.ts', '// uses order\nexport const pay = 1;\n', order, ['no mention of order']],
+    ['TS /* */', 'src/pay.ts', '/* uses order */\nexport const pay = 1;\n', order, ['no mention of order']],
+    ['TS code', 'src/pay.ts', "import { Order } from './order';\n", order, []],
+    ['Python #', 'api/pay.py', '# uses mailer\ndef pay(): pass\n', mailer, ['no mention of mailer']],
+    ['Python docstring', 'api/pay.py', '"""Sends via mailer."""\ndef pay(): pass\n', mailer, ['no mention of mailer']],
+    ['Python code', 'api/pay.py', 'from lib import mailer\n', mailer, []],
+    ['Go //', 'handlers/orders.go', '// store.FindOrder\npackage handlers\n', findOrder, ['no mention of postgres or store.FindOrder']],
+    ['Go code', 'handlers/orders.go', 'o, err := store.FindOrder(id)\n', findOrder, []],
+    ['SQL --', 'db/view.sql', '-- reads orders\nSELECT 1;\n', orders, ['no mention of orders']],
+    ['SQL code', 'db/view.sql', 'SELECT * FROM orders;\n', orders, []],
+    ['Terraform #', 'infra/alb.tf', '# module.vpc\nresource "x" "y" {}\n', vpc, ['no mention of main or module.vpc']],
+    ['Terraform code', 'infra/alb.tf', 'subnets = module.vpc.public_subnets\n', vpc, []],
+    ['YAML #', 'k8s/service.yaml', '# deployment api\nselector: {}\n', deployment, ['no mention of deployment or Deployment api or api']],
+    ['YAML code', 'k8s/service.yaml', 'selector:\n  app: api\n', deployment, []],
+    ['an unknown extension, as before', 'docs/notes.txt', '# see order\n', order, []],
+  ])('%s', (_, path, text, to, expected) => {
+    expect(warns(path, text, to)).toEqual(expected);
+  });
+
+  it('reads the file a ./ path names', () => {
+    expect(warns('src/pay.ts', '// order\n', order, { path: './src/pay.ts' })).toEqual(['no mention of order']);
+  });
+});
+
+describe('checkMapNodes: Helm named templates', () => {
+  const HELPERS = '{{- define "mychart.backendEnv" -}}\n- name: A\n{{- end -}}\n';
+  const helm = (src: string, helpers: string | null = HELPERS, srcPath = 'templates/backend.yaml', toPath = 'templates/_helpers.tpl') => {
+    mkdirSync(join(repo, 'templates'), { recursive: true });
+    writeFileSync(join(repo, srcPath), src);
+    if (helpers !== null) writeFileSync(join(repo, toPath), helpers);
+    const s = map('summary', { label: 'Deployment backend', path: srcPath, status: 'context' }, { label: toPath.slice(toPath.lastIndexOf('/') + 1), path: toPath, status: 'context' });
+    s.edges = [{ from: 'n0', to: 'n1', kind: 'imports' }];
+    return (checkMapNodes(s, repo).warnings ?? []).map((w) => w.short);
+  };
+  const NO_MENTION = ['no mention of _helpers or _helpers.tpl'];
+
+  it.each([
+    ['the issue: include piped to nindent', 'env:\n  {{- include "mychart.backendEnv" . | nindent 12 }}\n'],
+    ['template', '{{ template "mychart.backendEnv" . }}\n'],
+    ['include inside parentheses', 'x: {{ toYaml (include "mychart.backendEnv" .) }}\n'],
+    ['include in an assignment', '{{- $v := include "mychart.backendEnv" . }}\n'],
+    ['no spaces inside the braces', '{{include "mychart.backendEnv" .}}\n'],
+    ['a tab and two spaces', '{{- include \t "mychart.backendEnv" . -}}\n'],
+    ['a raw-string name', '{{ include `mychart.backendEnv` . }}\n'],
+    ['a mention in a comment next to a real include', '{{/* see templates/_helpers.tpl */}}\n{{ include "mychart.backendEnv" . }}\n'],
+  ])('passes: %s', (_, src) => {
+    expect(helm(src)).toEqual([]);
+  });
+
+  it('passes for the second of two defines, written without trim markers', () => {
+    expect(helm('{{ include "mychart.b" . }}\n', '{{ define "mychart.a" }}a{{ end }}\n{{define "mychart.b"}}b{{end}}\n')).toEqual([]);
+  });
+
+  it('passes from a source with an unknown extension (NOTES.txt)', () => {
+    expect(helm('{{ include "mychart.backendEnv" . }}\n', HELPERS, 'templates/NOTES.txt')).toEqual([]);
+  });
+
+  it.each([
+    ['a name the target does not define', '{{ include "mychart.other" . }}\n'],
+    ['a longer name', '{{ include "mychart.backendEnvExtra" . }}\n'],
+    ['a name in another case', '{{ include "mychart.backendenv" . }}\n'],
+    ['any character in place of the dot', '{{ include "mychartXbackendEnv" . }}\n'],
+    ['include outside an action', 'note: include "mychart.backendEnv"\n'],
+    ['include in a # comment', '# {{ include "mychart.backendEnv" . }}\nkind: Job\n'],
+    ['include in a template comment', '{{/* include "mychart.backendEnv" */}}\nkind: Job\n'],
+    ['a name built at run time', '{{ include (printf "%s.backendEnv" .Chart.Name) . }}\n'],
+    ['a field named include', '{{ .Values.include "mychart.backendEnv" }}\n'],
+    ['a function ending in include', '{{ myinclude "mychart.backendEnv" . }}\n'],
+    ['a method named template', '{{ $x.template "mychart.backendEnv" }}\n'],
+    ['the file named only in a template comment', '{{/* uses templates/_helpers.tpl */}}\nkind: Job\n'],
+    ['the file named only in a multi-line template comment', '{{- /*\nSee templates/_helpers.tpl\n*/ -}}\nkind: Job\n'],
+    ['the file named only in a # comment', '# see templates/_helpers.tpl\nkind: Job\n'],
+  ])('warns: %s', (_, src) => {
+    expect(helm(src, HELPERS, 'templates/jobs.yaml')).toEqual(NO_MENTION);
+  });
+
+  it('warns when the define is only in a comment of the target', () => {
+    expect(helm('{{ include "mychart.backendEnv" . }}\n', '# {{- define "mychart.backendEnv" -}}\n')).toEqual(NO_MENTION);
+  });
+
+  it('passes for a template a block defines', () => {
+    expect(helm('{{ include "mychart.backendEnv" . }}\n', '{{- block "mychart.backendEnv" . -}}x{{- end -}}\n')).toEqual([]);
+  });
+
+  it('a define that is not the action keyword defines nothing', () => {
+    expect(helm('{{ include "mychart.backendEnv" . }}\n', '{{ toYaml .Values.define "mychart.backendEnv" }}\n')).toEqual(NO_MENTION);
+  });
+
+  it('reads defines only from a .tpl target', () => {
+    expect(helm('{{ include "mychart.backendEnv" . }}\n', HELPERS, 'templates/backend.yaml', 'templates/_helpers.yaml')).toEqual(['no mention of _helpers or _helpers.yaml']);
+  });
+
+  it('a missing .tpl target falls back to the name check', () => {
+    expect(helm('{{ include "mychart.backendEnv" . }}\n', null)).toEqual(NO_MENTION);
   });
 });
 
