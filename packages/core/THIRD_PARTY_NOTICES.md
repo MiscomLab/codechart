@@ -1,6 +1,6 @@
 # Third-party notices
 
-`dist/grammars/` holds files copied from these tree-sitter grammars: the compiled `.wasm` parsers and, for JavaScript, TypeScript and Python, the `queries/tags.scm` definition queries. `@derekstride/tree-sitter-sql` ships no `.wasm`: `scripts/build-sql-grammar.sh` in the repository compiles it from the published package.
+`dist/grammars/` holds files copied from these tree-sitter grammars: the compiled `.wasm` parsers and, for JavaScript, TypeScript and Python, the `queries/tags.scm` definition queries. `@derekstride/tree-sitter-sql` and `tree-sitter-prisma` ship no `.wasm`: `scripts/build-sql-grammar.sh` and `scripts/build-prisma-grammar.sh` in the repository compile them from the published packages.
 
 ## tree-sitter-javascript 0.25.0
 
@@ -260,4 +260,30 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+## tree-sitter-prisma 1.6.0
+
+- Source: <https://github.com/victorhqc/tree-sitter-prisma>
+- License: MIT
+
+```text
+The MIT License (MIT)
+
+Copyright © 2022 Victor Quiroz
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+associated documentation files (the “Software”), to deal in the Software without restriction,
+including without limitation the rights to use, copy, modify, merge, publish, distribute,
+sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial
+portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES
+OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```

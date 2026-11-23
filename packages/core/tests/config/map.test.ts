@@ -80,6 +80,11 @@ describe('map.rules', () => {
     expect(errorsOf(rule({ pattern: '(x) @entity', lang: 'cobol', kind: 'table' })).join('\n')).toMatch(/^map\.rules\[0\]\.lang: /m);
   });
 
+  it('a pattern may read Prisma', () => {
+    const map = rule({ pattern: '(model_declaration (identifier) @name) @entity', lang: 'prisma', kind: 'model' });
+    expect(parseMap(map)).toEqual({ ok: true, config: { map } });
+  });
+
   it('paths use the same glob checks as the other globs', () => {
     expect(errorsOf(rule({ paths: ['src/{a,b}/**'], kind: 'table' })).join('\n')).toMatch(/^map\.rules\[0\]\.paths\[0\]: braces and extglobs/m);
     expect(errorsOf(rule({ paths: [], kind: 'table' })).join('\n')).toMatch(/^map\.rules\[0\]\.paths: /m);

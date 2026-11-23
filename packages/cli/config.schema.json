@@ -249,7 +249,8 @@
                           "sql",
                           "bash",
                           "yaml",
-                          "json"
+                          "json",
+                          "prisma"
                         ]
                       },
                       "kind": {

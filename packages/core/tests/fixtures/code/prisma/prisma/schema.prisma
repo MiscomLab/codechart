@@ -1,0 +1,58 @@
+// A blog's schema, in one file.
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["views"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://localhost:5432/blog"
+}
+
+/// A person who writes posts.
+model User {
+  id      Int      @id @default(autoincrement())
+  email   String   @unique
+  role    Role     @default(READER)
+  posts   Post[]
+  profile Profile?
+  // model Ghost { id Int @id }
+}
+
+model Profile {
+  id     Int    @id @default(autoincrement())
+  bio    String @default("model Fake { id Int }")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId Int    @unique
+}
+
+model Post {
+  id         Int        @id @default(autoincrement())
+  title      String
+  author     User       @relation(fields: [authorId], references: [id])
+  authorId   Int
+  categories Category[]
+  shape      Unsupported("circle")?
+
+  @@index([authorId])
+  @@map("posts")
+}
+
+model Category {
+  id       Int        @id @default(autoincrement())
+  name     String
+  posts    Post[]
+  parent   Category?  @relation("Tree", fields: [parentId], references: [id])
+  parentId Int?
+  children Category[] @relation("Tree")
+}
+
+enum Role {
+  READER
+  WRITER @map("writer")
+}
+
+view PostCount {
+  authorId Int @unique
+  total    Int
+}

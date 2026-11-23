@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const LANGS = ['typescript', 'javascript', 'python', 'html', 'css', 'sql', 'bash', 'yaml', 'json'] as const;
+export const LANGS = ['typescript', 'javascript', 'python', 'html', 'css', 'sql', 'bash', 'yaml', 'json', 'prisma'] as const;
 export type Lang = (typeof LANGS)[number];
 
 /** `line` is 1-based, as editors and the match check count; `column` is tree-sitter's, 0-based. */
@@ -85,8 +85,11 @@ export type CallRef = z.infer<typeof callRefSchema>;
 /** Node identity (Live map #9): file + symbol path + kind, so line moves keep the node. */
 export const symbolId = (file: string, path: readonly string[], kind: SymbolKind): string => `${file}::${path.join('.')}::${kind}`;
 
-/** What files without imports define (Code model #3): SQL tables, workflow jobs and steps, compose services, npm scripts. */
-export const ENTITY_KINDS = ['table', 'job', 'step', 'service', 'script'] as const;
+/**
+ * What files without imports define (Code model #3): SQL tables, workflow jobs and steps, compose services, npm scripts,
+ * and Prisma models, enums, views and composite types (`type`).
+ */
+export const ENTITY_KINDS = ['table', 'job', 'step', 'service', 'script', 'model', 'enum', 'view', 'type'] as const;
 export type EntityKind = (typeof ENTITY_KINDS)[number];
 
 /**
@@ -101,9 +104,9 @@ export const entityId = (file: string, path: readonly string[], kind: EntityKind
 
 /**
  * `run`: a file a workflow step or npm script runs; `source`: a file a shell script sources; `script` and `link`: an
- * HTML `<script src>` and `<link href>`; `import`: a CSS `@import`.
+ * HTML `<script src>` and `<link href>`; `import`: a CSS `@import`; `relation`: a Prisma model field typed with a model.
  */
-export const REF_KINDS = ['run', 'source', 'script', 'link', 'import'] as const;
+export const REF_KINDS = ['run', 'source', 'script', 'link', 'import', 'relation'] as const;
 
 export const codeRefSchema = z.object({
   file: z.string().min(1),
@@ -114,6 +117,11 @@ export const codeRefSchema = z.object({
   /** The source text at `range`, when it differs from `spec` (escapes, entities, quotes). */
   written: z.string().min(1).optional(),
   kind: z.enum(REF_KINDS),
+  /**
+   * A `relation`'s model: its entity id when the same file declares that model. A type another file declares (a
+   * multi-file schema) has no `to` and stays `unknown`; it may name an enum or composite type there.
+   */
+  to: z.string().min(1).optional(),
   /**
    * The repo path the spec names, when the folder it is relative to is fixed (the page, the package, the step's working
    * directory, the script's own folder) and the path stays in the repo; absent otherwise, and the reference stays unknown.

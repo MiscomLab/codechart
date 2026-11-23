@@ -68,7 +68,7 @@ map:
 **`rules`** run top-down and the first matching rule wins. They run before the app's built-in rules, so yours take precedence. A rule matches with:
 
 - `paths`: globs, with the same rules as the top-level `paths`;
-- `pattern`: a [tree-sitter query](https://tree-sitter.github.io/tree-sitter/using-parsers/queries/) of up to 2000 characters, with `lang` naming its grammar (`typescript`, `javascript`, `python`, `html`, `css`, `sql`, `bash`, `yaml` or `json`). It must capture the node the rule applies to as `@entity`. The app checks the rest of the query when it runs it;
+- `pattern`: a [tree-sitter query](https://tree-sitter.github.io/tree-sitter/using-parsers/queries/) of up to 2000 characters, with `lang` naming its grammar (`typescript`, `javascript`, `python`, `html`, `css`, `sql`, `bash`, `yaml`, `json` or `prisma`). It must capture the node the rule applies to as `@entity`. The app checks the rest of the query when it runs it;
 - or both: the pattern, only in files the globs match.
 
 It then does exactly one thing:

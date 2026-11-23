@@ -36,6 +36,7 @@ const WASM: Record<Grammar | EntityGrammar, GrammarAsset> = {
   bash: 'tree-sitter-bash.wasm',
   yaml: 'tree-sitter-yaml.wasm',
   json: 'tree-sitter-json.wasm',
+  prisma: 'tree-sitter-prisma.wasm',
 };
 
 /** The imports query each grammar reads imports with. */

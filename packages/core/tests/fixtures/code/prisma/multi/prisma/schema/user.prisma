@@ -1,0 +1,10 @@
+model User {
+  id     Int     @id @default(autoincrement())
+  orders Order[]
+  status Status
+}
+
+enum Status {
+  ACTIVE
+  BANNED
+}
