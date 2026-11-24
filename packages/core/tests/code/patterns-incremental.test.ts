@@ -342,6 +342,16 @@ describe('parseCode with a last good parse', () => {
     ]);
   });
 
+  it('an unchanged match the error touches stays where it is, ahead of nearer-looking copies', async () => {
+    const good = await parseCode('a.js', "app.get('/users', h);\na;\nb;\nc;\nx = [app.get('/users', h)];\n", undefined, { patterns: calls });
+    // The first call moved below three lines; the second keeps its place, and its missing ] touches it.
+    const broken = await parseCode('a.js', "a;\nb;\nc;\napp.get('/users', h);\nx = [app.get('/users', h);\n", good, { patterns: calls });
+    expect(broken?.matches?.map((m) => [m.range.start.line, m.range.start.column, m.kept ?? false])).toEqual([
+      [4, 0, false],
+      [5, 5, false],
+    ]);
+  });
+
   it('in a language without imports too: a table hidden by an error is kept, one clear of it is read', async () => {
     const tables = await compilePatterns([{ id: 'table', grammar: 'sql', pattern: '(create_table (object_reference name: (identifier) @name)) @entity' }]);
     try {

@@ -71,7 +71,8 @@ function byKey<T extends PatternMatch>(matches: readonly T[]): Map<string, T[]> 
 
 /**
  * Pairs identical current and last good matches: first those still at the same place, then the rest in source order,
- * each current match with the nearest last good one (an edit above moves them alike). Linear in both counts.
+ * each current match with the nearest last good one by line (an edit above moves them alike; on a tie, the earlier one).
+ * Linear in both counts.
  */
 function pair(found: readonly Found[], old: readonly PatternMatch[]): { paired: Found[]; unpaired: Found[]; left: PatternMatch[] } {
   const free = new Map<string, number>();
