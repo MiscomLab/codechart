@@ -10,8 +10,8 @@ import { compilePatterns, type PatternSet } from '../../src/code/patterns.js';
  * Live map #11 for pattern matches, checked as a whole against a brute-force oracle written from the spec, not from
  * the implementation. The spec, per group of identical matches (same set, pattern and hash) in a file with a syntax
  * error, old = the last good parse's matches, current = this parse's:
- *   - pair current with old one to one: as many pairs as possible, then the least total line distance, then the
- *     least total column distance (ties: either);
+ *   - pair current with old one to one: as many pairs as possible, then the least total distance between starts, a
+ *     start read as one number in which a line outweighs any column (ties: either);
  *   - a paired current match is shown at its current place, not kept;
  *   - an unpaired current match is shown only when no error touches it (nothing new from broken text);
  *   - an unpaired old match is kept at its old place, marked kept; a paired old match is never shown.
@@ -82,19 +82,20 @@ function raw(text: string): { seen: Seen[]; broken: boolean } {
 }
 
 type Shown = [line: number, col: number, kept: boolean];
+/** A start as one number: a line outweighs any column (columns stay below 2^21 in a file of at most 1 MB). */
+const place = (s: { line: number; col: number }) => s.line * 2 ** 21 + s.col;
 const canonical = (shown: Shown[]) => JSON.stringify([...shown].sort((a, b) => a[0] - b[0] || a[1] - b[1] || Number(a[2]) - Number(b[2])));
 
 /** Every output a best pairing of one group gives, by trying every one-to-one pairing. */
 function bestOutputs(current: Seen[], old: Seen[]): Set<string> {
-  let best: [number, number, number] | undefined;
+  let best: [number, number] | undefined;
   let outputs = new Set<string>();
   const pairing: (number | undefined)[] = [];
   const used = new Set<number>();
   const visit = (i: number) => {
     if (i === current.length) {
       let pairs = 0;
-      let lines = 0;
-      let cols = 0;
+      let total = 0;
       const shown: Shown[] = [];
       current.forEach((c, k) => {
         const o = pairing[k];
@@ -103,15 +104,14 @@ function bestOutputs(current: Seen[], old: Seen[]): Set<string> {
           return;
         }
         pairs++;
-        lines += Math.abs(c.line - old[o]!.line);
-        cols += Math.abs(c.col - old[o]!.col);
+        total += Math.abs(place(c) - place(old[o]!));
         shown.push([c.line, c.col, false]);
       });
       old.forEach((o, k) => {
         if (!used.has(k)) shown.push([o.line, o.col, true]);
       });
-      const score: [number, number, number] = [-pairs, lines, cols];
-      const cmp = best ? score[0] - best[0] || score[1] - best[1] || score[2] - best[2] : -1;
+      const score: [number, number] = [-pairs, total];
+      const cmp = best ? score[0] - best[0] || score[1] - best[1] : -1;
       if (cmp < 0) {
         best = score;
         outputs = new Set([canonical(shown)]);
@@ -133,7 +133,8 @@ function bestOutputs(current: Seen[], old: Seen[]): Set<string> {
   return outputs;
 }
 
-const CALLS = ["app.get('/a', h);", "app.get('/a', h);", "app.get('/b', h);", 'x;', ''];
+// Identical calls alone, two on one line, and indented, so groups differ in columns as well as lines.
+const CALLS = ["app.get('/a', h);", "app.get('/a', h);", "app.get('/a', h); app.get('/a', h);", "    app.get('/a', h);", "app.get('/b', h);", 'x;', ''];
 const line = fc.constantFrom(...CALLS);
 const edit = fc.oneof(
   fc.record({ op: fc.constant('insert' as const), at: fc.nat(), text: line }),
@@ -159,7 +160,7 @@ function apply(lines: string[], edits: { op: string; at: number; text?: string; 
 
 function breakText(lines: string[], b: { kind: string; at?: number }): string[] {
   const out = [...lines];
-  const calls = out.flatMap((l, i) => (l.startsWith('app.') ? [i] : []));
+  const calls = out.flatMap((l, i) => (l.includes('app.') ? [i] : []));
   if (b.kind === 'stray') out.splice(b.at! % (out.length + 1), 0, 'foo(;');
   // A call left open: its text changes, so it is a match the error touches with new content.
   if (b.kind === 'open-call' && calls.length) out[calls[b.at! % calls.length]!] = out[calls[b.at! % calls.length]!]!.replace(');', ';');

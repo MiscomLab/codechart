@@ -270,7 +270,7 @@ describe('parseCode with a last good parse', () => {
     }
   }, 60_000);
 
-  it('the same when all of them move down a line, so every one goes through the pairing by distance', async () => {
+  it('the same when all of them move down a line: they pair by place, the one left over by distance', async () => {
     const names = await compilePatterns([{ id: 'name', grammar: 'javascript', pattern: '(identifier) @entity' }], { id: 'names' });
     try {
       const n = 80_000;
@@ -290,6 +290,38 @@ describe('parseCode with a last good parse', () => {
       names.delete();
     }
   }, 60_000);
+
+  it('none left at its place and twice as many before: the pairing by distance stays bounded (gate #101)', async () => {
+    const names = await compilePatterns([{ id: 'name', grammar: 'javascript', pattern: '(identifier) @entity' }], { id: 'names' });
+    try {
+      const n = 40_000;
+      const good = await parseCode('a.js', 'x;\n'.repeat(n), undefined, { patterns: names });
+      let started = performance.now();
+      await parseCode('a.js', ' x;\n'.repeat(n / 2), good, { patterns: names });
+      const clean = performance.now() - started;
+      started = performance.now();
+      const broken = await parseCode('a.js', `${' x;\n'.repeat(n / 2)}(`, good, { patterns: names });
+      const elapsed = performance.now() - started;
+      expect(broken?.parseErrors).not.toEqual([]);
+      const xs = broken!.matches!.filter((m) => m.hash === createHash('sha256').update('x').digest('hex'));
+      // Every current match pairs with one last good match; the other half is kept.
+      expect(xs.filter((m) => !m.kept)).toHaveLength(n / 2);
+      expect(xs.filter((m) => m.kept)).toHaveLength(n / 2);
+      expect(elapsed).toBeLessThan(4 * clean + 1000);
+    } finally {
+      names.delete();
+    }
+  }, 120_000);
+
+  it('identical matches on one line pair by the least distance, columns included (gate #101)', async () => {
+    const good = await parseCode('a.js', "y;\n                  app.get('/a', h);\napp.get('/a', h); app.get('/a', h);\n", undefined, { patterns: calls });
+    const broken = await parseCode('a.js', "app.get('/a', h); app.get('/a', h);\ny;\nz;\nfoo(;\n", good, { patterns: calls });
+    expect(broken?.matches?.map((m) => [m.range.start.line, m.range.start.column, m.kept ?? false])).toEqual([
+      [1, 0, false],
+      [1, 18, false],
+      [3, 18, true],
+    ]);
+  });
 
   it('a list of last good symbols carries no matches; one clear of the error still counts', async () => {
     // The open call is a match the error touches: new from broken text, so dropped.

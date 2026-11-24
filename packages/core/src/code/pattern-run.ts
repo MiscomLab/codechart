@@ -69,44 +69,45 @@ function byKey<T extends PatternMatch>(matches: readonly T[]): Map<string, T[]> 
   return groups;
 }
 
-/** How far apart two matches start: lines first, then columns. */
-type Distance = [lines: number, columns: number];
-const distance = (a: PatternMatch, b: PatternMatch): Distance => [
-  Math.abs(a.range.start.line - b.range.start.line),
-  Math.abs(a.range.start.column - b.range.start.column),
-];
-const plus = (a: Distance, b: Distance): Distance => [a[0] + b[0], a[1] + b[1]];
-const less = (a: Distance, b: Distance): boolean => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
+/**
+ * A match's start as one number in which a line outweighs any column (a column stays below 2^21 in a file of at most
+ * 1 MB). Distance on it is a distance on a line, where a best pairing never crosses.
+ */
+const place = (m: PatternMatch): number => m.range.start.line * 2 ** 21 + m.range.start.column;
+const distance = (a: PatternMatch, b: PatternMatch): number => Math.abs(place(a) - place(b));
+
+/** Beyond this many steps, `align` pairs nearest first instead (best effort): a few thousand identical matches. */
+const ALIGN_WORK = 1_000_000;
 
 /**
  * Pairs the shorter list with an in-order subsequence of the longer one, every entry of the shorter paired, with the
- * least total distance (lines, then columns; on a tie, the earlier entries of the longer list). On a line, a best
- * pairing never crosses, so an in-order one is as good as any. Dynamic programming over the entries of the shorter list
- * and how many of the longer one are skipped: O(shorter × (difference + 1)).
+ * least total distance (on a tie, the earlier entries of the longer list). Exact by dynamic programming over the
+ * entries of the shorter list and how many of the longer one are skipped, O(shorter × (difference + 1)); past
+ * `ALIGN_WORK` steps, `nearest` instead.
  */
 function align<A extends PatternMatch, B extends PatternMatch>(short: readonly A[], long: readonly B[]): [A, B][] {
   if (!short.length) return [];
   const skips = long.length - short.length;
+  if (short.length * (skips + 1) > ALIGN_WORK) return nearest(short, long);
   // cost[s]: best total for the entries of `short` so far, the last one paired with long[i + s]; from[i][s]: the skip
   // count the previous entry was paired at.
-  let cost: Distance[] = [];
-  const from: number[][] = [];
+  let cost = new Float64Array(skips + 1);
+  const from: Int32Array[] = [];
   for (let i = 0; i < short.length; i++) {
-    const next: Distance[] = [];
-    const back: number[] = [];
+    const next = new Float64Array(skips + 1);
+    const back = new Int32Array(skips + 1);
     let best = 0;
     for (let s = 0; s <= skips; s++) {
-      if (i > 0 && less(cost[s]!, cost[best]!)) best = s;
-      const here = distance(short[i]!, long[i + s]!);
-      next.push(i === 0 ? here : plus(cost[best]!, here));
-      back.push(best);
+      if (i > 0 && cost[s]! < cost[best]!) best = s;
+      next[s] = (i === 0 ? 0 : cost[best]!) + distance(short[i]!, long[i + s]!);
+      back[s] = best;
     }
     cost = next;
     from.push(back);
   }
   const pairs: [A, B][] = [];
   let s = 0;
-  for (let k = 1; k <= skips; k++) if (less(cost[k]!, cost[s]!)) s = k;
+  for (let k = 1; k <= skips; k++) if (cost[k]! < cost[s]!) s = k;
   for (let i = short.length - 1; i >= 0; i--) {
     pairs.push([short[i]!, long[i + s]!]);
     s = from[i]![s]!;
@@ -115,8 +116,23 @@ function align<A extends PatternMatch, B extends PatternMatch>(short: readonly A
 }
 
 /**
+ * Best effort, linear: each entry of the shorter list in order takes the nearest entry of the longer one still ahead,
+ * skipping one only while enough are left for the entries still to pair, so every entry of the shorter list pairs.
+ */
+function nearest<A extends PatternMatch, B extends PatternMatch>(short: readonly A[], long: readonly B[]): [A, B][] {
+  const pairs: [A, B][] = [];
+  let j = 0;
+  for (const [i, m] of short.entries()) {
+    while (long.length - j - 1 >= short.length - i && distance(long[j + 1]!, m) < distance(long[j]!, m)) j++;
+    pairs.push([m, long[j++]!]);
+  }
+  return pairs;
+}
+
+/**
  * Pairs identical current and last good matches one to one: as many pairs as possible, then the least total distance
- * (see `align`). Matches still at the same place pair first, which some best pairing always does.
+ * between starts (see `place` and `align`). Matches still at the same place pair first, which some best pairing always
+ * does.
  */
 function pair(found: readonly Found[], old: readonly PatternMatch[]): { paired: Found[]; unpaired: Found[]; left: PatternMatch[] } {
   const free = new Map<string, number>();
