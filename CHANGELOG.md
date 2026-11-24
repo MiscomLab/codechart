@@ -2,13 +2,12 @@
 
 What's new in each codechart release. Update with `codechart update`; the [releases page](https://github.com/MiscomLab/codechart/releases) has the same notes.
 
-## Unreleased
+## 1.2.0 (2026-11-24)
 
 ### Changed
 
-- `@codechart/core` 0.9.0 reads Prisma schemas (`.prisma` files, including every file of a multi-file schema) for the coming desktop app's map: each `model`, `enum`, `view` and composite `type`, and a relation from a model to the model a field's type names, marked on the side that holds the foreign key with the `@relation(fields: …, references: …)` that proves it. A relation resolves only when the same file declares that model; a type another file declares stays unknown. `.codechart.yaml` map rules accept `lang: prisma`. The package grows by 11 KB to download.
-- `@codechart/core` 0.9.0 runs tree-sitter patterns, such as `map.rules` patterns, for the coming desktop app, in the parse it already does: `checkPattern` reports a broken query, an unknown node type or field, a missing `@entity` capture or a predicate that filters nothing, with its line and column; `compilePatterns` compiles a list once per grammar into a named set; `parseCode`, `parseRepo` and `openCodeIndex` take one set or several as `patterns` and give each file its `@entity` matches (set, pattern id, range, a hash of the code, other captures; not the code itself), which follow edits and syntax errors like symbols do. Each set runs on its own and stops after 500 ms on a file (its own limit), which marks the file with that set's id, so a slow set doesn't cost another set its matches. The CLI doesn't use it.
-- A `map.rules` pattern's `lang` names the grammar it runs with and takes `tsx` for `.tsx` files; `typescript` is `.ts`, `.mts` and `.cts` only, and `javascript` includes `.jsx`. ([Configuration](docs/configuration.md#map-desktop-app))
+- `.codechart.yaml` map rules accept `lang: prisma` and `lang: tsx`. A pattern's `lang` names the grammar it runs with: `typescript` is `.ts`, `.mts` and `.cts` only, `tsx` is `.tsx`, and `javascript` includes `.jsx`. ([Configuration](docs/configuration.md#map-desktop-app))
+- `@codechart/core` 0.9.0 reads Prisma schemas (models, enums, views, composite types, and relations with the side that holds the foreign key) and runs tree-sitter patterns such as `map.rules` patterns, each set with its own 500 ms limit per file, for the coming desktop app's map. The CLI doesn't use it yet. The package is 1.68 MB to download.
 
 ## 1.1.0 (2026-11-23)
 
