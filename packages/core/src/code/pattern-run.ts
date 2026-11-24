@@ -69,10 +69,54 @@ function byKey<T extends PatternMatch>(matches: readonly T[]): Map<string, T[]> 
   return groups;
 }
 
+/** How far apart two matches start: lines first, then columns. */
+type Distance = [lines: number, columns: number];
+const distance = (a: PatternMatch, b: PatternMatch): Distance => [
+  Math.abs(a.range.start.line - b.range.start.line),
+  Math.abs(a.range.start.column - b.range.start.column),
+];
+const plus = (a: Distance, b: Distance): Distance => [a[0] + b[0], a[1] + b[1]];
+const less = (a: Distance, b: Distance): boolean => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
+
 /**
- * Pairs identical current and last good matches: first those still at the same place, then the rest in source order,
- * each current match with the nearest last good one by line (an edit above moves them alike; on a tie, the earlier one),
- * never skipping one a later current match needs. Linear in both counts.
+ * Pairs the shorter list with an in-order subsequence of the longer one, every entry of the shorter paired, with the
+ * least total distance (lines, then columns; on a tie, the earlier entries of the longer list). On a line, a best
+ * pairing never crosses, so an in-order one is as good as any. Dynamic programming over the entries of the shorter list
+ * and how many of the longer one are skipped: O(shorter × (difference + 1)).
+ */
+function align<A extends PatternMatch, B extends PatternMatch>(short: readonly A[], long: readonly B[]): [A, B][] {
+  if (!short.length) return [];
+  const skips = long.length - short.length;
+  // cost[s]: best total for the entries of `short` so far, the last one paired with long[i + s]; from[i][s]: the skip
+  // count the previous entry was paired at.
+  let cost: Distance[] = [];
+  const from: number[][] = [];
+  for (let i = 0; i < short.length; i++) {
+    const next: Distance[] = [];
+    const back: number[] = [];
+    let best = 0;
+    for (let s = 0; s <= skips; s++) {
+      if (i > 0 && less(cost[s]!, cost[best]!)) best = s;
+      const here = distance(short[i]!, long[i + s]!);
+      next.push(i === 0 ? here : plus(cost[best]!, here));
+      back.push(best);
+    }
+    cost = next;
+    from.push(back);
+  }
+  const pairs: [A, B][] = [];
+  let s = 0;
+  for (let k = 1; k <= skips; k++) if (less(cost[k]!, cost[s]!)) s = k;
+  for (let i = short.length - 1; i >= 0; i--) {
+    pairs.push([short[i]!, long[i + s]!]);
+    s = from[i]![s]!;
+  }
+  return pairs.reverse();
+}
+
+/**
+ * Pairs identical current and last good matches one to one: as many pairs as possible, then the least total distance
+ * (see `align`). Matches still at the same place pair first, which some best pairing always does.
  */
 function pair(found: readonly Found[], old: readonly PatternMatch[]): { paired: Found[]; unpaired: Found[]; left: PatternMatch[] } {
   const free = new Map<string, number>();
@@ -94,27 +138,20 @@ function pair(found: readonly Found[], old: readonly PatternMatch[]): { paired: 
       others.push(m);
     }
   }
-  const unpaired: Found[] = [];
-  const left: PatternMatch[] = [];
-  const distance = (a: PatternMatch, b: PatternMatch) => Math.abs(a.range.start.line - b.range.start.line);
-  let j = 0;
-  for (const [i, m] of rest.entries()) {
-    // Skip a last good match for a nearer one only while enough are left for the current matches still to pair.
-    const spare = () => others.length - j - 1 > rest.length - i;
-    while (j + 1 < others.length && spare() && distance(others[j + 1]!, m) < distance(others[j]!, m)) left.push(others[j++]!);
-    if (j < others.length) {
-      j++;
-      paired.push(m);
-    } else unpaired.push(m);
-  }
-  for (; j < others.length; j++) left.push(others[j]!);
-  return { paired, unpaired, left };
+  const currentFirst = rest.length <= others.length;
+  const pairs = currentFirst ? align(rest, others) : align(others, rest).map(([o, c]) => [c, o] as const);
+  const usedCurrent = new Set<PatternMatch>(pairs.map(([c]) => c));
+  const usedOld = new Set<PatternMatch>(pairs.map(([, o]) => o));
+  for (const [c] of pairs) paired.push(c as Found);
+  return { paired, unpaired: rest.filter((m) => !usedCurrent.has(m)), left: others.filter((m) => !usedOld.has(m)) };
 }
 
 /**
- * Live map #11, as for symbols: while the file has a syntax error, a match the error touches stays only when the last
- * good parse had one with the same pattern and content (hash), and last good matches the text no longer gives are kept
- * at their old place. Identical matches are paired by place, so of two, the one the error hides is the one kept.
+ * Live map #11 for matches. Without a syntax error, the current matches are the result. With one, per group of identical
+ * matches (same set, pattern and hash), current and last good matches are paired one to one (`pair`): a paired current
+ * match is shown at its current place; an unpaired one only when no error touches it (nothing new from broken text); an
+ * unpaired last good match is kept at its old place, marked `kept`; a paired last good match is not shown, so nothing
+ * stale stands next to its current copy.
  */
 function keepLastGood(found: readonly Found[], errors: readonly Node[], lastGood: readonly PatternMatch[], set: CompiledPatterns): PatternMatch[] {
   const strip = ({ set: id, pattern, range, hash, captures }: Found): PatternMatch => ({ set: id, pattern, range, hash, captures });

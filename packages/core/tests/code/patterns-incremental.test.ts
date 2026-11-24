@@ -270,6 +270,27 @@ describe('parseCode with a last good parse', () => {
     }
   }, 60_000);
 
+  it('the same when all of them move down a line, so every one goes through the pairing by distance', async () => {
+    const names = await compilePatterns([{ id: 'name', grammar: 'javascript', pattern: '(identifier) @entity' }], { id: 'names' });
+    try {
+      const n = 80_000;
+      const good = await parseCode('a.js', 'x;\n'.repeat(n), undefined, { patterns: names });
+      let started = performance.now();
+      await parseCode('a.js', `y;\n${'x;\n'.repeat(n)}`, good, { patterns: names });
+      const clean = performance.now() - started;
+      started = performance.now();
+      const broken = await parseCode('a.js', `y;\n${'x;\n'.repeat(n)}(`, good, { patterns: names });
+      const elapsed = performance.now() - started;
+      expect(broken?.parseErrors).not.toEqual([]);
+      const xs = broken!.matches!.filter((m) => m.hash === createHash('sha256').update('x').digest('hex'));
+      expect(xs).toHaveLength(n);
+      expect(xs.every((m) => !m.kept)).toBe(true);
+      expect(elapsed).toBeLessThan(4 * clean + 1000);
+    } finally {
+      names.delete();
+    }
+  }, 60_000);
+
   it('a list of last good symbols carries no matches; one clear of the error still counts', async () => {
     // The open call is a match the error touches: new from broken text, so dropped.
     const broken = await parseCode('a.js', "app.post('/a', h);\napp.get('/b', h;\n", [], { patterns: calls });
