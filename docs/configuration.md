@@ -61,6 +61,8 @@ map:
       reason: Invoices and payouts, apart from checkout
     folder:src/payments:
       name: Payments
+    group:folder:src/commands/doctor:
+      name: Health checks
     src/pay.ts::PaymentService.charge::method:
       name: Charge a card
 ```
@@ -90,13 +92,14 @@ It then does exactly one thing:
 
 **`guidance`**: plain words for the model that names and groups the boxes, up to 2000 characters. Line breaks and tabs are fine; other control and invisible characters are rejected.
 
-**`pinned`**: names a person accepted or edited in the app, by id. The app writes this block and keeps it sorted by id, so diffs stay small; names the model suggests stay on your machine until someone pins them. An id is one of three forms, told apart by how it is written:
+**`pinned`**: names a person accepted or edited in the app, by id. The app writes this block and keeps it sorted by id, so diffs stay small; names the model suggests stay on your machine until someone pins them. An id is one of four forms, told apart by how it is written:
 
 - a **node id** contains `::`;
 - a **folder box id** starts with `folder:`, followed by the folder's repo-relative path: `folder:src/payments`. Most boxes are folders, and a box inside another is a folder inside it. The path uses `/`, with no leading or trailing `/`, no empty, `.` or `..` part, no backslash and no `::`;
+- a **group box id** starts with `group:`. When a level of the map holds more than 15 boxes and files, the app groups some of them, by first word (`doctor.ts`, `doctor-checks.ts`) or by a run of names (`a.ts` to `f.ts`), and names the group by where it sits and what it holds: `group:`, the id of the box it sits in (nothing at the top level), `/`, then the first word or `first..last`. So `group:folder:src/commands/doctor`, `group:billing/a.ts..f.ts` in the rule box `billing`, and `group:/doctor` at the top;
 - anything else is a **rule box id**: the name a rule's `box` gives, up to 64 lowercase letters, digits or hyphens, not starting with a hyphen (`billing`). Rule boxes don't nest.
 
-Folder ids carry the prefix so the form alone says what an id is: a folder named `billing` (`folder:billing`) and a rule box `billing` are two boxes, and adding or removing a rule never changes what a pin points at.
+Folder and group ids carry a prefix so the form alone says what an id is: a folder named `billing` (`folder:billing`) and a rule box `billing` are two boxes, and adding or removing a rule never changes what a pin points at. A file (`file:src/pay.ts`) can't be pinned: it keeps its file name.
 
 A **node id** is `file::path::kind`, the id codechart's code layer gives a symbol or entity. `file` is repo-relative with `/`, `path` the names from the outermost in, joined with `.` (`PaymentService.charge`), `kind` in lowercase letters (`method`, `table`). A second node with the same id in a file gets `~2`, a third `~3`. The file ends at the first `::` and the kind starts after the last one, so a name may hold `::`; a file path may not. Any id is up to 1000 characters.
 
