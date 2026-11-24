@@ -70,11 +70,16 @@ function byKey<T extends PatternMatch>(matches: readonly T[]): Map<string, T[]> 
 }
 
 /**
- * A match's start as one number in which a line outweighs any column (a column stays below 2^21 in a file of at most
- * 1 MB). Distance on it is a distance on a line, where a best pairing never crosses.
+ * Where matches start, as one number in which a line outweighs any column: the line times one more than the widest
+ * column in the group of identical matches (current and last good), plus the column. Distance on it is a distance on a line, where a best pairing
+ * never crosses.
  */
-const place = (m: PatternMatch): number => m.range.start.line * 2 ** 21 + m.range.start.column;
-const distance = (a: PatternMatch, b: PatternMatch): number => Math.abs(place(a) - place(b));
+type Place = (m: PatternMatch) => number;
+const placeFor = (matches: readonly PatternMatch[]): Place => {
+  let widest = 0;
+  for (const m of matches) widest = Math.max(widest, m.range.start.column);
+  return (m) => m.range.start.line * (widest + 1) + m.range.start.column;
+};
 
 /** Beyond this many steps, `align` pairs nearest first instead (best effort): a few thousand identical matches. */
 const ALIGN_WORK = 1_000_000;
@@ -85,10 +90,11 @@ const ALIGN_WORK = 1_000_000;
  * entries of the shorter list and how many of the longer one are skipped, O(shorter × (difference + 1)); past
  * `ALIGN_WORK` steps, `nearest` instead.
  */
-function align<A extends PatternMatch, B extends PatternMatch>(short: readonly A[], long: readonly B[]): [A, B][] {
+function align<A extends PatternMatch, B extends PatternMatch>(short: readonly A[], long: readonly B[], place: Place): [A, B][] {
   if (!short.length) return [];
+  const distance = (a: PatternMatch, b: PatternMatch) => Math.abs(place(a) - place(b));
   const skips = long.length - short.length;
-  if (short.length * (skips + 1) > ALIGN_WORK) return nearest(short, long);
+  if (short.length * (skips + 1) > ALIGN_WORK) return nearest(short, long, place);
   // cost[s]: best total for the entries of `short` so far, the last one paired with long[i + s]; from[i][s]: the skip
   // count the previous entry was paired at.
   let cost = new Float64Array(skips + 1);
@@ -119,7 +125,8 @@ function align<A extends PatternMatch, B extends PatternMatch>(short: readonly A
  * Best effort, linear: each entry of the shorter list in order takes the nearest entry of the longer one still ahead,
  * skipping one only while enough are left for the entries still to pair, so every entry of the shorter list pairs.
  */
-function nearest<A extends PatternMatch, B extends PatternMatch>(short: readonly A[], long: readonly B[]): [A, B][] {
+function nearest<A extends PatternMatch, B extends PatternMatch>(short: readonly A[], long: readonly B[], place: Place): [A, B][] {
+  const distance = (a: PatternMatch, b: PatternMatch) => Math.abs(place(a) - place(b));
   const pairs: [A, B][] = [];
   let j = 0;
   for (const [i, m] of short.entries()) {
@@ -131,10 +138,11 @@ function nearest<A extends PatternMatch, B extends PatternMatch>(short: readonly
 
 /**
  * Pairs identical current and last good matches one to one: as many pairs as possible, then the least total distance
- * between starts (see `place` and `align`). Matches still at the same place pair first, which some best pairing always
+ * between starts (see `placeFor` and `align`). Matches still at the same place pair first, which some best pairing always
  * does.
  */
 function pair(found: readonly Found[], old: readonly PatternMatch[]): { paired: Found[]; unpaired: Found[]; left: PatternMatch[] } {
+  const place = placeFor([...found, ...old]);
   const free = new Map<string, number>();
   for (const m of old) free.set(at(m), (free.get(at(m)) ?? 0) + 1);
   const paired: Found[] = [];
@@ -155,7 +163,7 @@ function pair(found: readonly Found[], old: readonly PatternMatch[]): { paired: 
     }
   }
   const currentFirst = rest.length <= others.length;
-  const pairs = currentFirst ? align(rest, others) : align(others, rest).map(([o, c]) => [c, o] as const);
+  const pairs = currentFirst ? align(rest, others, place) : align(others, rest, place).map(([o, c]) => [c, o] as const);
   const usedCurrent = new Set<PatternMatch>(pairs.map(([c]) => c));
   const usedOld = new Set<PatternMatch>(pairs.map(([, o]) => o));
   for (const [c] of pairs) paired.push(c as Found);

@@ -11,7 +11,7 @@ import { compilePatterns, type PatternSet } from '../../src/code/patterns.js';
  * the implementation. The spec, per group of identical matches (same set, pattern and hash) in a file with a syntax
  * error, old = the last good parse's matches, current = this parse's:
  *   - pair current with old one to one: as many pairs as possible, then the least total distance between starts, a
- *     start read as one number in which a line outweighs any column (ties: either);
+ *     start read as one number, line × (widest column in the group + 1) + column (ties: either);
  *   - a paired current match is shown at its current place, not kept;
  *   - an unpaired current match is shown only when no error touches it (nothing new from broken text);
  *   - an unpaired old match is kept at its old place, marked kept; a paired old match is never shown.
@@ -82,12 +82,13 @@ function raw(text: string): { seen: Seen[]; broken: boolean } {
 }
 
 type Shown = [line: number, col: number, kept: boolean];
-/** A start as one number: a line outweighs any column (columns stay below 2^21 in a file of at most 1 MB). */
-const place = (s: { line: number; col: number }) => s.line * 2 ** 21 + s.col;
+
 const canonical = (shown: Shown[]) => JSON.stringify([...shown].sort((a, b) => a[0] - b[0] || a[1] - b[1] || Number(a[2]) - Number(b[2])));
 
 /** Every output a best pairing of one group gives, by trying every one-to-one pairing. */
 function bestOutputs(current: Seen[], old: Seen[]): Set<string> {
+  const widest = Math.max(0, ...[...current, ...old].map((s) => s.col));
+  const place = (s: Seen) => s.line * (widest + 1) + s.col;
   let best: [number, number] | undefined;
   let outputs = new Set<string>();
   const pairing: (number | undefined)[] = [];

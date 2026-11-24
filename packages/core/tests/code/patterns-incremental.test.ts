@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { cpSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import fc from 'fast-check';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { openCodeIndex, type CodeIndex } from '../../src/code/code-index.js';
 import { parseCode } from '../../src/code/parse.js';
@@ -322,6 +323,62 @@ describe('parseCode with a last good parse', () => {
       [3, 18, true],
     ]);
   });
+
+  it('a line longer than 2^21 characters still counts more than any column', async () => {
+    // The last good copies sit on line 1 past column 2^21 and on line 2; the current one is on line 1.
+    const far = 2 ** 21 + 10;
+    const good = await parseCode('a.js', `${' '.repeat(far)}app.get('/a', h);\napp.get('/a', h); app.get('/a', h);\n`, undefined, { patterns: calls });
+    expect(good?.matches?.map((m) => [m.range.start.line, m.range.start.column])).toEqual([
+      [1, far],
+      [2, 0],
+      [2, 18],
+    ]);
+    const broken = await parseCode('a.js', "app.get('/a', h);\nfoo(;\n", good, { patterns: calls });
+    expect(broken?.matches?.map((m) => [m.range.start.line, m.range.start.column, m.kept ?? false])).toEqual([
+      [1, 0, false],
+      [2, 0, true],
+      [2, 18, true],
+    ]);
+  }, 30_000);
+
+  it('past the work cap, the fallback still skips to the nearest copies: an edit above leaves no stale copy in place (gate #101)', async () => {
+    const names = await compilePatterns([{ id: 'name', grammar: 'javascript', pattern: '(identifier) @entity' }], { id: 'names' });
+    try {
+      // 1000 current × 1001 skips is past the cap, so the fallback pairs them.
+      const good = await parseCode('a.js', 'x;\n'.repeat(2000), undefined, { patterns: names });
+      const broken = await parseCode('a.js', `${'\n'.repeat(1000)}${' x;\n'.repeat(1000)}(`, good, { patterns: names });
+      const kept = broken!.matches!.filter((m) => m.hash === createHash('sha256').update('x').digest('hex') && m.kept).map((m) => m.range.start.line);
+      expect(kept).toEqual(Array.from({ length: 1000 }, (_, i) => i + 1));
+    } finally {
+      names.delete();
+    }
+  });
+
+  it('past the work cap, the fallback keeps the hard guarantees: counts, and no kept copy where a current one is', async () => {
+    const names = await compilePatterns([{ id: 'name', grammar: 'javascript', pattern: '(identifier) @entity' }], { id: 'names' });
+    const x = createHash('sha256').update('x').digest('hex');
+    try {
+      await fc.assert(
+        fc.asyncProperty(fc.integer({ min: 1000, max: 1300 }), fc.integer({ min: 2200, max: 2600 }), fc.array(fc.nat(), { maxLength: 40 }), fc.boolean(), async (now, before, blanks, indent) => {
+          const good = await parseCode('a.js', 'x;\n'.repeat(before), undefined, { patterns: names });
+          const lines: string[] = Array.from({ length: now }, () => (indent ? ' x;' : 'x;'));
+          for (const at of blanks) lines.splice(at % (lines.length + 1), 0, '');
+          // The error is past the last line, touching none of the matches.
+          const broken = await parseCode('a.js', `${lines.join('\n')}\n(`, good, { patterns: names });
+          const xs = broken!.matches!.filter((m) => m.hash === x);
+          const current = xs.filter((m) => !m.kept);
+          const kept = xs.filter((m) => m.kept);
+          expect(current).toHaveLength(now);
+          expect(kept).toHaveLength(before - now);
+          const places = new Set(current.map((m) => `${m.range.start.line}:${m.range.start.column}`));
+          for (const m of kept) expect(places.has(`${m.range.start.line}:${m.range.start.column}`)).toBe(false);
+        }),
+        { seed: 54, numRuns: 25 },
+      );
+    } finally {
+      names.delete();
+    }
+  }, 120_000);
 
   it('a list of last good symbols carries no matches; one clear of the error still counts', async () => {
     // The open call is a match the error touches: new from broken text, so dropped.
