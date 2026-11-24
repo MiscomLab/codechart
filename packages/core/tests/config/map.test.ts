@@ -85,6 +85,14 @@ describe('map.rules', () => {
     expect(parseMap(map)).toEqual({ ok: true, config: { map } });
   });
 
+  it.each(['typescript', 'tsx', 'javascript', 'python', 'html', 'css', 'sql', 'bash', 'yaml', 'json', 'prisma'])('lang takes every grammar a pattern can run on: %s', (lang) => {
+    expect(parseMap(rule({ pattern: '(jsx_element) @entity', lang, kind: 'component' })).ok).toBe(true);
+  });
+
+  it('lang refuses a name that is no grammar', () => {
+    expect(errorsOf(rule({ pattern: '(x) @entity', lang: 'jsx', kind: 'table' })).join('\n')).toMatch(/^map\.rules\[0\]\.lang: /m);
+  });
+
   it('paths use the same glob checks as the other globs', () => {
     expect(errorsOf(rule({ paths: ['src/{a,b}/**'], kind: 'table' })).join('\n')).toMatch(/^map\.rules\[0\]\.paths\[0\]: braces and extglobs/m);
     expect(errorsOf(rule({ paths: [], kind: 'table' })).join('\n')).toMatch(/^map\.rules\[0\]\.paths: /m);

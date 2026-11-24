@@ -68,7 +68,18 @@ map:
 **`rules`** run top-down and the first matching rule wins. They run before the app's built-in rules, so yours take precedence. A rule matches with:
 
 - `paths`: globs, with the same rules as the top-level `paths`;
-- `pattern`: a [tree-sitter query](https://tree-sitter.github.io/tree-sitter/using-parsers/queries/) of up to 2000 characters, with `lang` naming its grammar (`typescript`, `javascript`, `python`, `html`, `css`, `sql`, `bash`, `yaml`, `json` or `prisma`). It must capture the node the rule applies to as `@entity`. The app checks the rest of the query when it runs it;
+- `pattern`: a [tree-sitter query](https://tree-sitter.github.io/tree-sitter/using-parsers/queries/) of up to 2000 characters, with `lang` naming its grammar. It runs on the files codechart reads with that grammar:
+
+  | `lang` | Files |
+  | --- | --- |
+  | `typescript` | `.ts`, `.mts`, `.cts` |
+  | `tsx` | `.tsx` |
+  | `javascript` | `.js`, `.mjs`, `.cjs`, `.jsx` (JavaScript's grammar reads JSX) |
+  | `python` | `.py`, `.pyi` |
+  | `html`, `css`, `sql`, `bash`, `yaml`, `json` | `.html` `.htm`, `.css`, `.sql`, `.sh` `.bash`, `.yml` `.yaml`, `.json` |
+  | `prisma` | `.prisma` |
+
+  So a rule for React components in `.tsx` and `.jsx` files is two rules, one per grammar; the node names often match, but not always (TypeScript wraps a parent class in `extends_clause`, JavaScript doesn't). Each pattern in the query must capture the node the rule applies to as `@entity`, exactly once. Predicates: `#eq?`, `#not-eq?`, `#any-eq?`, `#any-not-eq?`, `#match?`, `#not-match?`, `#any-match?`, `#any-not-match?`, `#any-of?` and `#not-any-of?`; `#match?` takes a JavaScript regular expression. Other captures (`@name`, `@path`…) are passed on with the match; names starting with `_` only feed predicates. The app checks the query when it loads the config and runs it with a time limit per file;
 - or both: the pattern, only in files the globs match.
 
 It then does exactly one thing:

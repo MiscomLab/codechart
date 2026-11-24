@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { Language, Parser, Query } from 'web-tree-sitter';
 import { GRAMMAR_ASSETS, VENDORED_ASSETS, type GrammarAsset } from './grammar-assets.js';
 import { IMPORTS_QUERY } from './imports.js';
-import type { EntityGrammar, Grammar } from './languages.js';
+import type { EntityGrammar, Grammar, PatternGrammar } from './languages.js';
 import { PYTHON_IMPORTS_QUERY } from './python/imports.js';
 
 /** Definitions the upstream `tags.scm` files leave out. */
@@ -25,7 +25,7 @@ const EXTRA_TS = `
 /** Bash has no `tags.scm`: functions are its only definitions. */
 const BASH_TAGS = `(function_definition name: (word) @name) @definition.function`;
 
-const WASM: Record<Grammar | EntityGrammar, GrammarAsset> = {
+const WASM: Record<PatternGrammar, GrammarAsset> = {
   javascript: 'tree-sitter-javascript.wasm',
   typescript: 'tree-sitter-typescript.wasm',
   tsx: 'tree-sitter-tsx.wasm',
@@ -80,15 +80,6 @@ const loadRuntime = () =>
     return ts;
   }));
 
-/** A parser set to the grammar's language, and a query maker for it. */
-async function open(grammar: Grammar | EntityGrammar) {
-  const ts = await loadRuntime();
-  const language: Language = await ts.Language.load(assetPath(WASM[grammar]));
-  const parser = new ts.Parser();
-  parser.setLanguage(language);
-  return { parser, query: (source: string) => new ts.Query(language, source) };
-}
-
 /** Loads each grammar once per process. */
 function once<K, V>(make: (key: K) => Promise<V>): (key: K) => Promise<V> {
   const loaded = new Map<K, Promise<V>>();
@@ -97,6 +88,27 @@ function once<K, V>(make: (key: K) => Promise<V>): (key: K) => Promise<V> {
     if (!entry) loaded.set(key, (entry = make(key)));
     return entry;
   };
+}
+
+/** The grammar's language, loaded once per process, so its parser and every query share it. */
+const loadLanguage = once(async (grammar: PatternGrammar) => {
+  const ts = await loadRuntime();
+  const language: Language = await ts.Language.load(assetPath(WASM[grammar]));
+  return { ts, language };
+});
+
+/** Compiles a query for the grammar; throws web-tree-sitter's `QueryError` (or a predicate's error) when it is broken. */
+export async function compileQuery(grammar: PatternGrammar, source: string): Promise<Query> {
+  const { ts, language } = await loadLanguage(grammar);
+  return new ts.Query(language, source);
+}
+
+/** A parser set to the grammar's language, and a query maker for it. */
+async function open(grammar: Grammar | EntityGrammar) {
+  const { ts, language } = await loadLanguage(grammar);
+  const parser = new ts.Parser();
+  parser.setLanguage(language);
+  return { parser, query: (source: string) => new ts.Query(language, source) };
 }
 
 /** The grammar, loaded once per process. */

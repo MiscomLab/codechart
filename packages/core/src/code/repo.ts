@@ -5,6 +5,7 @@ import { readRegularFile } from '../read-regular.js';
 import { git } from '../rules/git-run.js';
 import { langOf } from './languages.js';
 import { parseCode, type ParsedFile } from './parse.js';
+import type { PatternSets } from './patterns.js';
 import { linkCode } from './resolve/link.js';
 import { createResolver } from './resolve/resolver.js';
 
@@ -54,14 +55,22 @@ export function readCodeFile(root: string, path: string): string | undefined {
   return text?.includes('\0') ? undefined : text;
 }
 
-/** The code layer of the repo at `root`, one entry per readable file of `listCodeFiles`, imports and calls resolved. */
-export async function parseRepo(root: string, opts: { ignore?: readonly string[] } = {}): Promise<ParsedFile[]> {
+/**
+ * The code layer of the repo at `root`, one entry per readable file of `listCodeFiles`, imports and calls resolved;
+ * with `patterns`, each file's pattern `matches` too.
+ */
+export async function parseRepo(root: string, opts: { ignore?: readonly string[]; patterns?: PatternSets } = {}): Promise<ParsedFile[]> {
   const paths = listCodeFiles(root, opts.ignore);
+  return linkCode(await parseFiles(root, paths, opts.patterns), createResolver(paths, (path) => readCodeFile(root, path)));
+}
+
+/** Each readable file of `paths` parsed on its own, unlinked, in order. */
+export async function parseFiles(root: string, paths: readonly string[], patterns: PatternSets | undefined): Promise<ParsedFile[]> {
   const parsed: ParsedFile[] = [];
   for (const path of paths) {
     const text = readCodeFile(root, path);
-    const file = text === undefined ? undefined : await parseCode(path, text);
+    const file = text === undefined ? undefined : await parseCode(path, text, undefined, { patterns });
     if (file) parsed.push(file);
   }
-  return linkCode(parsed, createResolver(paths, (path) => readCodeFile(root, path)));
+  return parsed;
 }

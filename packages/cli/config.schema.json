@@ -238,10 +238,11 @@
                         ]
                       },
                       "lang": {
-                        "description": "The pattern's tree-sitter grammar",
+                        "description": "The pattern's tree-sitter grammar; it runs on the files read with it (typescript: .ts, .mts, .cts; tsx: .tsx; javascript: .js, .mjs, .cjs, .jsx)",
                         "type": "string",
                         "enum": [
                           "typescript",
+                          "tsx",
                           "javascript",
                           "python",
                           "html",

@@ -1,6 +1,6 @@
 import { isAbsolute, win32 } from 'node:path';
 import { z } from 'zod';
-import { LANGS } from '../code/model.js';
+import { PATTERN_GRAMMARS } from '../code/languages.js';
 import { formatIssues, quotedVisible } from '../spec/shared.js';
 
 const OUTPUTS = ['auto', 'cli', 'web', 'both', 'none'] as const;
@@ -117,7 +117,7 @@ const mapRuleSchema = z
   .strictObject({
     paths: z.array(glob).min(1).optional().describe('Globs the rule matches'),
     pattern: z.string().min(1).max(2000).regex(MULTI_LINE_VISIBLE, MULTI_LINE_MESSAGE).regex(/@entity(?![\w.-])/, 'capture the node the rule applies to as @entity').optional().describe('Tree-sitter query; the @entity capture is what the rule applies to'),
-    lang: z.enum(LANGS).optional().describe("The pattern's tree-sitter grammar"),
+    lang: z.enum(PATTERN_GRAMMARS).optional().describe("The pattern's tree-sitter grammar; it runs on the files read with it (typescript: .ts, .mts, .cts; tsx: .tsx; javascript: .js, .mjs, .cjs, .jsx)"),
     kind: z.enum(MAP_ENTITY_KINDS).optional().describe('The code is an entity of this kind'),
     box: boxId.optional().describe('The code belongs to this box'),
     ignore: z.literal(true).optional().describe('The code is read but left off the map'),
