@@ -7,7 +7,7 @@ import fc from 'fast-check';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { openCodeIndex, type CodeIndex } from '../../src/code/code-index.js';
 import { parseCode } from '../../src/code/parse.js';
-import { alignMethod } from '../../src/code/pattern-run.js';
+import { alignMethod, placeFor } from '../../src/code/pattern-run.js';
 import { compilePatterns, type PatternSet } from '../../src/code/patterns.js';
 import { parseRepo } from '../../src/code/repo.js';
 
@@ -412,6 +412,36 @@ describe('parseCode with a last good parse', () => {
       names.delete();
     }
   }, 60_000);
+
+  it('the budget is shared across sets: a set that runs later gets what the earlier ones left', async () => {
+    const fill = await compilePatterns([{ id: 'a', grammar: 'javascript', pattern: '((identifier) @entity (#match? @entity "^a"))' }], { id: 'fill' });
+    const gset = await compilePatterns([{ id: 'g', grammar: 'javascript', pattern: '((identifier) @entity (#eq? @entity "g"))' }], { id: 'g' });
+    try {
+      const fillers = ['a0', 'a1', 'a2', 'a3'];
+      const before = fillers.map((a) => `${a};\n`.repeat(999)).join('');
+      const now = `${fillers.map((a) => ` ${a};\n`.repeat(500)).join('')}${'\n'.repeat(4 * 999 - 4 * 500)}`;
+      const g = (lines: number[]) => Array.from({ length: 8 }, (_, i) => (lines.includes(i + 1) ? 'g;' : '')).join('\n');
+      const base = 4 * 999;
+      const good = await parseCode('a.js', `${before}${g([1, 2, 8])}\n`, undefined, { patterns: [fill, gset] });
+      const broken = await parseCode('a.js', `${now}${g([3, 4])}\n\n(`, good, { patterns: [fill, gset] });
+      expect(broken!.matches!.filter((m) => m.set === 'g').map((m) => [m.range.start.line - base, m.kept ?? false])).toEqual([
+        [1, true],
+        [3, false],
+        [4, false],
+      ]);
+    } finally {
+      fill.delete();
+      gset.delete();
+    }
+  }, 60_000);
+
+  it('a group\'s farthest place is the largest place among its matches', () => {
+    const at = (line: number, column: number) => ({ set: 's', pattern: 'p', hash: '0'.repeat(64), captures: {}, range: { start: { line, column }, end: { line, column } } });
+    // The widest column is 7, so a place is line × 8 + column.
+    const { place, farthest } = placeFor([at(1, 7), at(3, 2), at(2, 0)]);
+    expect([place(at(1, 7)), place(at(3, 2)), place(at(2, 0))]).toEqual([15, 26, 16]);
+    expect(farthest).toBe(26);
+  });
 
   it('the exact pairing runs only when it fits the budget left and its sums stay exact', () => {
     // short × (difference + 1) steps against what is left of the parse's budget.

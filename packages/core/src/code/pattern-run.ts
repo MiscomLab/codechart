@@ -75,7 +75,7 @@ function byKey<T extends PatternMatch>(matches: readonly T[]): Map<string, T[]> 
  * never crosses.
  */
 type Place = (m: PatternMatch) => number;
-function placeFor(matches: readonly PatternMatch[]): { place: Place; farthest: number } {
+export function placeFor(matches: readonly PatternMatch[]): { place: Place; farthest: number } {
   let widest = 0;
   for (const m of matches) widest = Math.max(widest, m.range.start.column);
   const place: Place = (m) => m.range.start.line * (widest + 1) + m.range.start.column;
