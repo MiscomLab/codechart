@@ -402,6 +402,14 @@ describe('pattern sets', () => {
     expect(count('long')).toBeGreaterThan(2 * count('short'));
   });
 
+  it('reports a limit under any set id, __proto__ included (Greptile #101)', async () => {
+    const set = await compile([{ id: 'slow', grammar: 'typescript', pattern: SLOW }], { id: '__proto__', timeoutMs: 20 });
+    const parsed = await parseCode('big.ts', big, undefined, { patterns: set });
+    expect(Object.keys(parsed?.patternLimits ?? {})).toEqual(['__proto__']);
+    expect(Object.getOwnPropertyDescriptor(parsed?.patternLimits, '__proto__')?.value).toBe('timeout');
+    expect(parsed?.matches?.[0]?.set).toBe('__proto__');
+  });
+
   it('the same pattern id in two sets gives a match per set, in the order the sets are given', async () => {
     const a = await compile([{ id: 'f', grammar: 'python', pattern: '(function_definition) @entity' }], { id: 'a' });
     const b = await compile([{ id: 'f', grammar: 'python', pattern: '(function_definition name: (identifier) @name) @entity' }], { id: 'b' });

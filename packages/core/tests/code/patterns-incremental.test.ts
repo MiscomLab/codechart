@@ -324,6 +324,24 @@ describe('parseCode with a last good parse', () => {
     ]);
   });
 
+  it('two identical matches, the first hidden: the second stays where it is, the first is kept at its own place (Greptile #101)', async () => {
+    const good = await parseCode('a.js', "app.get('/users', h);\napp.get('/users', h);\n", undefined, { patterns: calls });
+    const broken = await parseCode('a.js', "app.get('/users', h;\napp.get('/users', h);\n", good, { patterns: calls });
+    expect(shape(broken)).toEqual([
+      ['/users', 1, 0, true],
+      ['/users', 2, 0, false],
+    ]);
+  });
+
+  it('the same when an edit above also moves them down a line', async () => {
+    const good = await parseCode('a.js', "app.get('/users', h);\napp.get('/users', h);\n", undefined, { patterns: calls });
+    const broken = await parseCode('a.js', "// moved\napp.get('/users', h;\napp.get('/users', h);\n", good, { patterns: calls });
+    expect(shape(broken)).toEqual([
+      ['/users', 1, 0, true],
+      ['/users', 3, 0, false],
+    ]);
+  });
+
   it('in a language without imports too: a table hidden by an error is kept, one clear of it is read', async () => {
     const tables = await compilePatterns([{ id: 'table', grammar: 'sql', pattern: '(create_table (object_reference name: (identifier) @name)) @entity' }]);
     try {
