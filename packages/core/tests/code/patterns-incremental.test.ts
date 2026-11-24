@@ -352,6 +352,16 @@ describe('parseCode with a last good parse', () => {
     ]);
   });
 
+  it('identical matches moved down together keep their count, with an unrelated error below (Greptile #101)', async () => {
+    const good = await parseCode('a.js', "app.get('/users', h);\napp.get('/users', h);\nz;\n", undefined, { patterns: calls });
+    const broken = await parseCode('a.js', "\n\n\napp.get('/users', h);\napp.get('/users', h);\nz(;\n", good, { patterns: calls });
+    expect(broken?.parseErrors).not.toEqual([]);
+    expect(shape(broken)).toEqual([
+      ['/users', 4, 0, false],
+      ['/users', 5, 0, false],
+    ]);
+  });
+
   it('in a language without imports too: a table hidden by an error is kept, one clear of it is read', async () => {
     const tables = await compilePatterns([{ id: 'table', grammar: 'sql', pattern: '(create_table (object_reference name: (identifier) @name)) @entity' }]);
     try {

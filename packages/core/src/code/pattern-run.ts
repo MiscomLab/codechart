@@ -71,8 +71,8 @@ function byKey<T extends PatternMatch>(matches: readonly T[]): Map<string, T[]> 
 
 /**
  * Pairs identical current and last good matches: first those still at the same place, then the rest in source order,
- * each current match with the nearest last good one by line (an edit above moves them alike; on a tie, the earlier one).
- * Linear in both counts.
+ * each current match with the nearest last good one by line (an edit above moves them alike; on a tie, the earlier one),
+ * never skipping one a later current match needs. Linear in both counts.
  */
 function pair(found: readonly Found[], old: readonly PatternMatch[]): { paired: Found[]; unpaired: Found[]; left: PatternMatch[] } {
   const free = new Map<string, number>();
@@ -98,8 +98,10 @@ function pair(found: readonly Found[], old: readonly PatternMatch[]): { paired: 
   const left: PatternMatch[] = [];
   const distance = (a: PatternMatch, b: PatternMatch) => Math.abs(a.range.start.line - b.range.start.line);
   let j = 0;
-  for (const m of rest) {
-    while (j + 1 < others.length && distance(others[j + 1]!, m) < distance(others[j]!, m)) left.push(others[j++]!);
+  for (const [i, m] of rest.entries()) {
+    // Skip a last good match for a nearer one only while enough are left for the current matches still to pair.
+    const spare = () => others.length - j - 1 > rest.length - i;
+    while (j + 1 < others.length && spare() && distance(others[j + 1]!, m) < distance(others[j]!, m)) left.push(others[j++]!);
     if (j < others.length) {
       j++;
       paired.push(m);
