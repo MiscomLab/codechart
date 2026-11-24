@@ -2,7 +2,7 @@
 
 What's new in each codechart release. Update with `codechart update`; the [releases page](https://github.com/MiscomLab/codechart/releases) has the same notes.
 
-## Unreleased
+## 1.3.0 (2026-11-24)
 
 ### Changed
 
