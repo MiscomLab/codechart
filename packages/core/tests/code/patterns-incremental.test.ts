@@ -7,6 +7,7 @@ import fc from 'fast-check';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { openCodeIndex, type CodeIndex } from '../../src/code/code-index.js';
 import { parseCode } from '../../src/code/parse.js';
+import { alignMethod } from '../../src/code/pattern-run.js';
 import { compilePatterns, type PatternSet } from '../../src/code/patterns.js';
 import { parseRepo } from '../../src/code/repo.js';
 
@@ -359,9 +360,10 @@ describe('parseCode with a last good parse', () => {
     const x = createHash('sha256').update('x').digest('hex');
     try {
       await fc.assert(
-        fc.asyncProperty(fc.integer({ min: 1000, max: 1300 }), fc.integer({ min: 2200, max: 2600 }), fc.array(fc.nat(), { maxLength: 40 }), fc.boolean(), async (now, before, blanks, indent) => {
+        fc.asyncProperty(fc.integer({ min: 1000, max: 1300 }), fc.integer({ min: 2200, max: 2600 }), fc.array(fc.nat(), { maxLength: 40 }), async (now, before, blanks) => {
           const good = await parseCode('a.js', 'x;\n'.repeat(before), undefined, { patterns: names });
-          const lines: string[] = Array.from({ length: now }, () => (indent ? ' x;' : 'x;'));
+          // Indented, so none pairs by place and every group goes past the work budget (at least 1000 × 901 steps).
+          const lines: string[] = Array.from({ length: now }, () => ' x;');
           for (const at of blanks) lines.splice(at % (lines.length + 1), 0, '');
           // The error is past the last line, touching none of the matches.
           const broken = await parseCode('a.js', `${lines.join('\n')}\n(`, good, { patterns: names });
@@ -379,6 +381,47 @@ describe('parseCode with a last good parse', () => {
       names.delete();
     }
   }, 120_000);
+
+  it('one work budget per parse: groups each under it but together past it leave the last ones to the fallback', async () => {
+    const names = await compilePatterns([{ id: 'name', grammar: 'javascript', pattern: '(identifier) @entity' }], { id: 'names' });
+    try {
+      // Four groups of 500 current against 999 last good, none at its place: 500 × 500 steps each, the whole budget.
+      const fillers = ['a0', 'a1', 'a2', 'a3'];
+      const before = fillers.map((a) => `${a};\n`.repeat(999)).join('');
+      const now = `${fillers.map((a) => ` ${a};\n`.repeat(500)).join('')}${'\n'.repeat(4 * 999 - 4 * 500)}`;
+      // Then a group of two current (lines 3, 4) against three last good (lines 1, 2, 8): the exact pairing keeps
+      // line 8, the nearest-first fallback line 1.
+      const g = (lines: number[]) => Array.from({ length: 8 }, (_, i) => (lines.includes(i + 1) ? 'g;' : '')).join('\n');
+      const base = 4 * 999;
+      const good = await parseCode('a.js', `${before}${g([1, 2, 8])}\n`, undefined, { patterns: names });
+      const broken = await parseCode('a.js', `${now}${g([3, 4])}\n\n(`, good, { patterns: names });
+      const gs = broken!.matches!.filter((m) => m.hash === createHash('sha256').update('g').digest('hex'));
+      expect(gs.map((m) => [m.range.start.line - base, m.kept ?? false])).toEqual([
+        [1, true],
+        [3, false],
+        [4, false],
+      ]);
+      // The same group alone gets the exact pairing.
+      const alone = await parseCode('a.js', `${g([3, 4])}\n\n(`, await parseCode('a.js', `${g([1, 2, 8])}\n`, undefined, { patterns: names }), { patterns: names });
+      expect(alone!.matches!.map((m) => [m.range.start.line, m.kept ?? false])).toEqual([
+        [3, false],
+        [4, false],
+        [8, true],
+      ]);
+    } finally {
+      names.delete();
+    }
+  }, 60_000);
+
+  it('the exact pairing runs only when it fits the budget left and its sums stay exact', () => {
+    // short × (difference + 1) steps against what is left of the parse's budget.
+    expect(alignMethod(500, 999, 10_000, 250_000)).toBe('exact');
+    expect(alignMethod(500, 999, 10_000, 249_999)).toBe('nearest');
+    // The largest total is at most short × the widest place; past Number.MAX_SAFE_INTEGER sums lose precision.
+    expect(alignMethod(1, 1, Number.MAX_SAFE_INTEGER, 1_000_000)).toBe('exact');
+    expect(alignMethod(2, 2, 2 ** 52, 1_000_000)).toBe('nearest');
+    expect(alignMethod(2, 2, 2 ** 52 - 1, 1_000_000)).toBe('exact');
+  });
 
   it('a list of last good symbols carries no matches; one clear of the error still counts', async () => {
     // The open call is a match the error touches: new from broken text, so dropped.

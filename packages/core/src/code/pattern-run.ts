@@ -75,26 +75,45 @@ function byKey<T extends PatternMatch>(matches: readonly T[]): Map<string, T[]> 
  * never crosses.
  */
 type Place = (m: PatternMatch) => number;
-const placeFor = (matches: readonly PatternMatch[]): Place => {
+function placeFor(matches: readonly PatternMatch[]): { place: Place; farthest: number } {
   let widest = 0;
   for (const m of matches) widest = Math.max(widest, m.range.start.column);
-  return (m) => m.range.start.line * (widest + 1) + m.range.start.column;
-};
+  const place: Place = (m) => m.range.start.line * (widest + 1) + m.range.start.column;
+  let farthest = 0;
+  for (const m of matches) farthest = Math.max(farthest, place(m));
+  return { place, farthest };
+}
 
-/** Beyond this many steps, `align` pairs nearest first instead (best effort): a few thousand identical matches. */
+/** Exact-pairing steps one parse may spend, shared by every group of every set; past it, `nearest` (best effort). */
 const ALIGN_WORK = 1_000_000;
+
+/** What is left of a parse's `ALIGN_WORK`. */
+interface Budget {
+  left: number;
+}
+
+/**
+ * Whether a group pairs exactly or nearest first: exactly only when its `short × (difference + 1)` steps fit what is
+ * left of the parse's budget, and when its largest possible total, `short` pairs each at most `farthest` (the
+ * largest place) apart, stays a safe integer, so sums and their comparisons are exact.
+ */
+export function alignMethod(short: number, long: number, farthest: number, left: number): 'exact' | 'nearest' {
+  if (short * (long - short + 1) > left) return 'nearest';
+  return short * farthest > Number.MAX_SAFE_INTEGER ? 'nearest' : 'exact';
+}
 
 /**
  * Pairs the shorter list with an in-order subsequence of the longer one, every entry of the shorter paired, with the
  * least total distance (on a tie, the earlier entries of the longer list). Exact by dynamic programming over the
- * entries of the shorter list and how many of the longer one are skipped, O(shorter × (difference + 1)); past
- * `ALIGN_WORK` steps, `nearest` instead.
+ * entries of the shorter list and how many of the longer one are skipped, O(shorter × (difference + 1)), spent from
+ * the parse's budget; `nearest` instead when `alignMethod` says so.
  */
-function align<A extends PatternMatch, B extends PatternMatch>(short: readonly A[], long: readonly B[], place: Place): [A, B][] {
+function align<A extends PatternMatch, B extends PatternMatch>(short: readonly A[], long: readonly B[], place: Place, farthest: number, budget: Budget): [A, B][] {
   if (!short.length) return [];
   const distance = (a: PatternMatch, b: PatternMatch) => Math.abs(place(a) - place(b));
   const skips = long.length - short.length;
-  if (short.length * (skips + 1) > ALIGN_WORK) return nearest(short, long, place);
+  if (alignMethod(short.length, long.length, farthest, budget.left) === 'nearest') return nearest(short, long, place);
+  budget.left -= short.length * (skips + 1);
   // cost[s]: best total for the entries of `short` so far, the last one paired with long[i + s]; from[i][s]: the skip
   // count the previous entry was paired at.
   let cost = new Float64Array(skips + 1);
@@ -138,11 +157,11 @@ function nearest<A extends PatternMatch, B extends PatternMatch>(short: readonly
 
 /**
  * Pairs identical current and last good matches one to one: as many pairs as possible, then the least total distance
- * between starts (see `placeFor` and `align`). Matches still at the same place pair first, which some best pairing always
- * does.
+ * between starts (see `placeFor` and `align`). Matches still at the same place pair first: a shortcut that keeps an
+ * unchanged file linear; some best pairing contains those pairs anyway.
  */
-function pair(found: readonly Found[], old: readonly PatternMatch[]): { paired: Found[]; unpaired: Found[]; left: PatternMatch[] } {
-  const place = placeFor([...found, ...old]);
+function pair(found: readonly Found[], old: readonly PatternMatch[], budget: Budget): { paired: Found[]; unpaired: Found[]; left: PatternMatch[] } {
+  const { place, farthest } = placeFor([...found, ...old]);
   const free = new Map<string, number>();
   for (const m of old) free.set(at(m), (free.get(at(m)) ?? 0) + 1);
   const paired: Found[] = [];
@@ -163,7 +182,7 @@ function pair(found: readonly Found[], old: readonly PatternMatch[]): { paired: 
     }
   }
   const currentFirst = rest.length <= others.length;
-  const pairs = currentFirst ? align(rest, others, place) : align(others, rest, place).map(([o, c]) => [c, o] as const);
+  const pairs = currentFirst ? align(rest, others, place, farthest, budget) : align(others, rest, place, farthest, budget).map(([o, c]) => [c, o] as const);
   const usedCurrent = new Set<PatternMatch>(pairs.map(([c]) => c));
   const usedOld = new Set<PatternMatch>(pairs.map(([, o]) => o));
   for (const [c] of pairs) paired.push(c as Found);
@@ -177,14 +196,14 @@ function pair(found: readonly Found[], old: readonly PatternMatch[]): { paired: 
  * unpaired last good match is kept at its old place, marked `kept`; a paired last good match is not shown, so nothing
  * stale stands next to its current copy.
  */
-function keepLastGood(found: readonly Found[], errors: readonly Node[], lastGood: readonly PatternMatch[], set: CompiledPatterns): PatternMatch[] {
+function keepLastGood(found: readonly Found[], errors: readonly Node[], lastGood: readonly PatternMatch[], set: CompiledPatterns, budget: Budget): PatternMatch[] {
   const strip = ({ set: id, pattern, range, hash, captures }: Found): PatternMatch => ({ set: id, pattern, range, hash, captures });
   if (!errors.length) return found.map(strip);
   const current = byKey(found);
   const old = byKey(lastGood.filter((m) => m.set === set.id && set.ids.includes(m.pattern)));
   const out: PatternMatch[] = [];
   for (const key of new Set([...current.keys(), ...old.keys()])) {
-    const { paired, unpaired, left } = pair(current.get(key) ?? [], old.get(key) ?? []);
+    const { paired, unpaired, left } = pair(current.get(key) ?? [], old.get(key) ?? [], budget);
     for (const m of paired) out.push(strip(m));
     for (const m of unpaired) if (!m.broken) out.push(strip(m));
     for (const m of left) out.push({ ...m, kept: true });
@@ -220,13 +239,14 @@ export function matchPatterns(
   const sets = compiledSets(patterns);
   const order = new Map(sets.flatMap((set, s) => set.ids.map((id, p) => [`${set.id}\0${id}`, s * 1e6 + p] as const)));
   const limits: [string, PatternLimit][] = [];
+  const budget: Budget = { left: ALIGN_WORK };
   const matches: PatternMatch[] = [];
   for (const set of sets) {
     const query = set.queryFor(grammar);
     const { found, limit } = query ? run(set, query, root, errors) : { found: [] };
     if (limit) limits.push([set.id, limit]);
     // A loop, not push(...): a big file can give more matches than a call takes arguments.
-    for (const m of keepLastGood(found, errors, lastGood ?? [], set)) matches.push(m);
+    for (const m of keepLastGood(found, errors, lastGood ?? [], set, budget)) matches.push(m);
   }
   const rank = (m: PatternMatch) => order.get(`${m.set}\0${m.pattern}`)!;
   matches.sort(
