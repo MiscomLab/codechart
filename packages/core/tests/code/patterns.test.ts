@@ -202,6 +202,29 @@ describe('patterns on real framework code', () => {
     ]);
   });
 
+  it('Prisma: the relation fields of each model, with their model and type', async () => {
+    const source = readFileSync(join(import.meta.dirname, '..', 'fixtures', 'code', 'prisma', 'prisma', 'schema.prisma'), 'utf8');
+    const pattern = `
+(model_declaration
+  (identifier) @model
+  (statement_block
+    (column_declaration
+      (identifier) @field
+      (column_type (identifier) @type)
+      (attribute (call_expression (identifier) @_attribute))) @entity)
+  (#eq? @_attribute "relation"))
+`;
+    expect(await checkPattern('prisma', pattern)).toEqual({ ok: true });
+    const matches = await matchesOf('prisma/schema.prisma', source, [{ id: 'relation', grammar: 'prisma', pattern }]);
+    expect(matches?.map((m) => [at(m), m.captures])).toStrictEqual([
+      [[25, 2, 25, 80], { model: 'Profile', field: 'user', type: 'User' }],
+      [[32, 2, 32, 71], { model: 'Post', field: 'author', type: 'User' }],
+      [[45, 2, 45, 77], { model: 'Category', field: 'parent', type: 'Category' }],
+      [[47, 2, 47, 39], { model: 'Category', field: 'children', type: 'Category' }],
+    ]);
+    expect(slice(source, matches![0]!)).toBe('user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)');
+  });
+
   it("runs the docs' example (COD-49) as written", async () => {
     const docs = readFileSync(join(import.meta.dirname, '..', '..', '..', '..', 'docs', 'configuration.md'), 'utf8');
     const pattern = /- pattern: \|\n((?: {8}.*\n)+)/.exec(docs)?.[1]?.replace(/^ {8}/gm, '');
@@ -442,8 +465,8 @@ describe('pattern sets', () => {
 
 describe('grammars', () => {
   it('a pattern grammar is the grammar core parses the file with: tsx for .tsx, javascript for .jsx', () => {
-    expect(PATTERN_GRAMMARS).toEqual(['typescript', 'tsx', 'javascript', 'python', 'html', 'css', 'sql', 'bash', 'yaml', 'json']);
-    expect(['a.ts', 'a.mts', 'a.cts', 'a.tsx', 'a.js', 'a.mjs', 'a.cjs', 'a.jsx', 'a.py', 'a.pyi', 'a.html', 'a.htm', 'a.css', 'a.sql', 'a.sh', 'a.bash', 'a.yml', 'a.yaml', 'a.json', 'a.md'].map(patternGrammarOf)).toEqual([
+    expect(PATTERN_GRAMMARS).toEqual(['typescript', 'tsx', 'javascript', 'python', 'html', 'css', 'sql', 'bash', 'yaml', 'json', 'prisma']);
+    expect(['a.ts', 'a.mts', 'a.cts', 'a.tsx', 'a.js', 'a.mjs', 'a.cjs', 'a.jsx', 'a.py', 'a.pyi', 'a.html', 'a.htm', 'a.css', 'a.sql', 'a.sh', 'a.bash', 'a.yml', 'a.yaml', 'a.json', 'schema.prisma', 'a.md'].map(patternGrammarOf)).toEqual([
       'typescript',
       'typescript',
       'typescript',
@@ -463,6 +486,7 @@ describe('grammars', () => {
       'yaml',
       'yaml',
       'json',
+      'prisma',
       undefined,
     ]);
   });
@@ -501,6 +525,7 @@ describe('checkPattern', () => {
     ['python', SQLALCHEMY_MODELS],
     ['python', DJANGO_MODELS],
     ['python', '[(function_definition) @entity (class_definition) @entity]'],
+    ['prisma', '(model_declaration (identifier) @name) @entity'],
   ] as const)('accepts a working %s pattern', async (grammar, pattern) => {
     expect(await checkPattern(grammar, pattern)).toEqual({ ok: true });
   });
@@ -561,7 +586,7 @@ describe('checkPattern', () => {
   it('refuses a grammar core does not ship', async () => {
     expect(await checkPattern('rust' as never, '(identifier) @entity')).toEqual({
       ok: false,
-      error: "unknown grammar 'rust': use typescript, tsx, javascript, python, html, css, sql, bash, yaml or json",
+      error: "unknown grammar 'rust': use typescript, tsx, javascript, python, html, css, sql, bash, yaml, json or prisma",
     });
   });
 });
