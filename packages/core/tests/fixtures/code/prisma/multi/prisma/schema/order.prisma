@@ -1,0 +1,13 @@
+model Order {
+  id     Int        @id @default(autoincrement())
+  user   User       @relation(fields: [userId], references: [id])
+  userId Int
+  lines  OrderLine[]
+  status Status
+}
+
+model OrderLine {
+  id      Int   @id @default(autoincrement())
+  order   Order @relation(fields: [orderId], references: [id])
+  orderId Int
+}

@@ -2,6 +2,12 @@
 
 What's new in each codechart release. Update with `codechart update`; the [releases page](https://github.com/MiscomLab/codechart/releases) has the same notes.
 
+## Unreleased
+
+### Changed
+
+- `@codechart/core` 0.8.0 reads Prisma schemas (`.prisma` files, including every file of a multi-file schema) for the coming desktop app's map: each `model`, `enum`, `view` and composite `type`, and a relation from a model to the model a field's type names, marked on the side that holds the foreign key with the `@relation(fields: …, references: …)` that proves it. A relation resolves only when the same file declares that model; a type another file declares stays unknown. `.codechart.yaml` map rules accept `lang: prisma`. The package grows by 11 KB to download.
+
 ## 1.1.0 (2026-11-23)
 
 ### New

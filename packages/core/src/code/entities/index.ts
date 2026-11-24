@@ -5,6 +5,7 @@ import { extractSymbols, type Extracted } from '../symbols.js';
 import { errorNodes, touches } from '../tree.js';
 import { bashRefs } from './bash.js';
 import { isPackageJson, packageScripts, scriptRefs } from './package-json.js';
+import { prismaDeclarations, prismaRelations } from './prisma.js';
 import { sqlTables } from './sql.js';
 import { Lines } from './text.js';
 import { cssRefs, htmlRefs } from './web.js';
@@ -18,6 +19,8 @@ export interface EntityExtract {
   refs: CodeRef[];
   /** Bash functions. */
   symbols?: Extracted;
+  /** Prisma relations a syntax error hides (`hiddenKey`): their last good version stands in. */
+  hiddenRefs?: Set<string>;
 }
 
 interface Found {
@@ -73,6 +76,13 @@ function jsonEntities(path: string, text: string, tree: Tree, lines: Lines, erro
   return { entities, broken, refs: scripts.flatMap((s) => scriptRefs(path, s, lines, idOf(s))) };
 }
 
+function prismaEntities(path: string, text: string, tree: Tree, lines: Lines, errors: Node[]): EntityExtract {
+  const declarations = prismaDeclarations(tree.rootNode);
+  const { entities, broken, idOf } = identify(path, declarations, errors, lines, text);
+  const { refs, hidden } = prismaRelations({ file: path, declarations, idOf, broken, errors, lines });
+  return { entities, broken, refs, hiddenRefs: hidden };
+}
+
 /** Entities and references of a file in a language without imports, from its syntax tree. */
 export function extractEntities(path: string, text: string, tree: Tree, grammar: EntityGrammar, tags: Query | undefined): EntityExtract {
   const lines = new Lines(text);
@@ -85,6 +95,8 @@ export function extractEntities(path: string, text: string, tree: Tree, grammar:
       return yamlEntities(path, text, tree, lines, errors);
     case 'json':
       return jsonEntities(path, text, tree, lines, errors);
+    case 'prisma':
+      return prismaEntities(path, text, tree, lines, errors);
     case 'html':
       return { ...none, refs: htmlRefs(path, tree, lines) };
     case 'css':

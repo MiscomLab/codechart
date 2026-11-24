@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { extractCalls } from './calls.js';
 import { extractEntities } from './entities/index.js';
+import { hiddenKey } from './entities/prisma.js';
 import { Lines } from './entities/text.js';
 import { loadEntityGrammar, loadGrammar } from './grammars.js';
 import { entityGrammarOf, grammarOf, langOf, type EntityGrammar } from './languages.js';
@@ -111,25 +112,40 @@ function keepLastGoodExports(exports: ModuleExports, errors: CodeRange[], lastGo
   return { names, complete: false };
 }
 
-/**
- * A reference a syntax error hides keeps its last good version while the text still names it, as imports do; one whose
- * spec is gone from the text was deleted, not hidden.
- */
-function keepLastGoodRefs(refs: readonly CodeRef[], errors: readonly CodeRange[], lastGood: ParsedFile | undefined, text: string): CodeRef[] {
+/** Whether a last good reference stands in while the file is broken. */
+type Held = (ref: CodeRef) => boolean;
+
+/** Counted per kind and spec; a Prisma relation per model too, since many fields name the same model. */
+const refKey = (r: CodeRef): string => (r.kind === 'relation' ? `${r.kind}\0${r.spec}\0${r.from ?? ''}\0${r.to ?? ''}` : `${r.kind}\0${r.spec}`);
+
+/** Last good references `held` keeps while the file is broken, after the ones the broken text still states. */
+function keepLastGoodRefs(refs: readonly CodeRef[], errors: readonly CodeRange[], lastGood: ParsedFile | undefined, held: Held): CodeRef[] {
   if (!errors.length || !lastGood) return [...refs];
-  const key = (r: CodeRef) => `${r.kind}\0${r.spec}`;
   // Counted, so a hidden reference is kept even while another one with the same spec still parses.
   const present = new Map<string, number>();
-  for (const r of refs) present.set(key(r), (present.get(key(r)) ?? 0) + 1);
+  for (const r of refs) present.set(refKey(r), (present.get(refKey(r)) ?? 0) + 1);
   const kept = lastGood.refs.filter((r) => {
-    const left = present.get(key(r)) ?? 0;
+    const left = present.get(refKey(r)) ?? 0;
     if (left > 0) {
-      present.set(key(r), left - 1);
+      present.set(refKey(r), left - 1);
       return false;
     }
-    return errors.some((e) => lineOverlap(e, r.range)) && text.includes(r.written ?? r.spec);
+    return held(r);
   });
   return [...refs, ...kept.map(unlinkedRef)];
+}
+
+/**
+ * A last good Prisma relation stands in when the broken text hid it from an intact model, or when its own model is broken
+ * or kept and the text still names its type; only while both its models are still entities of the file.
+ */
+function relationHeld(hiddenRefs: ReadonlySet<string>, untrusted: ReadonlySet<string>, entities: ReadonlySet<string>, text: string, fallback: Held): Held {
+  return (r) => {
+    if (r.kind !== 'relation') return fallback(r);
+    // A safeguard: while the file is broken every last good entity is kept, so both ends are there today.
+    if (!entities.has(r.from!) || (r.to !== undefined && !entities.has(r.to))) return false;
+    return hiddenRefs.has(hiddenKey(r.from!, r.spec)) || (untrusted.has(r.from!) && text.includes(r.spec));
+  };
 }
 
 function unlinkedRef(ref: CodeRef): CodeRef {
@@ -158,6 +174,11 @@ async function parseEntities(file: FileInfo, grammar: EntityGrammar, text: strin
     const errors = tree.rootNode.hasError ? errorNodes(tree.rootNode).map(nodeRange) : [];
     const symbols = extracted.symbols ? keepLastGoodSymbols(extracted.symbols, Array.isArray(lastGood) ? lastGood : previous?.symbols) : { symbols: [], kept: [] };
     const entities = keepLastGood(extracted.entities, extracted.broken, errors, previous?.entities);
+    // A reference a syntax error hides stays while the text still names it, as imports do; one whose spec is gone
+    // from the text was deleted, not hidden.
+    const fallback: Held = (r) => errors.some((e) => lineOverlap(e, r.range)) && text.includes(r.written ?? r.spec);
+    const untrusted = new Set([...extracted.broken, ...entities.kept]);
+    const held = relationHeld(extracted.hiddenRefs ?? new Set(), untrusted, new Set(entities.items.map((e) => e.id)), text, fallback);
     return {
       file,
       symbols: symbols.symbols,
@@ -167,7 +188,7 @@ async function parseEntities(file: FileInfo, grammar: EntityGrammar, text: strin
       exports: { names: [], complete: false },
       calls: [],
       entities: entities.items,
-      refs: keepLastGoodRefs(withWritten(extracted.refs, text), errors, previous, text),
+      refs: keepLastGoodRefs(withWritten(extracted.refs, text), errors, previous, held),
     };
   } finally {
     tree.delete();

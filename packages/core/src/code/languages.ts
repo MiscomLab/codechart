@@ -23,6 +23,7 @@ const BY_EXTENSION: Record<string, Lang> = {
   yml: 'yaml',
   yaml: 'yaml',
   json: 'json',
+  prisma: 'prisma',
 };
 
 const extension = (path: string): string => {
@@ -37,7 +38,7 @@ export function langOf(path: string): Lang | undefined {
 }
 
 /** A tree-sitter grammar codechart reads entities and references with (and, for Bash, functions). */
-export type EntityGrammar = 'html' | 'css' | 'sql' | 'bash' | 'yaml' | 'json';
+export type EntityGrammar = 'html' | 'css' | 'sql' | 'bash' | 'yaml' | 'json' | 'prisma';
 
 /** The grammar that reads a file's entities and references, for the v1 languages without imports. */
 export function entityGrammarOf(path: string): EntityGrammar | undefined {

@@ -1,0 +1,32 @@
+datasource db {
+  provider = "mongodb"
+  url      = "mongodb://localhost:27017/shop"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+type Address {
+  street String
+  city   String
+  geo    Geo?
+}
+
+type Geo {
+  lat Float
+  lng Float
+}
+
+model Customer {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  addresses Address[]
+  orders    Order[]
+}
+
+model Order {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  shipTo     Address
+  customer   Customer @relation(fields: [customerId], references: [id])
+  customerId String   @db.ObjectId
+}
