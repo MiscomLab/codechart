@@ -1,0 +1,349 @@
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { cpSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { openCodeIndex, type CodeIndex } from '../../src/code/code-index.js';
+import { parseCode } from '../../src/code/parse.js';
+import { compilePatterns, type PatternSet } from '../../src/code/patterns.js';
+import { parseRepo } from '../../src/code/repo.js';
+
+const FIXTURES = join(import.meta.dirname, '..', 'fixtures', 'code', 'patterns');
+
+const ROUTES = `
+(program
+  (expression_statement
+    (call_expression
+      function: (member_expression object: (identifier) @app property: (property_identifier) @method)
+      arguments: (arguments . (string (string_fragment) @path))) @entity)
+  (#any-of? @method "get" "post" "put" "patch" "delete"))
+`;
+const DJANGO = `
+(class_definition
+  name: (identifier) @name
+  superclasses: (argument_list (attribute object: (identifier) @module attribute: (identifier) @base))
+  (#eq? @module "models")
+  (#eq? @base "Model")) @entity
+`;
+
+let patterns: PatternSet;
+let repo: string;
+let index: CodeIndex;
+
+const write = (path: string, text: string) => writeFileSync(join(repo, path), text);
+const read = (path: string) => readFileSync(join(repo, path), 'utf8');
+const routes = (path = 'express.js') => index.file(path)?.matches?.map((m) => [m.captures.method, m.captures.path, m.range.start.line, m.kept ?? false]);
+
+beforeAll(async () => {
+  patterns = await compilePatterns([
+    { id: 'route', grammar: 'javascript', pattern: ROUTES },
+    { id: 'django-model', grammar: 'python', pattern: DJANGO },
+  ]);
+});
+afterAll(() => patterns.delete());
+
+beforeEach(async () => {
+  repo = mkdtempSync(join(tmpdir(), 'codechart-patterns-'));
+  cpSync(join(FIXTURES, 'express.js'), join(repo, 'express.js'));
+  cpSync(join(FIXTURES, 'models_django.py'), join(repo, 'models.py'));
+  execFileSync('git', ['init', '-q'], { cwd: repo });
+  index = await openCodeIndex(repo, { patterns });
+});
+
+afterEach(() => rmSync(repo, { recursive: true, force: true }));
+
+describe('openCodeIndex with patterns', () => {
+  it('runs them on every file at open', () => {
+    expect(routes()).toEqual([
+      ['get', '/users', 9, false],
+      ['post', '/users', 10, false],
+      ['delete', '/users/:id', 12, false],
+    ]);
+    expect(index.file('models.py')?.matches?.map((m) => m.captures.name)).toEqual(['Author', 'Article']);
+  });
+
+  it('gives the same matches as parseRepo', async () => {
+    const files = await parseRepo(repo, { patterns });
+    expect(files.map((f) => [f.file.path, f.matches?.length])).toEqual([
+      ['express.js', 3],
+      ['models.py', 2],
+    ]);
+    expect(Object.fromEntries(files.map((f) => [f.file.path, f.matches]))).toEqual(Object.fromEntries(index.files.map((f) => [f.file.path, f.matches])));
+  });
+
+  it('an edit re-runs them on the saved file only; the other keeps its matches', async () => {
+    const models = index.file('models.py')?.matches;
+    write('express.js', read('express.js').replace("app.use('/api', router);", "app.put('/users/:id', updateUser);\napp.use('/api', router);"));
+    const update = await index.update(['express.js']);
+    expect(update.parsed).toEqual(['express.js']);
+    expect(routes()).toEqual([
+      ['get', '/users', 9, false],
+      ['post', '/users', 10, false],
+      ['delete', '/users/:id', 12, false],
+      ['put', '/users/:id', 20, false],
+    ]);
+    expect(index.file('models.py')?.matches).toBe(models);
+  });
+
+  it('a line move updates the range', async () => {
+    write('express.js', `// header\n${read('express.js')}`);
+    await index.update(['express.js']);
+    expect(routes()?.map((r) => r[2])).toEqual([10, 11, 13]);
+  });
+
+  it('broken text adds no match and keeps the last good one it hides', async () => {
+    const before = index.file('express.js')!.matches!;
+    // The route's path is edited and its call left open.
+    write('express.js', read('express.js').replace("app.get('/users', listUsers);", "app.get('/people', listUsers"));
+    await index.update(['express.js']);
+    const after = index.file('express.js')!;
+    expect(after.parseErrors.length).toBeGreaterThan(0);
+    expect(after.matches?.some((m) => m.captures.path === '/people')).toBe(false);
+    const kept = after.matches?.find((m) => m.captures.method === 'get');
+    expect(kept).toStrictEqual({ ...before[0], kept: true });
+    // The delete route sits below the error; it is either parsed again or kept, never lost.
+    expect(after.matches?.some((m) => m.captures.method === 'delete')).toBe(true);
+  });
+
+  it('fixing the text drops the kept match and reads the new one', async () => {
+    write('express.js', read('express.js').replace("app.get('/users', listUsers);", "app.get('/people', listUsers"));
+    await index.update(['express.js']);
+    write('express.js', read('express.js').replace("app.get('/people', listUsers", "app.get('/people', listUsers);"));
+    await index.update(['express.js']);
+    expect(index.file('express.js')?.parseErrors).toEqual([]);
+    expect(routes()).toEqual([
+      ['get', '/people', 9, false],
+      ['post', '/users', 10, false],
+      ['delete', '/users/:id', 12, false],
+    ]);
+  });
+
+  it('a route removed while another part of the file is broken stays until the file parses', async () => {
+    write('express.js', read('express.js').replace('app.post("/users", createUser);\n', '').replace('app.listen(3000);', 'app.listen(3000'));
+    await index.update(['express.js']);
+    expect(index.file('express.js')?.matches?.find((m) => m.captures.method === 'post')?.kept).toBe(true);
+    write('express.js', read('express.js').replace('app.listen(3000', 'app.listen(3000);'));
+    await index.update(['express.js']);
+    expect(routes()?.map((r) => r[0])).toEqual(['get', 'delete']);
+  });
+
+  it('a new file gets matches and a deleted one leaves', async () => {
+    write('more.js', "app.patch('/users/:id', patchUser);\n");
+    await index.update(['more.js']);
+    expect(routes('more.js')).toEqual([['patch', '/users/:id', 1, false]]);
+    unlinkSync(join(repo, 'express.js'));
+    await index.update(['express.js']);
+    expect(index.file('express.js')).toBeUndefined();
+  });
+
+  it('a new route clear of an error is read while the file is broken', async () => {
+    write('express.js', `app.put('/x', h);\n${read('express.js').replace('app.listen(3000);', 'app.listen(3000')}`);
+    await index.update(['express.js']);
+    expect(index.file('express.js')?.parseErrors).not.toEqual([]);
+    expect(routes()).toEqual([
+      ['put', '/x', 1, false],
+      ['get', '/users', 10, false],
+      ['post', '/users', 11, false],
+      ['delete', '/users/:id', 13, false],
+    ]);
+  });
+
+  it('a file cut off by the time limit keeps its mark through the update', async () => {
+    const slow = await compilePatterns([{ id: 'slow', grammar: 'javascript', pattern: '(_ (_)* @a (_)* @b (_)* @c) @entity' }], { id: 'slow', timeoutMs: 20 });
+    try {
+      const big = Array.from({ length: 4000 }, (_, i) => `const a${i} = [${Array.from({ length: 30 }, (_, j) => j).join(', ')}];`).join('\n');
+      write('big.js', big);
+      const slowIndex = await openCodeIndex(repo, { patterns: slow });
+      expect(slowIndex.file('big.js')?.patternLimits).toStrictEqual({ slow: 'timeout' });
+      expect('patternLimits' in slowIndex.file('models.py')!).toBe(false);
+      write('big.js', `${big}\n// edited`);
+      const update = await slowIndex.update(['big.js']);
+      expect(update.parsed).toEqual(['big.js']);
+      expect(slowIndex.file('big.js')?.patternLimits).toStrictEqual({ slow: 'timeout' });
+    } finally {
+      slow.delete();
+    }
+  });
+
+  it('an index with a built-in and a user set: a slow user pattern costs the built-in set nothing, on open and on update', async () => {
+    const builtin = await compilePatterns([{ id: 'route', grammar: 'javascript', pattern: ROUTES }], { id: 'builtin' });
+    const user = await compilePatterns([{ id: 'slow', grammar: 'javascript', pattern: '(_ (_)* @a (_)* @b (_)* @c) @entity' }], { id: 'user', timeoutMs: 20 });
+    try {
+      const routes = Array.from({ length: 2000 }, (_, i) => `app.get('/r${i}', [${Array.from({ length: 30 }, (_, j) => j).join(', ')}]);`).join('\n');
+      write('routes.js', routes);
+      const both = await openCodeIndex(repo, { patterns: [builtin, user] });
+      const builtinRoutes = () => both.file('routes.js')?.matches?.filter((m) => m.set === 'builtin').length;
+      expect(both.file('routes.js')?.patternLimits).toStrictEqual({ user: 'timeout' });
+      expect(builtinRoutes()).toBe(2000);
+      write('routes.js', `${routes}\napp.post('/last', h);`);
+      await both.update(['routes.js']);
+      expect(both.file('routes.js')?.patternLimits).toStrictEqual({ user: 'timeout' });
+      expect(builtinRoutes()).toBe(2001);
+    } finally {
+      builtin.delete();
+      user.delete();
+    }
+  }, 20_000);
+
+  it('parseRepo takes several sets too', async () => {
+    const builtin = await compilePatterns([{ id: 'route', grammar: 'javascript', pattern: ROUTES }], { id: 'builtin' });
+    const user = await compilePatterns([{ id: 'model', grammar: 'python', pattern: DJANGO }], { id: 'user' });
+    try {
+      const files = await parseRepo(repo, { patterns: [builtin, user] });
+      expect(files.map((f) => [f.file.path, f.matches?.map((m) => `${m.set}:${m.pattern}`)])).toEqual([
+        ['express.js', ['builtin:route', 'builtin:route', 'builtin:route']],
+        ['models.py', ['user:model', 'user:model']],
+      ]);
+    } finally {
+      builtin.delete();
+      user.delete();
+    }
+  });
+
+  it('an index opened without patterns has no matches', async () => {
+    const plain = await openCodeIndex(repo);
+    expect(plain.files.every((f) => !('matches' in f))).toBe(true);
+  });
+});
+
+describe('parseCode with a last good parse', () => {
+  const CALLS = '(call_expression function: (member_expression property: (property_identifier) @method) arguments: (arguments . (string (string_fragment) @path))) @entity';
+  let calls: PatternSet;
+  beforeAll(async () => {
+    calls = await compilePatterns([{ id: 'call', grammar: 'javascript', pattern: CALLS }]);
+  });
+  afterAll(() => calls.delete());
+  const shape = (f: Awaited<ReturnType<typeof parseCode>>) => f?.matches?.map((m) => [m.captures.path, m.range.start.line, m.range.start.column, m.kept ?? false]);
+
+  it('keeps only last good matches of patterns still in the set', async () => {
+    const text = "app.get('/users', list);\napp.post('/users', create);\n";
+    const old = await compilePatterns([
+      { id: 'route', grammar: 'javascript', pattern: ROUTES },
+      { id: 'gone', grammar: 'javascript', pattern: '(program (expression_statement (call_expression) @entity))' },
+    ]);
+    try {
+      const good = await parseCode('a.js', text, undefined, { patterns: old });
+      expect(good?.matches?.map((m) => m.pattern)).toEqual(['route', 'gone', 'route', 'gone']);
+      // tree-sitter reads the open call as one call spanning both lines, through the error: nothing new comes from it.
+      const broken = await parseCode('a.js', "app.get('/users', list\napp.post('/users', create);\n", good, { patterns });
+      expect(broken?.matches?.map((m) => [m.pattern, m.captures.method, m.range.start.line, m.kept ?? false])).toEqual([
+        ['route', 'get', 1, true],
+        ['route', 'post', 2, true],
+      ]);
+    } finally {
+      old.delete();
+    }
+  });
+
+  it('keeps last good matches per set, and none of a set no longer given', async () => {
+    const a = await compilePatterns([{ id: 'call', grammar: 'javascript', pattern: CALLS }], { id: 'a' });
+    const b = await compilePatterns([{ id: 'call', grammar: 'javascript', pattern: CALLS }], { id: 'b' });
+    try {
+      const good = await parseCode('a.js', "app.get('/users', h);\n", undefined, { patterns: [a, b] });
+      expect(good?.matches?.map((m) => m.set)).toEqual(['a', 'b']);
+      const broken = await parseCode('a.js', "app.get('/people', h;\n", good, { patterns: [a] });
+      expect(broken?.matches?.map((m) => [m.set, m.captures.path, m.kept])).toStrictEqual([['a', '/users', true]]);
+    } finally {
+      a.delete();
+      b.delete();
+    }
+  });
+
+  it('many identical matches in a broken file cost about what a clean parse does, not the square (Greptile #101)', async () => {
+    const names = await compilePatterns([{ id: 'name', grammar: 'javascript', pattern: '(identifier) @entity' }], { id: 'names' });
+    try {
+      const n = 80_000;
+      const good = await parseCode('a.js', 'x;\n'.repeat(n), undefined, { patterns: names });
+      let started = performance.now();
+      await parseCode('a.js', `${'x;\n'.repeat(n)}y;`, good, { patterns: names });
+      const clean = performance.now() - started;
+      started = performance.now();
+      const broken = await parseCode('a.js', `${'x;\n'.repeat(n)}(`, good, { patterns: names });
+      const elapsed = performance.now() - started;
+      expect(broken?.parseErrors).not.toEqual([]);
+      expect(broken?.matches).toHaveLength(n);
+      // Measured before the fix: clean 279 ms, broken 6,816 ms at this size (4x per doubling of n).
+      expect(elapsed).toBeLessThan(4 * clean + 1000);
+    } finally {
+      names.delete();
+    }
+  }, 60_000);
+
+  it('a list of last good symbols carries no matches; one clear of the error still counts', async () => {
+    // The open call is a match the error touches: new from broken text, so dropped.
+    const broken = await parseCode('a.js', "app.post('/a', h);\napp.get('/b', h;\n", [], { patterns: calls });
+    expect(broken?.matches?.map((m) => [m.captures.path, m.kept])).toStrictEqual([['/a', undefined]]);
+  });
+
+  it('a last good parse made without patterns counts as none', async () => {
+    const good = await parseCode('a.js', "app.post('/a', h);\napp.get('/b', h);\n");
+    expect(good && 'matches' in good).toBe(false);
+    const broken = await parseCode('a.js', "app.post('/a', h);\napp.get('/b', h;\n", good, { patterns: calls });
+    expect(broken?.matches?.map((m) => [m.captures.path, m.kept])).toStrictEqual([['/a', undefined]]);
+  });
+
+  it('a match the error touches stays current, not kept, when the last good parse had the same text', async () => {
+    const good = await parseCode('a.js', "x = [app.get('/users', h)];\n", undefined, { patterns: calls });
+    // The closing ] goes missing right where the call ends.
+    const broken = await parseCode('a.js', "\nx = [app.get('/users', h);\n", good, { patterns: calls });
+    expect(broken?.parseErrors).not.toEqual([]);
+    expect(shape(broken)).toEqual([['/users', 2, 5, false]]);
+  });
+
+  it('a match the error touches with new text is dropped, and the last good one kept', async () => {
+    const good = await parseCode('a.js', "x = [app.get('/users', h)];\n", undefined, { patterns: calls });
+    const broken = await parseCode('a.js', "x = [app.get('/people', h);\n", good, { patterns: calls });
+    expect(shape(broken)).toEqual([['/users', 1, 5, true]]);
+  });
+
+  it('a match the error touches with the same captures but new content is dropped, and the last good one kept', async () => {
+    const good = await parseCode('a.js', "x = [app.get('/users', h)];\n", undefined, { patterns: calls });
+    const broken = await parseCode('a.js', "x = [app.get('/users', other);\n", good, { patterns: calls });
+    expect(shape(broken)).toEqual([['/users', 1, 5, true]]);
+    expect(broken?.matches?.[0]?.hash).toBe(createHash('sha256').update("app.get('/users', h)").digest('hex'));
+  });
+
+  it('the same for a pattern without captures: only the content tells the edit apart', async () => {
+    const bare = await compilePatterns([{ id: 'call', grammar: 'javascript', pattern: '(call_expression) @entity' }], { id: 'bare' });
+    try {
+      const good = await parseCode('a.js', "x = [app.get('/users', h)];\n", undefined, { patterns: bare });
+      const broken = await parseCode('a.js', "x = [app.get('/users', other);\n", good, { patterns: bare });
+      expect(broken?.matches?.map((m) => [m.range.end.column, m.kept ?? false, m.hash])).toEqual([[25, true, createHash('sha256').update("app.get('/users', h)").digest('hex')]]);
+    } finally {
+      bare.delete();
+    }
+  });
+
+  it('two identical matches: one still parsed, the hidden one kept', async () => {
+    const good = await parseCode('a.js', "app.get('/users', h);\napp.get('/users', h);\n", undefined, { patterns: calls });
+    const broken = await parseCode('a.js', "app.get('/users', h);\napp.get('/users', h;\n", good, { patterns: calls });
+    expect(shape(broken)).toEqual([
+      ['/users', 1, 0, false],
+      ['/users', 2, 0, true],
+    ]);
+  });
+
+  it('in a language without imports too: a table hidden by an error is kept, one clear of it is read', async () => {
+    const tables = await compilePatterns([{ id: 'table', grammar: 'sql', pattern: '(create_table (object_reference name: (identifier) @name)) @entity' }]);
+    try {
+      const names = (f: Awaited<ReturnType<typeof parseCode>>) => f?.matches?.map((m) => [m.captures.name, m.range.start.line, m.kept ?? false]);
+      const good = await parseCode('s.sql', 'CREATE TABLE users (id INT);\nCREATE TABLE orders (id INT);\n', undefined, { patterns: tables });
+      const broken = await parseCode('s.sql', 'CREATE TABLE users (id INT);\nCREATE TABLE orders (id INT;\nCREATE TABLE audit (id INT);\n', good, { patterns: tables });
+      expect(broken?.parseErrors).not.toEqual([]);
+      expect(names(broken)).toEqual([
+        ['users', 1, false],
+        ['orders', 2, true],
+        ['audit', 3, false],
+      ]);
+      // A new table the error touches is not read.
+      const hidden = await parseCode('s.sql', 'CREATE TABLE users (id INT);\nCREATE TABLE orders (id INT);\nCREATE TABLE audit (id INT;\n', good, { patterns: tables });
+      expect(names(hidden)).toEqual([
+        ['users', 1, false],
+        ['orders', 2, false],
+      ]);
+    } finally {
+      tables.delete();
+    }
+  });
+});

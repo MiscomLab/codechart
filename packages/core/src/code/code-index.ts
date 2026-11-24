@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 import { relative, resolve, sep } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { parseCode, type ParsedFile } from './parse.js';
-import { listCodeFiles, readCodeFile } from './repo.js';
+import type { PatternSets } from './patterns.js';
+import { listCodeFiles, parseFiles, readCodeFile } from './repo.js';
 import { buildReverse, importerClosure, nameUsers, namesOf, Probes, type ReverseIndex } from './reverse.js';
 import { linkResolved, resolveImports } from './resolve/link.js';
 import { pythonProbeKeys } from './resolve/python.js';
@@ -11,6 +12,8 @@ import { createResolver, type Resolver } from './resolve/resolver.js';
 export interface CodeIndexOptions {
   /** The config's `ignore` globs, as `parseRepo` takes them. */
   ignore?: readonly string[];
+  /** Sets from `compilePatterns`, run on every parse, updates too. In use until the index is dropped; new patterns need a new index. */
+  patterns?: PatternSets;
 }
 
 /** What one update touched; every path is repo-relative with `/`. */
@@ -126,6 +129,7 @@ class Index implements CodeIndex {
   constructor(
     readonly root: string,
     private readonly ignore: readonly string[],
+    private readonly patterns: PatternSets | undefined,
     files: Map<string, ParsedFile>,
     probed: ReadonlyMap<string, ReadonlySet<string>>,
     configDeps: Set<string>,
@@ -201,7 +205,7 @@ class Index implements CodeIndex {
         continue;
       }
       if (before.get(path)?.file.hash === hashOf(text)) continue;
-      const parsed = await parseCode(path, text, before.get(path));
+      const parsed = await parseCode(path, text, before.get(path), { patterns: this.patterns });
       if (!parsed) continue;
       next.set(path, parsed);
       update.parsed.add(path);
@@ -293,15 +297,10 @@ class Index implements CodeIndex {
 /** Opens the code layer of `root` and keeps it ready for one-file updates; links as `parseRepo` does, recording probes. */
 export async function openCodeIndex(root: string, opts: CodeIndexOptions = {}): Promise<CodeIndex> {
   const listed = listCodeFiles(root, opts.ignore);
-  const parsed: ParsedFile[] = [];
-  for (const path of listed) {
-    const text = readCodeFile(root, path);
-    const file = text === undefined ? undefined : await parseCode(path, text);
-    if (file) parsed.push(file);
-  }
+  const parsed = await parseFiles(root, listed, opts.patterns);
   const { resolver, recorded, config } = recordingResolver(root, listed);
   const resolved = resolveImports(parsed, resolver);
   const paths = new Set(resolved.map((f) => f.file.path));
   const files = linkResolved(resolved, { definitions: paths, calls: paths });
-  return new Index(root, opts.ignore ?? [], new Map(files.map((f) => [f.file.path, f])), recorded, config);
+  return new Index(root, opts.ignore ?? [], opts.patterns, new Map(files.map((f) => [f.file.path, f])), recorded, config);
 }

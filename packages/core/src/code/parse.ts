@@ -4,12 +4,15 @@ import { extractEntities } from './entities/index.js';
 import { hiddenKey } from './entities/prisma.js';
 import { Lines } from './entities/text.js';
 import { loadEntityGrammar, loadGrammar } from './grammars.js';
-import { entityGrammarOf, grammarOf, langOf, type EntityGrammar } from './languages.js';
+import { entityGrammarOf, grammarOf, langOf, type EntityGrammar, type PatternGrammar } from './languages.js';
 import { extractImports, type ExportName, type ImportSpec, type ModuleExports } from './imports.js';
-import type { CallRef, CodeEntity, CodeRef, CodeSymbol, FileInfo, CodeRange, Import } from './model.js';
+import type { CallRef, CodeEntity, CodeRef, CodeSymbol, FileInfo, CodeRange, Import, PatternMatch } from './model.js';
+import { matchPatterns } from './pattern-run.js';
+import type { PatternLimit, PatternSets } from './patterns.js';
 import { extractPythonImports } from './python/imports.js';
 import type { PyBinding } from './python/module-scope.js';
 import { extractSymbols } from './symbols.js';
+import type { Node } from 'web-tree-sitter';
 import { errorNodes, nodeRange } from './tree.js';
 
 /** One file of the code layer. */
@@ -33,7 +36,20 @@ export interface ParsedFile {
   bindings?: PyBinding[];
   /** The file edits `sys.path`, so its absolute Python imports have no provable target. Absent for other files. */
   sysPathEdited?: boolean;
+  /** The `@entity` captures of the `patterns` it was parsed with, every set's; absent when it was parsed without. */
+  matches?: PatternMatch[];
+  /** By set id, the sets that hit their time or match limit on this file, whose `matches` may miss some. */
+  patternLimits?: Record<string, PatternLimit>;
 }
+
+export interface ParseOptions {
+  /** Pattern sets from `compilePatterns`, each run on the tree this parse makes; each file gets `matches`. */
+  patterns?: PatternSets;
+}
+
+/** The patterns' matches in the tree, with the file's last good matches standing in where an error hides them. */
+const patternsIn = (opts: ParseOptions, grammar: PatternGrammar, root: Node, errors: readonly Node[], previous: ParsedFile | undefined) =>
+  opts.patterns ? matchPatterns(opts.patterns, grammar, root, errors, previous?.matches) : undefined;
 
 /** The previous parse of a file: symbols, imports and exports that stand in while syntax errors hide them. */
 export type LastGood = ParsedFile | readonly CodeSymbol[];
@@ -164,14 +180,15 @@ function withWritten(refs: readonly CodeRef[], text: string): CodeRef[] {
 }
 
 /** A file in a language without imports: its entities, references and (Bash) functions. */
-async function parseEntities(file: FileInfo, grammar: EntityGrammar, text: string, lastGood: LastGood | undefined): Promise<ParsedFile> {
+async function parseEntities(file: FileInfo, grammar: EntityGrammar, text: string, lastGood: LastGood | undefined, opts: ParseOptions): Promise<ParsedFile> {
   const { parser, tags } = await loadEntityGrammar(grammar);
   const tree = parser.parse(text);
   if (!tree) throw new Error(`tree-sitter returned no tree for ${file.path}`);
   try {
     const previous = Array.isArray(lastGood) ? undefined : (lastGood as ParsedFile | undefined);
     const extracted = extractEntities(file.path, text, tree, grammar, tags);
-    const errors = tree.rootNode.hasError ? errorNodes(tree.rootNode).map(nodeRange) : [];
+    const errorNodeList = tree.rootNode.hasError ? errorNodes(tree.rootNode) : [];
+    const errors = errorNodeList.map(nodeRange);
     const symbols = extracted.symbols ? keepLastGoodSymbols(extracted.symbols, Array.isArray(lastGood) ? lastGood : previous?.symbols) : { symbols: [], kept: [] };
     const entities = keepLastGood(extracted.entities, extracted.broken, errors, previous?.entities);
     // A reference a syntax error hides stays while the text still names it, as imports do; one whose spec is gone
@@ -189,6 +206,7 @@ async function parseEntities(file: FileInfo, grammar: EntityGrammar, text: strin
       calls: [],
       entities: entities.items,
       refs: keepLastGoodRefs(withWritten(extracted.refs, text), errors, previous, held),
+      ...patternsIn(opts, grammar, tree.rootNode, errorNodeList, previous),
     };
   } finally {
     tree.delete();
@@ -211,14 +229,14 @@ function unlinked(imp: Import): Import {
 
 /**
  * Parses one file in isolation. `path` is repo-relative with `/`; `lastGood` is the file's previous parse, whose
- * symbols, entities, imports, exports and references stand in for what a syntax error hides.
+ * symbols, entities, imports, exports, references and pattern matches stand in for what a syntax error hides.
  */
-export async function parseCode(path: string, text: string, lastGood?: LastGood): Promise<ParsedFile | undefined> {
+export async function parseCode(path: string, text: string, lastGood?: LastGood, opts: ParseOptions = {}): Promise<ParsedFile | undefined> {
   const lang = langOf(path);
   if (!lang) return undefined;
   const file: FileInfo = { path, lang, hash: createHash('sha256').update(text).digest('hex') };
   const grammar = grammarOf(path);
-  if (!grammar) return parseEntities(file, entityGrammarOf(path)!, text, lastGood);
+  if (!grammar) return parseEntities(file, entityGrammarOf(path)!, text, lastGood, opts);
   const { parser, tags, imports: query } = await loadGrammar(grammar);
   const tree = parser.parse(text);
   if (!tree) throw new Error(`tree-sitter returned no tree for ${path}`);
@@ -240,6 +258,7 @@ export async function parseCode(path: string, text: string, lastGood?: LastGood)
       refs: [],
       ...(python && { bindings: python.bindings }),
       ...(python?.sysPathEdited && { sysPathEdited: true }),
+      ...patternsIn(opts, grammar, tree.rootNode, errors, previous),
     };
   } finally {
     tree.delete();

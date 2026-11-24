@@ -55,3 +55,12 @@ export function grammarOf(path: string): Grammar | undefined {
   // The JavaScript grammar parses JSX too.
   return lang === 'typescript' || lang === 'javascript' ? lang : undefined;
 }
+
+/** Every grammar core parses a file with; a tree-sitter pattern names one and runs on the files read with it. */
+export const PATTERN_GRAMMARS = ['typescript', 'tsx', 'javascript', 'python', 'html', 'css', 'sql', 'bash', 'yaml', 'json'] as const;
+export type PatternGrammar = (typeof PATTERN_GRAMMARS)[number];
+
+/** The grammar core parses a file with: `tsx` for `.tsx`, `javascript` for `.jsx` too; undefined for files it skips. */
+export function patternGrammarOf(path: string): PatternGrammar | undefined {
+  return grammarOf(path) ?? entityGrammarOf(path);
+}

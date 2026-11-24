@@ -141,3 +141,22 @@ export const codeRefSchema = z.object({
   range: codeRangeSchema,
 });
 export type CodeRef = z.infer<typeof codeRefSchema>;
+
+/**
+ * A match of a tree-sitter pattern (`compilePatterns`): where the node it captured as `@entity` is, and the text of its
+ * other captures. Names starting with `_` only feed predicates and are left out; a capture that matched several nodes
+ * gives the first. The source text itself is not kept: the range points at it.
+ */
+export const patternMatchSchema = z.object({
+  /** The id of the pattern set the pattern belongs to. */
+  set: z.string().min(1),
+  /** The id of the pattern that matched. */
+  pattern: z.string().min(1),
+  range: codeRangeSchema,
+  /** sha256 of the `@entity` node's text as UTF-8, hex: tells an edited match from the last good one (Live map #11). */
+  hash: z.string().regex(/^[0-9a-f]{64}$/),
+  captures: z.record(z.string(), z.string()),
+  /** Carried over from the last good parse with its old range, since a syntax error hides it (Live map #11). */
+  kept: z.literal(true).optional(),
+});
+export type PatternMatch = z.infer<typeof patternMatchSchema>;
