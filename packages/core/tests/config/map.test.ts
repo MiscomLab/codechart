@@ -632,7 +632,7 @@ describe('gate 2: errors stay one line and comments outside pinned stay', () => 
   it('a long invalid id is cut in the error', () => {
     const id = `${'A'.repeat(150)}`;
     const [error] = errorsOf({ pinned: { [id]: { name: 'X' } } });
-    expect(error).toBe(`map.pinned: "${'A'.repeat(100)}…": use a rule box id (1-64 lowercase letters, digits or hyphens, not starting with a hyphen), a folder box id (folder: and a repo-relative folder, e.g. folder:src/payments) or a node id (file::path::kind, file repo-relative)`);
+    expect(error).toBe(`map.pinned: "${'A'.repeat(100)}…": use a rule box id (1-64 lowercase letters, digits or hyphens, not starting with a hyphen), a folder box id (folder: and a repo-relative folder, e.g. folder:src/payments), a group box id (group:, the id of the box it sits in or nothing at the top, / and its first word or first..last name, e.g. group:folder:src/doctor) or a node id (file::path::kind, file repo-relative)`);
   });
 
   it('a pattern over 2000 characters is too long, @entity or not', () => {

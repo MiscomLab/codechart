@@ -2,6 +2,12 @@
 
 What's new in each codechart release. Update with `codechart update`; the [releases page](https://github.com/MiscomLab/codechart/releases) has the same notes.
 
+## Unreleased
+
+### Changed
+
+- `.codechart.yaml` `map.pinned` takes group box ids, such as `group:folder:src/commands/doctor`, so a name pinned in the coming desktop app on a box it grouped by first word or by a run of names is kept. `@codechart/core` 0.10.0 accepts them. ([Configuration](docs/configuration.md#map-desktop-app))
+
 ## 1.2.0 (2026-11-24)
 
 ### Changed

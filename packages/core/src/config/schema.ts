@@ -95,16 +95,37 @@ const BOX_ID = RULE_NAME;
 const NODE_ID = /^(?!\/)(?:[^:\\]|:(?!:))+::.+::[a-z]+(?:~(?:[2-9]|[1-9][0-9]+))?$/;
 /** Prefix of a folder box's id: `folder:src/payments`. */
 export const FOLDER_BOX_PREFIX = 'folder:';
+/** Prefix of a group box's id: `group:folder:src/doctor`, `group:/a.ts..f.ts`. */
+export const GROUP_BOX_PREFIX = 'group:';
 const ID_MESSAGE =
-  'use a rule box id (1-64 lowercase letters, digits or hyphens, not starting with a hyphen), a folder box id (folder: and a repo-relative folder, e.g. folder:src/payments) or a node id (file::path::kind, file repo-relative)';
+  'use a rule box id (1-64 lowercase letters, digits or hyphens, not starting with a hyphen), a folder box id (folder: and a repo-relative folder, e.g. folder:src/payments), a group box id (group:, the id of the box it sits in or nothing at the top, / and its first word or first..last name, e.g. group:folder:src/doctor) or a node id (file::path::kind, file repo-relative)';
 // Repo-relative with `/`: no leading or trailing `/`, no empty, `.` or `..` segment, no backslash.
 const isRepoPath = (path: string) => !path.includes('\\') && path.split('/').every((seg) => seg !== '' && seg !== '.' && seg !== '..');
+const isFolderId = (id: string) => id.startsWith(FOLDER_BOX_PREFIX) && isRepoPath(id.slice(FOLDER_BOX_PREFIX.length));
 
-/** Which pinned id this is, by syntax alone: `::` makes a node, a `folder:` prefix a folder box, else a rule box slug. */
-export function pinnedIdKind(id: string): 'node' | 'folder' | 'rule-box' | undefined {
+/**
+ * The desktop app's group box: `group:<level>/<label>`, the level a folder box id, a rule box id, or empty at the
+ * top; the label its first word or `first..last`, which may hold `/` (paths in a rule box), so any `/` may end the level.
+ */
+function isGroupId(id: string): boolean {
+  const rest = id.slice(GROUP_BOX_PREFIX.length);
+  for (let at = rest.indexOf('/'); at !== -1; at = rest.indexOf('/', at + 1)) {
+    const level = rest.slice(0, at);
+    const label = rest.slice(at + 1);
+    if (label !== '' && !label.startsWith('/') && (level === '' || BOX_ID.test(level) || isFolderId(level))) return true;
+  }
+  return false;
+}
+
+/**
+ * Which pinned id this is, by syntax alone: `::` makes a node, a `folder:` prefix a folder box, a `group:` prefix a
+ * group box, else a rule box slug. A file (`file:src/a.ts`) is none of them: it keeps its own name.
+ */
+export function pinnedIdKind(id: string): 'node' | 'folder' | 'group' | 'rule-box' | undefined {
   if (!ONE_LINE_VISIBLE.test(id) || id.length > 1000) return undefined;
   if (id.includes('::')) return NODE_ID.test(id) && isRepoPath(id.split('::')[0]!) ? 'node' : undefined;
-  if (id.startsWith(FOLDER_BOX_PREFIX)) return isRepoPath(id.slice(FOLDER_BOX_PREFIX.length)) ? 'folder' : undefined;
+  if (id.startsWith(FOLDER_BOX_PREFIX)) return isFolderId(id) ? 'folder' : undefined;
+  if (id.startsWith(GROUP_BOX_PREFIX)) return isGroupId(id) ? 'group' : undefined;
   return BOX_ID.test(id) ? 'rule-box' : undefined;
 }
 
@@ -140,7 +161,7 @@ const pinnedSchema = z.record(z.string(), pinnedEntrySchema).superRefine((pinned
 const mapSchema = z.strictObject({
   rules: z.array(mapRuleSchema).nullish().describe("Top-down, first match wins, before the app's built-in rules"),
   guidance: z.string().min(1).max(2000).regex(MULTI_LINE_VISIBLE, MULTI_LINE_MESSAGE).nullish().describe('Plain words for the model that names and groups boxes'),
-  pinned: pinnedSchema.nullish().describe('Names a person pinned, by rule box id (billing), folder box id (folder:src/payments) or node id (file::path::kind); written sorted by id'),
+  pinned: pinnedSchema.nullish().describe('Names a person pinned, by rule box id (billing), folder box id (folder:src/payments), group box id (group:folder:src/doctor) or node id (file::path::kind); written sorted by id'),
 });
 
 export type MapRule = z.infer<typeof mapRuleSchema>;
