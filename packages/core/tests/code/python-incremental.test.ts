@@ -113,3 +113,35 @@ describe('openCodeIndex on Python', () => {
     expect(importOutcome('tools/hack.py', 'shop.billing')).toEqual(['unknown', undefined, [undefined]]);
   });
 });
+
+/**
+ * COD-59: call resolution reads other files' class indexes (`ClassInfo.writes`, members, bases), not just the
+ * resolution surface `affected` compares. A live update must re-resolve those callers, so its resolved calls equal a
+ * freshly built index over the same files.
+ */
+describe('a live index re-resolves the callers a change to another file’s class reaches', () => {
+  const K = 'class K:\n    def f(self):\n        return "K"\n\n    def m(self):\n        return self.f()\n';
+  const targets = (idx: CodeIndex) => idx.file('k.py')!.calls.filter((c) => c.name === 'f').map((c) => c.to);
+
+  const editedSubclass = async (body: string) => {
+    write('k.py', K);
+    write('l.py', 'from k import K\n\n\nclass L(K):\n    pass\n');
+    await index.update();
+    expect(targets(index)).toEqual(['k.py::K.f::method']);
+    write('l.py', `from k import K\n\n\nclass L(K):\n${body}`);
+    const update = await index.update(['l.py']);
+    expect(update.parsed).toEqual(['l.py']);
+    const fresh = await openCodeIndex(repo);
+    // CPython: L().m() reaches the written attribute, so K.f is never the call's target.
+    expect(targets(index), 'live index after the edit').toEqual(targets(fresh));
+    expect(targets(index)).toEqual([undefined]);
+  };
+
+  it('adding an attr write in another file makes the base method call name-only', async () => {
+    await editedSubclass('    def __init__(self):\n        self.f = lambda: 2\n');
+  });
+
+  it('adding a subclass override by class attribute makes the base method call name-only', async () => {
+    await editedSubclass('    f = lambda self: 2\n');
+  });
+});
