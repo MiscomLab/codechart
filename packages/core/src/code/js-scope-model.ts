@@ -22,5 +22,7 @@ export interface Scope {
   strict: boolean;
   /** A namespace or ambient-module body: an unbound name there may come from a merged declaration. */
   namespace: boolean;
+  /** A class static block or namespace body: `var` declarations stay here, as their own var scope. */
+  varBoundary?: boolean;
   decls: Map<string, Binding[]>;
 }

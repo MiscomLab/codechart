@@ -44,7 +44,7 @@ export class Scopes {
     for_statement: (node, scope, strict) => this.walkFor(node, scope, strict),
     for_in_statement: (node, scope, strict) => this.walkFor(node, scope, strict),
     switch_body: (node, scope, strict) => this.walkBlock(node, scope, strict),
-    class_static_block: (node, scope) => this.walkBlock(node, scope, true),
+    class_static_block: (node, scope) => this.walkBlock(node, scope, true, true),
     statement_block: (node, scope, strict) => this.walkBlock(node, scope, strict),
     assignment_expression: (node, scope, strict) => this.walkUsing(node, scope, strict),
   };
@@ -122,14 +122,16 @@ export class Scopes {
   }
 
   private add(scope: Scope, name: string, binding: Binding): void {
+    // Each declaration gets its own binding object: a write marks this one, never a constant shared across parses.
+    const entry = { ...binding };
     const entries = scope.decls.get(name);
-    if (entries) entries.push(binding);
-    else scope.decls.set(name, [binding]);
+    if (entries) entries.push(entry);
+    else scope.decls.set(name, [entry]);
   }
 
   private varScope(scope: Scope): Scope {
     for (let current: Scope | undefined = scope; current; current = current.parent) {
-      if (current.kind === 'function' || current.kind === 'program') return current;
+      if (current.kind === 'function' || current.kind === 'program' || current.varBoundary) return current;
     }
     return scope;
   }
@@ -210,6 +212,7 @@ export class Scopes {
   private namespaceBlock(node: Node, scope: Scope, strict: boolean): void {
     const inner = this.make('block', node, scope, strict);
     inner.namespace = true;
+    inner.varBoundary = true;
     this.children(node, inner, strict);
   }
 
@@ -252,6 +255,8 @@ export class Scopes {
     if (!name) return;
     const target = kind === 'var' ? this.varScope(scope) : scope;
     const value = node.childForFieldName('value');
+    // Defaults and computed keys in the pattern are expressions evaluated here, not declarations.
+    this.children(name, scope, strict);
     if (name.type !== 'identifier') {
       for (const bound of patternNames(name)) this.add(target, bound, OTHER);
     } else if (this.isParameterBinding(target, name.text) || !value || !FUNCTION_VALUES.has(value.type)) {
@@ -265,7 +270,9 @@ export class Scopes {
 
   private walkCatch(node: Node, scope: Scope, strict: boolean): void {
     const inner = this.make('block', node, scope, strict);
-    for (const name of patternNames(node.childForFieldName('parameter'))) this.add(inner, name, OTHER);
+    const parameter = node.childForFieldName('parameter');
+    for (const name of patternNames(parameter)) this.add(inner, name, OTHER);
+    if (parameter) this.children(parameter, inner, strict);
     const body = node.childForFieldName('body');
     // The body is an ordinary nested block: a function declared in it is one for Annex B too.
     if (body) this.walk(body, inner, strict);
@@ -283,8 +290,10 @@ export class Scopes {
     this.children(node, inner, strict);
   }
 
-  private walkBlock(node: Node, scope: Scope, strict: boolean): void {
-    this.children(node, this.make('block', node, scope, strict), strict);
+  private walkBlock(node: Node, scope: Scope, strict: boolean, varBoundary = false): void {
+    const inner = this.make('block', node, scope, strict);
+    inner.varBoundary = varBoundary;
+    this.children(node, inner, strict);
   }
 
   private walkUsing(node: Node, scope: Scope, strict: boolean): void {
