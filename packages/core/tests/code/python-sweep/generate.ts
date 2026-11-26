@@ -12,6 +12,8 @@
  * generated once because CPython rejects the file wherever the import sits.
  */
 
+import { ROUND2_CONSTRUCTS } from './round2.js';
+
 export interface Program {
   id: string;
   text: string;
@@ -81,6 +83,8 @@ class AliasBase:
 class Base:
     def __init__(self):
         self.f = mk('b.base.attr')
+def rebind(m):
+    m.__dict__.update(f=mk('b.rebind'))
 __all__ = ['f']
 `;
 
@@ -333,8 +337,7 @@ const RUN_CLASS = runClass('run.f');
 
 /** A decorator that replaces the bound name with a marker, or returns the definition unchanged. */
 const decorate = (decorator: string, definition: readonly string[]): string[] => [`@(${decorator})`, ...definition];
-const decorated = (shape: 'def' | 'class', replacement: string | undefined, tag: string): string[] =>
-  decorate(replacement ? `lambda fn: mk('${replacement}')` : 'lambda fn: fn', shape === 'def' ? runDef(tag) : runClass(tag));
+const decorated = (shape: 'def' | 'class', replacement: string | undefined, tag: string): string[] => decorate(replacement ? `lambda fn: mk('${replacement}')` : 'lambda fn: fn', shape === 'def' ? runDef(tag) : runClass(tag));
 
 /** The module `f` itself decorated, so the module binding is the decorator's return value. */
 const decoratedModuleF = (replacement: string | undefined): string =>
@@ -347,7 +350,7 @@ const loopRebind = (definition: readonly string[]): Wrap => (body) =>
 /** The site inside `a()`, with the definition after `a` and `a()` called after it: a real closure over run's `f`. */
 const closure = (definition: readonly string[]): Wrap => (body) => joined([`def a():\n${indent(body)}`, joined(definition), 'a()']);
 
-interface Construct {
+export interface Construct {
   name: string;
   /** Applies inside `run`'s body. */
   run?: boolean;
@@ -377,6 +380,8 @@ interface Construct {
   thisCall?: boolean;
   /** The site calls `c.f()` on a constructed receiver; the construct defines `c = K()`. */
   constructed?: boolean;
+  /** The site's exact call expression (`b.f()`), for a call on an imported module rather than the module's own `f`. */
+  siteCall?: string;
   /** Restricts the construct to these positions. */
   positions?: readonly string[];
   /** CPython rejects the program at compile time; generated once and excluded from the sweep. */
@@ -691,6 +696,7 @@ const CONSTRUCTS: readonly Construct[] = [
   { name: 'module-exec', run: true, module: true, outer: ["exec(\"def f(): LOG.append('module.exec'); return object\")"] },
   { name: 'module-sysmod', run: true, module: true, outer: ['import sys', "sys.modules[__name__].f = mk('module.sysmod')"] },
   { name: 'module-builtins', run: true, module: true, preludeF: '# no module f: the bare call falls back to builtins.f', outer: ['import builtins', "builtins.f = mk('builtins.f')"] },
+  ...ROUND2_CONSTRUCTS,
 ];
 
 interface Wrapper {
@@ -724,7 +730,7 @@ function applies(construct: Construct, position: Position): boolean {
 
 /** The one call site: a sentinel tuple whose second element is the call, so an error is told from a site never reached. */
 function siteOf(construct: Construct): string {
-  const call = construct.constructed ? 'c.f()' : construct.thisCall ? 'self.f()' : construct.lambdaParam ? "(lambda f: f())(mk('param'))" : 'f()';
+  const call = construct.siteCall ?? (construct.constructed ? 'c.f()' : construct.thisCall ? 'self.f()' : construct.lambdaParam ? "(lambda f: f())(mk('param'))" : 'f()');
   return `(LOG.append('${SITE_TAG}'), ${call})[1]`;
 }
 

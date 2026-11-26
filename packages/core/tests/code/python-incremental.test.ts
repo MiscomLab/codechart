@@ -145,3 +145,53 @@ describe('a live index re-resolves the callers a change to another file’s clas
     await editedSubclass('    f = lambda self: 2\n');
   });
 });
+
+/**
+ * COD-59 round 2, L1: `surface()` omits the module `bindings` that cross-file call resolution reads. A live update that
+ * changes only how `b.py` binds its top-level `f` must re-resolve the importers of `b`, exactly as a fresh index over
+ * the same files does, and the call must be name-only: a decorated name is the decorator's result, and a binding that
+ * never ran does not exist.
+ */
+describe('a live index re-resolves importers when a module binding changes', () => {
+  const A_FROM = 'from b import f\n\n\ndef run():\n    return f()\n';
+  const A_MODULE = 'import b\n\n\ndef run():\n    return b.f()\n';
+  const targets = (idx: CodeIndex) => idx.file('a.py')!.calls.filter((call) => call.name === 'f').map((call) => call.to);
+
+  const editAndCompare = async (aText: string, initialB: string, editedB: string) => {
+    write('c.py', 'def deco(fn):\n    return lambda: 3\n');
+    write('a.py', aText);
+    write('b.py', initialB);
+    await index.update();
+    expect(targets(index), 'the call starts resolved').toEqual(['b.py::f::function']);
+    write('b.py', editedB);
+    const update = await index.update(['b.py']);
+    expect(update.parsed).toEqual(['b.py']);
+    const fresh = await openCodeIndex(repo);
+    // CPython 3.14: a decorated `f` is the decorator's return value, and a conditional one never ran, so b.f is not
+    // the definition the call reaches; a fresh index says name-only.
+    expect(targets(index), 'live index after the edit').toEqual(targets(fresh));
+    expect(targets(index)).toEqual([undefined]);
+  };
+
+  // `from c import deco` is already in b.py, so adding the decorator changes only how `f` binds: the surface the
+  // affected set compares cannot see it, which is the live-index bug.
+  const PLAIN = 'from c import deco\n\n\ndef f():\n    return 1\n';
+  const DECORATED = 'from c import deco\n\n\n@deco\ndef f():\n    return 1\n';
+  const CONDITIONAL = 'if False:\n    def f():\n        return 1\n';
+
+  it('a decorator added to the module function: from-import', async () => {
+    await editAndCompare(A_FROM, PLAIN, DECORATED);
+  });
+
+  it('a decorator added to the module function: module attribute call', async () => {
+    await editAndCompare(A_MODULE, PLAIN, DECORATED);
+  });
+
+  it('a conditional module function: module attribute call', async () => {
+    await editAndCompare(A_MODULE, 'def f():\n    return 1\n', CONDITIONAL);
+  });
+
+  it('a conditional module function: from-import', async () => {
+    await editAndCompare(A_FROM, 'def f():\n    return 1\n', CONDITIONAL);
+  });
+});
