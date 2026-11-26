@@ -340,6 +340,8 @@ interface Construct {
   syntax?: boolean;
   /** Replaces the prelude's module `f` line, so the module binding itself is decorated. */
   preludeF?: string;
+  /** Module-level lines after the driver call, for a module binding written after the function is invoked. */
+  afterCall?: readonly string[];
 }
 
 /** The tags of `def`/`class` constructs are the core symbol path a Python call would reach. */
@@ -451,6 +453,18 @@ const CONSTRUCTS: readonly Construct[] = [
   },
   { name: 'classbody-def-decorated-identity', run: true, module: true, classPlan: (tag) => ({ pre: decorated('def', undefined, `${tag}.f`) }) },
   { name: 'classbody-class-decorated-identity', run: true, module: true, classPlan: (tag) => ({ pre: decorated('class', undefined, `${tag}.f`) }) },
+  // Module-level flow: a module binding that never ran, or is written after the call, proves no target. The module
+  // body runs top-down, so a class body or header it executes reaches only the defs written above it, and a function
+  // may be invoked before a later module def.
+  { name: 'module-def-if-false', run: true, module: true, preludeF: `if False:\n    ${MODULE_F}` },
+  {
+    name: 'module-def-try-raised',
+    run: true,
+    module: true,
+    preludeF: `try:\n    raise ValueError\n    ${MODULE_F}\nexcept ValueError:\n    pass`,
+  },
+  { name: 'module-def-after', module: true, preludeF: '# f is defined after the module code that calls it', post: [MODULE_F] },
+  { name: 'module-def-after-call', run: true, preludeF: '# f is defined after run() is called', afterCall: [MODULE_F] },
 ];
 
 interface Wrapper {
@@ -503,7 +517,7 @@ function textOf(construct: Construct, position: Position, wrapper: Wrapper): str
     const binding = construct.nest === 'nonlocal' ? "f = mk('nonlocal')" : "f = mk('closure')";
     return `${joined([prelude, ...(construct.outer ?? []), 'def outside():', indent(joined([binding, signature, indent(body), 'run()'])), 'outside()'])}\n`;
   }
-  return `${joined([prelude, ...(construct.outer ?? []), signature, indent(body), construct.call ?? 'run()'])}\n`;
+  return `${joined([prelude, ...(construct.outer ?? []), signature, indent(body), construct.call ?? 'run()', ...(construct.afterCall ?? [])])}\n`;
 }
 
 /** Every program, in construct × position × wrapper order; deterministic, so ids and hashes are stable. */
