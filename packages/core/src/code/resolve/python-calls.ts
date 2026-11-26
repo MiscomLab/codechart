@@ -22,10 +22,29 @@ const holds = (outer: CodeSymbol, inner: CodeSymbol) =>
  * The scopes a name is looked up in from a caller, innermost first: the caller's own body, then each enclosing
  * function, then the module. Class bodies are skipped, as Python skips them for code inside their methods.
  */
-function scopeChain(parsed: ParsedFile, caller: CodeSymbol): string[] {
+function scopeChain(parsed: ParsedFile, caller: CodeSymbol, at: CallRef['range']['start']): string[] {
+  const body = parsed.defs?.find((def) => def.id === caller.id)?.body;
+  const header = !!body && (caller.kind === 'function' || caller.kind === 'method') && before(at, body);
+  if (header) return headerChain(parsed, caller);
   const chain = [caller.id];
   for (let depth = caller.path.length - 1; depth >= 1; depth--) {
     const outer = parsed.symbols.find((s) => s.path.length === depth && isPrefix(s.path, caller.path) && holds(s, caller));
+    if (outer && outer.kind !== 'class') chain.push(outer.id);
+  }
+  return [...chain, ''];
+}
+
+/**
+ * A def's header (parameter defaults, annotations) runs before its body: its own scope binds no parameters yet, only
+ * its type parameters, and the class body (for a method) or the enclosing function (for a nested def) is the scope.
+ */
+function headerChain(parsed: ParsedFile, caller: CodeSymbol): string[] {
+  const owner = caller.kind === 'method' ? classOwner(parsed, caller) : undefined;
+  const from = owner ?? caller;
+  const chain = [`${caller.id}#typeparams`];
+  if (owner) chain.push(owner.id);
+  for (let depth = from.path.length - 1; depth >= 1; depth--) {
+    const outer = parsed.symbols.find((s) => s.path.length === depth && isPrefix(s.path, from.path) && holds(s, from));
     if (outer && outer.kind !== 'class') chain.push(outer.id);
   }
   return [...chain, ''];
@@ -139,7 +158,7 @@ function thisTarget(parsed: ParsedFile, call: CallRef, from: CodeSymbol): CodeSy
  */
 export function pythonCallTarget(parsed: ParsedFile, files: Files, call: CallRef, from: CodeSymbol, trace: Tracer): CodeSymbol | undefined {
   if (call.via === 'this') return thisTarget(parsed, call, from);
-  const chain = scopeChain(parsed, from);
+  const chain = scopeChain(parsed, from, call.range.start);
   const at = call.range.start;
   if (call.via === 'bare') return bareTarget(parsed, files, call.name, chain, at, trace);
   return call.receiver ? memberTarget(parsed, files, call, chain, at, trace) : undefined;

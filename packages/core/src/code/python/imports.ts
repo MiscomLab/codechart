@@ -2,7 +2,7 @@ import type { Node, Query, Tree } from 'web-tree-sitter';
 import type { ModuleExports } from '../imports.js';
 import type { CodeSymbol, Import } from '../model.js';
 import { nodeRange } from '../tree.js';
-import { collectBindings, moduleExports, type PyBinding } from './module-scope.js';
+import { collectBindings, moduleExports, type PyBinding, type PyDefinition } from './module-scope.js';
 import { editsSysPath, statedModules, typeGuarded } from './nodes.js';
 
 /**
@@ -31,6 +31,8 @@ export interface PythonFile {
   hidden: ImportSpec[];
   /** Every name each scope binds, which call linking reads to decide what a name means where it is called. */
   bindings: PyBinding[];
+  /** Each definition's scope id and body start, so a call in its header looks up in the enclosing scope. */
+  defs: PyDefinition[];
   /** The file edits `sys.path`, so no absolute import's target is provable. */
   sysPathEdited: boolean;
 }
@@ -77,6 +79,6 @@ export function extractPythonImports(file: string, tree: Tree, query: Query, sym
     const wildcard = main.namedChildren.some((c) => c?.type === 'wildcard_import');
     if (stated) index.set(main.id, { locals, typeOnly, wildcard });
   }
-  const bindings = collectBindings(tree.rootNode, symbols, index);
-  return { imports, exports: moduleExports(bindings, hasWildcard(tree.rootNode)), hidden, bindings, sysPathEdited: editsSysPath(tree.rootNode) };
+  const { bindings, defs } = collectBindings(tree.rootNode, symbols, index);
+  return { imports, exports: moduleExports(bindings, hasWildcard(tree.rootNode)), hidden, bindings, defs, sysPathEdited: editsSysPath(tree.rootNode) };
 }

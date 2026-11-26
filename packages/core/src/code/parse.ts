@@ -11,7 +11,7 @@ import type { CallRef, CodeEntity, CodeRef, CodeSymbol, FileInfo, CodeRange, Imp
 import { matchPatterns } from './pattern-run.js';
 import type { PatternLimit, PatternSets } from './patterns.js';
 import { extractPythonImports } from './python/imports.js';
-import type { PyBinding } from './python/module-scope.js';
+import type { PyBinding, PyDefinition } from './python/module-scope.js';
 import { extractSymbols } from './symbols.js';
 import type { Node } from 'web-tree-sitter';
 import { errorNodes, nodeRange } from './tree.js';
@@ -37,6 +37,8 @@ export interface ParsedFile {
   refs: CodeRef[];
   /** Python only: every name each scope binds, which decides what a called name means where it is called. */
   bindings?: PyBinding[];
+  /** Python only: each definition's scope id and body start, so header calls (defaults, annotations) skip its own scope. */
+  defs?: PyDefinition[];
   /** The file edits `sys.path`, so its absolute Python imports have no provable target. Absent for other files. */
   sysPathEdited?: boolean;
   /** The `@entity` captures of the `patterns` it was parsed with, every set's; absent when it was parsed without. */
@@ -263,7 +265,7 @@ export async function parseCode(path: string, text: string, lastGood?: LastGood,
       ...(calls.scopes && { scopes: calls.scopes }),
       entities: [],
       refs: [],
-      ...(python && { bindings: python.bindings }),
+      ...(python && { bindings: python.bindings, defs: python.defs }),
       ...(python?.sysPathEdited && { sysPathEdited: true }),
       ...patternsIn(opts, grammar, tree.rootNode, errors, previous),
     };

@@ -79,21 +79,32 @@ function defaultRanges(parameters: Node | null): CodeRange[] {
   return defaultValues(parameters).map(nodeRange);
 }
 
+/** A Python definition's scope id and where its body starts: calls before it sit in the header (defaults, annotations). */
+export interface PyDefinition {
+  id: string;
+  body: CodeRange['start'];
+}
+
+/** The id of a definition's PEP 695 type-parameter scope, which encloses its annotations but not its defaults. */
+const typeParamsScope = (scope: string): string => `${scope}#typeparams`;
+
 /**
  * Every name every scope of a Python file binds, by Python's scoping rules: a function's parameters and writes are its
  * own; a class body is a scope its methods do not see; comprehensions and lambdas have their own scope. Scope ids are
  * the symbols `extractSymbols` found for each `def` and `class`.
  */
-export function collectBindings(root: Node, symbols: readonly CodeSymbol[], imports: ImportIndex): PyBinding[] {
+export function collectBindings(root: Node, symbols: readonly CodeSymbol[], imports: ImportIndex): { bindings: PyBinding[]; defs: PyDefinition[] } {
   const out: PyBinding[] = [];
+  const defs: PyDefinition[] = [];
   const idAt = new Map(symbols.map((s) => [`${s.range.start.line}:${s.range.start.column}`, s.id]));
-  const walker: Walker = { out, imports, scopeOf: (def) => idAt.get(`${def.startPosition.row + 1}:${def.startPosition.column}`) ?? `?${def.id}` };
+  const walker: Walker = { out, defs, imports, scopeOf: (def) => idAt.get(`${def.startPosition.row + 1}:${def.startPosition.column}`) ?? `?${def.id}` };
   walk(walker, root, { scope: '', isFunction: false, outer: [], globals: new Set(), nonlocals: new Set() });
-  return out;
+  return { bindings: out, defs };
 }
 
 interface Walker {
   out: PyBinding[];
+  defs: PyDefinition[];
   imports: ImportIndex;
   scopeOf: (def: Node) => string;
 }
@@ -164,6 +175,22 @@ function bindTypeAlias(w: Walker, node: Node, bind: Bind): void {
   for (const typeParam of typeParameterNames(typeParametersIn(left))) bind(typeParam, 'other', { within, alias: true });
 }
 
+/**
+ * Binds a definition's own and inherited type parameters in its scope and, for functions, in the header's synthetic
+ * type-parameter scope (annotations see them; defaults are excluded by `except`).
+ */
+function bindTypeParameters(w: Walker, own: string, fn: boolean, inherited: readonly string[], typeParams: readonly string[], except: CodeRange[]): void {
+  const annotationScope = fn ? typeParamsScope(own) : undefined;
+  for (const typeParam of inherited) {
+    w.out.push({ scope: own, name: typeParam, kind: 'other' });
+    if (annotationScope) w.out.push({ scope: annotationScope, name: typeParam, kind: 'other' });
+  }
+  for (const typeParam of typeParams) {
+    w.out.push({ scope: own, name: typeParam, kind: 'other', ...(except.length && { except }) });
+    if (annotationScope) w.out.push({ scope: annotationScope, name: typeParam, kind: 'other', ...(except.length && { except }) });
+  }
+}
+
 /** A `def` or `class` binds its name here; its parameters and body bind in its own scope. */
 function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   const name = def.childForFieldName('name')?.text;
@@ -179,10 +206,10 @@ function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   const bases = fn ? undefined : def.childForFieldName('superclasses');
   if (bases) walk(w, bases, at);
   // Enclosing type parameters are live throughout nested definitions; a definition's own are not live in its defaults.
-  for (const typeParam of inherited) w.out.push({ scope: own, name: typeParam, kind: 'other' });
   const except = fn ? defaultRanges(parameters) : [];
-  for (const typeParam of typeParams) w.out.push({ scope: own, name: typeParam, kind: 'other', ...(except.length && { except }) });
+  bindTypeParameters(w, own, fn, inherited, typeParams, except);
   if (fn) for (const p of parameterNames(parameters)) w.out.push({ scope: own, name: p, kind: 'other' });
+  if (fn && body) w.defs.push({ id: own, body: nodeRange(body).start });
   if (!body) return;
   const outer = at.isFunction ? [at.scope, ...at.outer] : at.outer;
   walk(w, body, {
