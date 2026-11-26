@@ -110600,6 +110600,104 @@
         "type": "NameError"
       }
     },
+    "member-subclass-alias.method-body.for": {
+      "hash": "6471b0e2075ecf0d3b1217724313bf2d6610cd6ebf22b1f6fcf2196d2d5543a9",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.L.f"
+      }
+    },
+    "member-subclass-alias.method-body.if": {
+      "hash": "09d5ca9785096fecc9e9dbe9d2b00e7cba33643ffa7fc60f75e777927aef9ac5",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.L.f"
+      }
+    },
+    "member-subclass-alias.method-body.match": {
+      "hash": "9fc8944c9e45a054357438cbbf0fc1a51003e61b3032256535dda8a83ff6ef95",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.L.f"
+      }
+    },
+    "member-subclass-alias.method-body.none": {
+      "hash": "5be93d7bddd3fc946b2d33a95074af31fa3dc6d6c68e4eee1ace509d5daeb4bc",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.L.f"
+      }
+    },
+    "member-subclass-alias.method-body.try": {
+      "hash": "74f42a8a4b7958a665e1281a97adc6186d6cb474701278b807c85b1a3312628d",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.L.f"
+      }
+    },
+    "member-subclass-alias.method-body.while": {
+      "hash": "885bd55b0d95c2154ccae65ac3b0c35d64751a691cb18249389496c98244c5d3",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.L.f"
+      }
+    },
+    "member-subclass-alias.method-body.with": {
+      "hash": "eab0aac2384d698f2f381c47263560f48a739790b7b7a845203769591f8017a4",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.L.f"
+      }
+    },
+    "member-subclass-alias.module-class-method-body.for": {
+      "hash": "bafa2446bd622fe25262e03fbdd0fb024273ddd11586b67003ba309d2ffa09d1",
+      "outcome": {
+        "kind": "reached",
+        "tag": "L.f"
+      }
+    },
+    "member-subclass-alias.module-class-method-body.if": {
+      "hash": "73b1573c7b325e4533483c30e4e276d65dbab2bc81197a82610e3098af331b39",
+      "outcome": {
+        "kind": "reached",
+        "tag": "L.f"
+      }
+    },
+    "member-subclass-alias.module-class-method-body.match": {
+      "hash": "2bcd7492dd01a661c9c2e9f92251ba595626625306392cc6713046e565761967",
+      "outcome": {
+        "kind": "reached",
+        "tag": "L.f"
+      }
+    },
+    "member-subclass-alias.module-class-method-body.none": {
+      "hash": "f8e100296c0008daf0859abffd39490bba64dce75aab5199c4b5d82a3d653739",
+      "outcome": {
+        "kind": "reached",
+        "tag": "L.f"
+      }
+    },
+    "member-subclass-alias.module-class-method-body.try": {
+      "hash": "b8ba6206b322b880ee264416842f5c3a149017143385016a664fbd5661d09eec",
+      "outcome": {
+        "kind": "reached",
+        "tag": "L.f"
+      }
+    },
+    "member-subclass-alias.module-class-method-body.while": {
+      "hash": "b010dcbed34d7264209851a8feb60fb6c15c85221c99390b2699a107618d440d",
+      "outcome": {
+        "kind": "reached",
+        "tag": "L.f"
+      }
+    },
+    "member-subclass-alias.module-class-method-body.with": {
+      "hash": "eaa923524761c505f46fa218982486f448612b8afae9787fcbe8b4c3e76225d0",
+      "outcome": {
+        "kind": "reached",
+        "tag": "L.f"
+      }
+    },
     "module-def-after-call.class-base-comprehension-element.for": {
       "hash": "c0fe150d9acdd26fec0d49c690c2d3e625a41ccf908c7f3890a6df0b0807d8e4",
       "outcome": {

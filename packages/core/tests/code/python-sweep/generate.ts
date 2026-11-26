@@ -83,8 +83,8 @@ type Wrap = (statement: string) => string;
 const inBlock = (head: string, body: string, width = 4): string => `${head}\n${indent(body, width)}`;
 
 /** A class body with the construct's class-scope bindings around the statement holding the site. */
-const classWith = (head: string, pre: readonly string[], statement: string, post: readonly string[], driver: string, classWrap?: Wrap): string =>
-  joined([`${head}\n${indent(joined([...pre, classWrap ? classWrap(statement) : statement, ...post]))}`, driver]);
+const classWith = (head: string, pre: readonly string[], statement: string, post: readonly string[], driver: string, classWrap?: Wrap, driverPre: readonly string[] = []): string =>
+  joined([`${head}\n${indent(joined([...pre, classWrap ? classWrap(statement) : statement, ...post]))}`, ...driverPre, driver]);
 
 interface Position {
   name: string;
@@ -101,6 +101,8 @@ interface Position {
     classPost: readonly string[];
     classHead: string;
     classWrap?: Wrap;
+    driver?: string;
+    driverPre?: readonly string[];
   }) => string;
 }
 
@@ -193,7 +195,8 @@ const POSITIONS: readonly Position[] = [
   {
     name: 'method-body',
     classBody: true,
-    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, `def m(self):\n${indent(wrap(site))}`, classPost, 'K().m()', classWrap),
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap, driver, driverPre }) =>
+      classWith(classHead, classPre, `def m(self):\n${indent(wrap(site))}`, classPost, driver ?? 'K().m()', classWrap, driverPre),
   },
   {
     name: 'method-decorator',
@@ -231,7 +234,8 @@ const POSITIONS: readonly Position[] = [
     name: 'module-class-method-body',
     module: true,
     classBody: true,
-    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, `def m(self):\n${indent(wrap(site))}`, classPost, 'K().m()', classWrap),
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap, driver, driverPre }) =>
+      classWith(classHead, classPre, `def m(self):\n${indent(wrap(site))}`, classPost, driver ?? 'K().m()', classWrap, driverPre),
   },
   // A type alias's value is evaluated lazily: its annotation scope sees the enclosing scope (and, in a class body,
   // the class namespace); a lambda or comprehension inside it has its own nested scope.
@@ -268,6 +272,10 @@ interface ClassPlan {
   typeParam?: boolean;
   /** A base class the position's `class K` inherits: the member-call site sees inherited attributes and methods. */
   base?: string;
+  /** A driver expression, when the construct's site must run on another class. */
+  driver?: string;
+  /** Lines between the position's class statement and its driver (an alias and subclass, an outside write). */
+  driverPre?: readonly string[];
 }
 
 /** Lines of one class-body binding, tagged with the core path of the class it sits in (`run.K` or `K`). */
@@ -343,6 +351,8 @@ interface Construct {
   lambdaParam?: boolean;
   /** The site calls `self.f()`: a member site for the class body the position defines. */
   thisCall?: boolean;
+  /** Restricts the construct to these positions. */
+  positions?: readonly string[];
   /** CPython rejects the program at compile time; generated once and excluded from the sweep. */
   syntax?: boolean;
   /** Replaces the prelude's module `f` line, so the module binding itself is decorated. */
@@ -492,6 +502,23 @@ const CONSTRUCTS: readonly Construct[] = [
     outer: ['class Base:', '    def __init__(self):', "        self.f = mk('base.attr')"],
     classPlan: (tag) => ({ base: 'Base', pre: memberMethod(tag) }),
   },
+  // A subclass extends K through a local alias: its f override is the call's target on an L instance, though the
+  // syntactic base name is not K.
+  {
+    name: 'member-subclass-alias',
+    run: true,
+    module: true,
+    thisCall: true,
+    positions: ['method-body', 'module-class-method-body'],
+    classPlan: (tag) => {
+      const sub = `${tag.slice(0, -1)}L`;
+      return {
+        pre: memberMethod(tag),
+        driverPre: ['Base = K', 'class L(Base):', '    def f(self):', `        LOG.append('${sub}.f')`, '        return object'],
+        driver: 'L().m()',
+      };
+    },
+  },
 ];
 
 interface Wrapper {
@@ -516,6 +543,7 @@ function applies(construct: Construct, position: Position): boolean {
     if (construct.modulePositions) return construct.modulePositions.includes(position.name);
     if (!construct.module) return false;
   } else if (!construct.run) return false;
+  if (construct.positions && !construct.positions.includes(position.name)) return false;
   if (construct.classPlan && !position.classBody) return false;
   if (construct.classSiteOnly && !position.classCandidates) return false;
   // A class-body binding needs a class body to sit in; a class header has none.
@@ -535,7 +563,7 @@ function textOf(construct: Construct, position: Position, wrapper: Wrapper): str
   const classPre = [...(construct.classBinding === 'before' ? ["f = mk('K.body')"] : []), ...(plan?.pre ?? [])];
   const classPost = [...(construct.classBinding === 'after' ? ["f = mk('K.body')"] : []), ...(plan?.post ?? [])];
   const classHead = plan?.base ? `class K(${plan.base}):` : plan?.typeParam ? 'class K[f]:' : 'class K:';
-  const code = position.build({ site: siteOf(construct), wrap: wrapper.apply, classPre, classPost, classHead, classWrap: plan?.wrap });
+  const code = position.build({ site: siteOf(construct), wrap: wrapper.apply, classPre, classPost, classHead, classWrap: plan?.wrap, driver: plan?.driver, driverPre: plan?.driverPre });
   const positioned = construct.wrap ? construct.wrap(code) : code;
   const body = joined([...(construct.pre ?? []), positioned, ...(construct.post ?? [])]);
   if (position.module) return `${joined([prelude, ...(construct.outer ?? []), body])}\n`;
