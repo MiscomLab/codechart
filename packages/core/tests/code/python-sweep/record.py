@@ -9,7 +9,8 @@ recorder reads the log the program's bindings append to and reports what the one
 
     reached <tag>  the call ran and a binding logged <tag>
     error <type>   the call itself raised TypeError, UnboundLocalError or NameError
-    varies         the site ran more than once (a loop) and logged different tags or raised on a later run
+    varies         the site ran more than once (a loop) and logged different tags, raised on a later run, or raised
+                   inside a caught try on an early run before a later one logged
     not-run        the site was never evaluated (a harness bug; the test asserts there are none)
     syntax         CPython rejects the program (excluded from the sweep)
 
@@ -84,7 +85,11 @@ def run_program(b, program_id, text):
         return {'kind': 'varies'} if len(events) > 1 else {'kind': 'error', 'type': type(error).__name__}
     # An error after the last execution is the construct's, not the site's; the site's executions decide.
     if any(tag is None for tag in tags):
-        raise RuntimeError('%s: a site execution returned without logging or raising' % program_id)
+        # There is no program-level error, so the empty execution raised inside a try the program caught: an early
+        # loop execution failed before a later one logged. That is the site varying; all-empty stays unexplained.
+        if any(tag is not None for tag in tags):
+            return {'kind': 'varies'}
+        raise RuntimeError('%s: every site execution returned without logging or raising' % program_id)
     return {'kind': 'reached', 'tag': tags[0]} if len(set(tags)) == 1 else {'kind': 'varies'}
 
 

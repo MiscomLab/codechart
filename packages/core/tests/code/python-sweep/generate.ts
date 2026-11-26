@@ -25,6 +25,9 @@ export interface Program {
 /** The sentinel the harness logs just before the one call site, so an error can be told from a site that never ran. */
 export const SITE_TAG = '<site>';
 
+/** The module `f` line, replaced when a construct decorates the module binding itself. */
+const MODULE_F = "def f(): LOG.append('module'); return object";
+
 /**
  * The prelude of every program. Besides module `f` it binds only helpers whose names never collide with `f`: `_Mark` is
  * a callable that logs its tag, `_Pair` a context manager yielding a tuple, `Box` a class pattern, and the `_of`
@@ -51,7 +54,7 @@ def meta_of(v): return type
 def deco_of(v): return lambda fn: fn
 class Err(Exception):
     def __call__(self, *a, **k): LOG.append('except'); return object
-def f(): LOG.append('module'); return object
+${MODULE_F}
 import annotationlib
 `;
 
@@ -285,6 +288,28 @@ const classSite = (shape: 'class' | 'def', placement: ClassSitePlacement) => (ta
   return { pre: binding, wrap: (body) => `while True:\n${indent(body)}\n    del f\n    break` };
 };
 
+/** A run-local `def`/`class` binding that logs its core path; the flow constructs place it where it may never run. */
+const runDef = (tag: string): string[] => ['def f():', `    LOG.append('${tag}')`, '    return object'];
+const runClass = (tag: string): string[] => ['class f:', `    def __init__(self): LOG.append('${tag}')`];
+const RUN_DEF = runDef('run.f');
+const RUN_CLASS = runClass('run.f');
+
+/** A decorator that replaces the bound name with a marker, or returns the definition unchanged. */
+const decorate = (decorator: string, definition: readonly string[]): string[] => [`@(${decorator})`, ...definition];
+const decorated = (shape: 'def' | 'class', replacement: string | undefined, tag: string): string[] =>
+  decorate(replacement ? `lambda fn: mk('${replacement}')` : 'lambda fn: fn', shape === 'def' ? runDef(tag) : runClass(tag));
+
+/** The module `f` itself decorated, so the module binding is the decorator's return value. */
+const decoratedModuleF = (replacement: string | undefined): string =>
+  replacement ? `@(lambda fn: mk('${replacement}'))\n${MODULE_F}` : `@(lambda fn: fn)\n${MODULE_F}`;
+
+/** A first iteration whose site raises before the definition runs is caught; later iterations log the rebound name. */
+const loopRebind = (definition: readonly string[]): Wrap => (body) =>
+  `for _i in range(2):\n    try:\n${indent(body, 8)}\n    except Exception:\n        pass\n${indent(joined(definition))}`;
+
+/** The site inside `a()`, with the definition after `a` and `a()` called after it: a real closure over run's `f`. */
+const closure = (definition: readonly string[]): Wrap => (body) => joined([`def a():\n${indent(body)}`, joined(definition), 'a()']);
+
 interface Construct {
   name: string;
   /** Applies inside `run`'s body. */
@@ -313,6 +338,8 @@ interface Construct {
   lambdaParam?: boolean;
   /** CPython rejects the program at compile time; generated once and excluded from the sweep. */
   syntax?: boolean;
+  /** Replaces the prelude's module `f` line, so the module binding itself is decorated. */
+  preludeF?: string;
 }
 
 /** The tags of `def`/`class` constructs are the core symbol path a Python call would reach. */
@@ -344,8 +371,8 @@ const CONSTRUCTS: readonly Construct[] = [
   { name: 'global-assign', run: true, pre: ['global f', "f = mk('global-assign')"] },
   { name: 'nonlocal', run: true, nest: 'nonlocal', pre: ['nonlocal f'] },
   { name: 'closure', run: true, nest: 'closure' },
-  { name: 'nested-def', run: true, pre: ["def f():", "    LOG.append('run.f')", '    return object'] },
-  { name: 'nested-class', run: true, pre: ['class f:', "    def __init__(self): LOG.append('run.f')"] },
+  { name: 'nested-def', run: true, pre: RUN_DEF },
+  { name: 'nested-class', run: true, pre: RUN_CLASS },
   { name: 'comprehension-variable', run: true, pre: ['[0 for f in [0]]'] },
   { name: 'match-capture', run: true, wrap: (body) => inBlock('match 0:\n    case f:', body, 8) },
   { name: 'match-as', run: true, wrap: (body) => inBlock('match 0:\n    case 0 as f:', body, 8) },
@@ -394,6 +421,36 @@ const CONSTRUCTS: readonly Construct[] = [
   { name: 'class-type-params', run: true, module: true, classPlan: () => ({ typeParam: true }) },
   { name: 'class-global', run: true, module: true, classPlan: () => ({ pre: ['global f'] }) },
   { name: 'class-nonlocal', run: true, nest: 'nonlocal', classPlan: () => ({ pre: ['nonlocal f'] }) },
+  // Function-flow DEF bindings: a `def`/`class` statement makes the name local to run for the whole function, so the
+  // same flow placements as the value constructs matter even when the statement never runs.
+  { name: 'flow-def-before', run: true, pre: RUN_DEF },
+  { name: 'flow-def-after', run: true, post: RUN_DEF },
+  { name: 'flow-def-if-false', run: true, pre: ['if False:', ...shifted(RUN_DEF)] },
+  { name: 'flow-def-try-raised', run: true, pre: ['try:', '    raise ValueError', ...shifted(RUN_DEF), 'except ValueError:', '    pass'] },
+  { name: 'flow-def-loop-rebind', run: true, wrap: loopRebind(runDef('run.loop')) },
+  { name: 'flow-def-closure', run: true, wrap: closure(RUN_DEF) },
+  { name: 'flow-class-before', run: true, pre: RUN_CLASS },
+  { name: 'flow-class-after', run: true, post: RUN_CLASS },
+  { name: 'flow-class-if-false', run: true, pre: ['if False:', ...shifted(RUN_CLASS)] },
+  { name: 'flow-class-try-raised', run: true, pre: ['try:', '    raise ValueError', ...shifted(RUN_CLASS), 'except ValueError:', '    pass'] },
+  { name: 'flow-class-loop-rebind', run: true, wrap: loopRebind(runClass('run.loop')) },
+  { name: 'flow-class-closure', run: true, wrap: closure(RUN_CLASS) },
+  // Decorators: the bound name is the decorator's return value. Replacing and identity forms in every scope; CPython
+  // decides whether the identity decorator is transparent here, never the generator.
+  { name: 'module-def-decorated-replace', run: true, module: true, preludeF: decoratedModuleF('module.deco') },
+  { name: 'module-def-decorated-identity', run: true, module: true, preludeF: decoratedModuleF(undefined) },
+  { name: 'run-def-decorated-replace', run: true, pre: decorated('def', 'run.deco', 'run.f') },
+  { name: 'run-def-decorated-identity', run: true, pre: decorated('def', undefined, 'run.f') },
+  { name: 'run-class-decorated-replace', run: true, pre: decorated('class', 'run.deco', 'run.f') },
+  { name: 'run-class-decorated-identity', run: true, pre: decorated('class', undefined, 'run.f') },
+  {
+    name: 'classbody-def-decorated-replace',
+    run: true,
+    module: true,
+    classPlan: (tag) => ({ pre: decorated('def', `${tag}.deco`, `${tag}.f`) }),
+  },
+  { name: 'classbody-def-decorated-identity', run: true, module: true, classPlan: (tag) => ({ pre: decorated('def', undefined, `${tag}.f`) }) },
+  { name: 'classbody-class-decorated-identity', run: true, module: true, classPlan: (tag) => ({ pre: decorated('class', undefined, `${tag}.f`) }) },
 ];
 
 interface Wrapper {
@@ -431,6 +488,7 @@ function siteOf(construct: Construct): string {
 }
 
 function textOf(construct: Construct, position: Position, wrapper: Wrapper): string {
+  const prelude = construct.preludeF ? PRELUDE.replace(MODULE_F, construct.preludeF) : PRELUDE;
   const tag = position.module ? 'K' : 'run.K';
   const plan = construct.classPlan?.(tag);
   const classPre = [...(construct.classBinding === 'before' ? ["f = mk('K.body')"] : []), ...(plan?.pre ?? [])];
@@ -439,13 +497,13 @@ function textOf(construct: Construct, position: Position, wrapper: Wrapper): str
   const code = position.build({ site: siteOf(construct), wrap: wrapper.apply, classPre, classPost, classHead, classWrap: plan?.wrap });
   const positioned = construct.wrap ? construct.wrap(code) : code;
   const body = joined([...(construct.pre ?? []), positioned, ...(construct.post ?? [])]);
-  if (position.module) return `${joined([PRELUDE, ...(construct.outer ?? []), body])}\n`;
+  if (position.module) return `${joined([prelude, ...(construct.outer ?? []), body])}\n`;
   const signature = `def run${construct.typeParams ?? ''}(${construct.params ?? ''}):`;
   if (construct.nest) {
     const binding = construct.nest === 'nonlocal' ? "f = mk('nonlocal')" : "f = mk('closure')";
-    return `${joined([PRELUDE, ...(construct.outer ?? []), 'def outside():', indent(joined([binding, signature, indent(body), 'run()'])), 'outside()'])}\n`;
+    return `${joined([prelude, ...(construct.outer ?? []), 'def outside():', indent(joined([binding, signature, indent(body), 'run()'])), 'outside()'])}\n`;
   }
-  return `${joined([PRELUDE, ...(construct.outer ?? []), signature, indent(body), construct.call ?? 'run()'])}\n`;
+  return `${joined([prelude, ...(construct.outer ?? []), signature, indent(body), construct.call ?? 'run()'])}\n`;
 }
 
 /** Every program, in construct × position × wrapper order; deterministic, so ids and hashes are stable. */

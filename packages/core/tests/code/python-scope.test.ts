@@ -185,9 +185,11 @@ describe('section B: parameters, patterns, imports and the remaining scopes', ()
     resolved(files, 'a.py', 'f', 'a.py::run.f::function');
   });
 
-  it('a decorated nested def resolves to itself', async () => {
+  it('a decorated nested def binds what the decorator returns, so the call is name-only', async () => {
+    // Was "resolves to itself" (from symtable, which gives the scope, not the value). CPython binds `f` to `deco(f)`:
+    // the python sweep's replacing-decorator programs reach the decorator's result, not the def.
     const files = await at('def run():\n    @deco\n    def f():\n        pass\n    f()\n');
-    resolved(files, 'a.py', 'f', 'a.py::run.f::function');
+    nameOnly(files, 'a.py', 'f');
   });
 
   it('a class body call reaches the class-body def, so the call stays name-only', async () => {
