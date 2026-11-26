@@ -2,7 +2,7 @@ import type { Node } from 'web-tree-sitter';
 import type { ModuleExports } from '../imports.js';
 import type { ClassInfo, CodeRange, CodeSymbol, Import } from '../model.js';
 import { nodeRange } from '../tree.js';
-import { annotationExpressions, attributeWrites, baseNames, declared, defaultRanges, defaultValues, deferredRanges, identifiers, parameterNames, targets, typeParameterNames, typeCheckingGuard, typeParametersIn } from './scope-nodes.js';
+import { annotationExpressions, attributeWrites, baseNames, declared, defaultRanges, defaultValues, deferredRanges, dynamicModuleBindings, hasMetaclass, identifiers, parameterNames, targets, typeParameterNames, typeCheckingGuard, typeParametersIn } from './scope-nodes.js';
 
 /**
  * One name a Python scope binds. `scope` is the id of the function or class whose body binds it, `''` for the module.
@@ -29,6 +29,10 @@ export interface PyBinding {
   guards?: string[];
   /** A write `self.name = …` in a method of the class this scope is: the class attribute may be replaced per instance. */
   attr?: boolean;
+  /** For `name = other`: the name whose value this binding takes, followed when comparing a base with its aliases. */
+  aliasedTo?: string;
+  /** A class's PEP 695 type parameter seen inside a method body: the method's own binding of the name wins. */
+  inherited?: boolean;
   /** Where the binding is written; a class body's binding is only visible to later calls in its headers and body. */
   start?: CodeRange['start'];
 }
@@ -59,6 +63,8 @@ export function collectBindings(root: Node, symbols: readonly CodeSymbol[], impo
   const idAt = new Map(symbols.map((s) => [`${s.range.start.line}:${s.range.start.column}`, s.id]));
   const walker: Walker = { out, defs, deferred, lambdas, classes, imports, scopeOf: (def) => idAt.get(`${def.startPosition.row + 1}:${def.startPosition.column}`) ?? `?${def.id}` };
   walk(walker, root, { scope: '', isFunction: false, outer: [], globals: new Set(), nonlocals: new Set() });
+  // A write through `globals()`, `vars()`, `sys.modules[__name__]` or `exec` rebinds a module name at run time.
+  for (const { name, start } of dynamicModuleBindings(root)) out.push({ scope: '', name, kind: 'other', start });
   for (const info of classes) {
     info.members = out.filter((b) => b.scope === info.id && !b.attr).map((b) => b.name);
     info.writes = out.filter((b) => b.scope === info.id && b.attr).map((b) => b.name);
@@ -183,12 +189,13 @@ function bindTypeAlias(w: Walker, node: Node, bind: Bind, at: Scope): void {
 
 /**
  * Binds a definition's own and inherited type parameters in its scope and in the header's synthetic type-parameter
- * scope (annotations and class headers see them; defaults are excluded by `except`).
+ * scope (annotations and class headers see them; defaults are excluded by `except`). An inherited one is marked so a
+ * method's own binding of the name, or its `global`/`nonlocal`, wins over it.
  */
 function bindTypeParameters(w: Walker, own: string, inherited: readonly string[], typeParams: readonly string[], except: CodeRange[]): void {
   const annotationScope = typeParamsScope(own);
   for (const typeParam of inherited) {
-    w.out.push({ scope: own, name: typeParam, kind: 'other' });
+    w.out.push({ scope: own, name: typeParam, kind: 'other', inherited: true });
     w.out.push({ scope: annotationScope, name: typeParam, kind: 'other' });
   }
   for (const typeParam of typeParams) {
@@ -199,7 +206,9 @@ function bindTypeParameters(w: Walker, own: string, inherited: readonly string[]
 
 /** A class's name and bases for the dispatch index; its members and writes are read from the bindings once all are made. */
 function recordClass(w: Walker, def: Node, id: string): void {
-  if (def.type === 'class_definition') w.classes.push({ id, name: def.childForFieldName('name')?.text ?? '', bases: baseNames(def.childForFieldName('superclasses')), members: [], writes: [] });
+  if (def.type !== 'class_definition') return;
+  const superclasses = def.childForFieldName('superclasses');
+  w.classes.push({ id, name: def.childForFieldName('name')?.text ?? '', bases: baseNames(superclasses), members: [], writes: [], ...(hasMetaclass(superclasses) && { metaclass: true }) });
 }
 
 /** A method's `self.f = …` writes poison the class attribute `f` for member calls, though not for a bare name. */
@@ -236,7 +245,10 @@ export function settleGuards(bindings: PyBinding[], imports: readonly Pick<Impor
 /** A decorator's return value is what a decorated definition's name binds, so it proves no target. */
 const definitionKind = (def: Node): PyBinding['kind'] => (def.parent?.type === 'decorated_definition' ? 'other' : 'def');
 
-/** A `def` or `class` binds its name here; its parameters and body bind in its own scope. */
+/**
+ * A `def` or `class` binds its name here; its parameters and body bind in its own scope. A method's `global`/`nonlocal`
+ * of an inherited type parameter makes that name reach the outer scope, so the inherited binding is not recorded.
+ */
 function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   const name = def.childForFieldName('name')?.text;
   if (name) bind(name, definitionKind(def), { start: nodeRange(def).start });
@@ -246,6 +258,8 @@ function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   const inherited = at.typeParams ?? [];
   const body = def.childForFieldName('body');
   const parameters = def.childForFieldName('parameters');
+  const globals = declaredNames(body, 'global_statement');
+  const nonlocals = declaredNames(body, 'nonlocal_statement');
   // Defaults and class bases/keywords run in the enclosing scope, before the definition exists.
   if (fn) for (const value of defaultValues(parameters)) walk(w, value, at);
   if (fn) for (const annotation of annotationExpressions(def, parameters)) walk(w, annotation, at);
@@ -255,24 +269,27 @@ function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   if (bases) walk(w, bases, at);
   // Enclosing type parameters are live throughout nested definitions; a definition's own are not live in its defaults.
   const except = fn ? defaultRanges(parameters) : [];
-  bindTypeParameters(w, own, inherited, typeParams, except);
+  bindTypeParameters(w, own, inherited.filter((param) => !globals.has(param) && !nonlocals.has(param)), typeParams, except);
   if (fn) for (const p of parameterNames(parameters)) w.out.push({ scope: own, name: p, kind: 'other' });
   if (body) w.defs.push({ id: own, body: nodeRange(body).start });
   bindAttributeWrites(w, def, at);
   recordClass(w, def, own);
   if (!body) return;
   // `global f` / `nonlocal f` in a class body sends its writes elsewhere while reads still reach the class: unprovable.
-  if (!fn) for (const name of [...declared(body, 'global_statement'), ...declared(body, 'nonlocal_statement')]) w.out.push({ scope: own, name, kind: 'other' });
+  if (!fn) for (const declaredName of [...globals, ...nonlocals]) w.out.push({ scope: own, name: declaredName, kind: 'other' });
   const outer = at.isFunction ? [at.scope, ...at.outer] : at.outer;
   walk(w, body, {
     scope: own,
     isFunction: fn,
     outer,
-    globals: new Set(declared(body, 'global_statement')),
-    nonlocals: new Set(declared(body, 'nonlocal_statement')),
+    globals,
+    nonlocals,
     typeParams: [...inherited, ...typeParams],
   });
 }
+
+/** The names a body declares with `global` or `nonlocal`, which make those names belong to another scope. */
+const declaredNames = (body: Node | null, statement: 'global_statement' | 'nonlocal_statement'): Set<string> => new Set(body ? declared(body, statement) : []);
 
 /** The names that writes in `node` bind in the current scope. */
 function bindWrites(w: Walker, node: Node, bind: Bind): void {
@@ -284,7 +301,8 @@ function bindWrites(w: Walker, node: Node, bind: Bind): void {
     const callee = right?.type === 'call' ? right.childForFieldName('function') : undefined;
     const left = node.childForFieldName('left');
     const built = left?.type === 'identifier' && callee?.type === 'identifier' ? { built: callee.text } : {};
-    for (const name of targets(left)) bind(name, 'other', { ...built, start });
+    const alias = right?.type === 'identifier' ? { aliasedTo: right.text } : {};
+    for (const name of targets(left)) bind(name, 'other', { ...built, ...alias, start });
     return;
   }
   const field = WRITES[node.type];
@@ -305,13 +323,15 @@ const WRITES: Record<string, string> = {
 /**
  * The names a module exports: each name bound once at module scope. A name bound more than once (two branches, an
  * import and a definition, a reassignment) has no provable binding, so it is left out and the list is not complete.
- * A wildcard import or a module `__getattr__` can add names nobody lists.
+ * A wildcard import, a module `__getattr__` or a run-time module write (`exec`, `globals()[…]`) can add names nobody
+ * lists, so `*` makes the list incomplete too and is never an export.
  */
 export function moduleExports(bindings: readonly PyBinding[], wildcard: boolean): ModuleExports {
   const byName = new Map<string, PyBinding[]>();
-  // A star import can rebind any module name after the line that defines it: no name is provable.
-  if (wildcard) return { names: [], complete: false };
-  for (const b of bindings) if (b.scope === '' && !b.alias) byName.set(b.name, [...(byName.get(b.name) ?? []), b]);
+  // A star import, or a write through `globals()`/`exec`, can rebind any module name after the line that defines it:
+  // no name is provable.
+  if (wildcard || bindings.some((b) => b.scope === '' && b.name === '*')) return { names: [], complete: false };
+  for (const b of bindings) if (b.scope === '' && !b.alias && b.name !== '*') byName.set(b.name, [...(byName.get(b.name) ?? []), b]);
   const names: ModuleExports['names'] = [];
   let complete = !byName.has('__getattr__');
   for (const [name, list] of byName) {

@@ -21,8 +21,9 @@ export type SymbolKind = (typeof SYMBOL_KINDS)[number];
 
 /**
  * What a class says about the names its instances dispatch on: the classes it extends (the last identifier of each
- * base expression), the names its body declares (`*` for a computed one) and the names its methods write through
- * `this`/`self`/`cls`. Call linking reads it to see that a subclass or an instance write can replace a method.
+ * base expression, an alias followed to the class it names), the names its body declares (`*` for a computed one) and
+ * the names its methods write through `this`/`self`/`cls`. Call linking reads it to see that a subclass or an instance
+ * write can replace a method.
  */
 export interface ClassInfo {
   /** The class symbol's id; absent for a class expression the symbol table does not hold. */
@@ -31,6 +32,14 @@ export interface ClassInfo {
   bases: string[];
   members: string[];
   writes: string[];
+  /** Python: a `metaclass=` keyword, so a constructed receiver is not provably an instance of the class. */
+  metaclass?: boolean;
+  /** JS/TS: the members declared `static`; a `this` call in a static method reaches only these. */
+  statics?: string[];
+  /** JS/TS: members whose body is not a callable method (a getter/setter, `abstract`, or a signature). */
+  nonCallable?: string[];
+  /** JS/TS: ranges where `this` is the constructor (a static block, a static field initializer). */
+  staticRanges?: CodeRange[];
 }
 
 export const codeSymbolSchema = z.object({

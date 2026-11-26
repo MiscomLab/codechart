@@ -1,4 +1,4 @@
-import type { CallRef, CodeSymbol, Import, ImportedName } from '../model.js';
+import type { CallRef, ClassInfo, CodeSymbol, Import, ImportedName } from '../model.js';
 import type { ParsedFile } from '../parse.js';
 import type { PyBinding } from '../python/module-scope.js';
 import { dispatchOf } from './dispatch.js';
@@ -93,7 +93,10 @@ function meaning(parsed: ParsedFile, name: string, chain: readonly string[], sit
   for (let i = 0; i < chain.length; i++) {
     // A star import can rebind any name of its scope, at a point the parse does not order.
     if (bindings.some((b) => b.scope === chain[i] && b.name === '*')) return undefined;
-    const scoped = bindings.filter((b) => b.scope === chain[i] && b.name === name && !b.attr && visible(b, at));
+    const all = bindings.filter((b) => b.scope === chain[i] && b.name === name && !b.attr && visible(b, at));
+    // An inherited type parameter is only what a method body sees when the method binds nothing of its own: a `def`,
+    // an assignment or a parameter of the name wins (PEP 695).
+    const scoped = all.some((b) => !b.inherited) ? all.filter((b) => !b.inherited) : all;
     if (!scoped.length) continue;
     const found = scopedBindings(parsed, chain[i]!, scoped, site);
     if (!found) return undefined;
@@ -166,7 +169,10 @@ function submodulePath(files: Files, file: string, parts: readonly string[]): st
   return current;
 }
 
-/** The class a constructed receiver was built from, and its one method `name`. */
+/**
+ * The class a constructed receiver was built from, and its one method `name`. A `metaclass=` keyword or a `__new__`
+ * anywhere in the class's chain may return an object that is not an instance, so such a receiver proves no method.
+ */
 function builtMethod(parsed: ParsedFile, files: Files, m: Meaning, name: string, site: Site, trace: Tracer): CodeSymbol | undefined {
   if (m?.kind !== 'built') return undefined;
   const ctor = meaning(parsed, m.ctor, m.chain, site);
@@ -178,8 +184,15 @@ function builtMethod(parsed: ParsedFile, files: Files, m: Meaning, name: string,
         : undefined;
   if (cls?.kind !== 'class') return undefined;
   const classFile = files.get(cls.file);
+  const info = classFile?.classes?.find((c) => c.id === cls.id);
+  if (!info || !plainConstructor(files, info)) return undefined;
   const methods = (classFile?.symbols ?? []).filter((s) => s.kind === 'method' && s.path.length === cls.path.length + 1 && isPrefix(cls.path, s.path) && s.path.at(-1) === name);
   return methods.length === 1 && undisturbed(files, classFile, cls, name) ? methods[0] : undefined;
+}
+
+/** Whether constructing the class provably runs its own `__init__`: no `metaclass=` and no `__new__` in its chain. */
+function plainConstructor(files: Files, info: ClassInfo): boolean {
+  return !dispatchOf(files).chainSatisfies(info, (found) => !!found.metaclass || found.members.includes('__new__'));
 }
 
 /** The class whose method holds this call; a call in a class body belongs to the class. */
@@ -196,15 +209,17 @@ function plainMethod(parsed: ParsedFile | undefined, cls: CodeSymbol, name: stri
 }
 
 /**
- * Whether `name` on an instance of `cls` is that class's plain method: also not written on any object in the class's
- * file (`K.f = …`, `k.f = …`), not bound by a class extending it by name, and not written through `self` by a base class.
- * A base the repo does not hold may bind it, so an unresolved base leaves the call name-only.
+ * Whether `name` on an instance of `cls` is that class's plain method: also not written on any object in the repo
+ * (`K.f = …`, `k.f = …`, `setattr(k, 'f', …)`), not bound by a class extending it by name, not written through `self`
+ * by a base class, and not intercepted by a `__getattribute__` in its chain. A base the repo does not hold may bind
+ * or intercept it, so an unresolved base leaves the call name-only.
  */
 function undisturbed(files: Files, parsed: ParsedFile | undefined, cls: CodeSymbol, name: string): boolean {
-  if (!parsed || !plainMethod(parsed, cls, name) || parsed.attrWrites?.includes(name)) return false;
   const dispatch = dispatchOf(files);
+  if (!parsed || !plainMethod(parsed, cls, name) || dispatch.pythonMemberWritten(name)) return false;
   const info = parsed.classes?.find((c) => c.id === cls.id);
-  return !!info && !dispatch.subclassBinds(info.name, name) && !dispatch.baseWrites(info, name);
+  if (!info || dispatch.chainSatisfies(info, (found) => found.members.includes('__getattribute__'))) return false;
+  return !dispatch.subclassBinds(info.name, name) && !dispatch.baseWrites(info, name);
 }
 
 /** Whether a call runs while its module is being imported: in module code, class bodies and the headers of both. */

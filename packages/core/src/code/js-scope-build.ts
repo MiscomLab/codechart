@@ -1,5 +1,5 @@
 import type { Node } from 'web-tree-sitter';
-import { importNames, isUsing, parameterNames, patternNames, pointOf, startsWithUseStrict, strictFile, writeTargets } from './js-scope-decl.js';
+import { aliasName, importNames, isUsing, parameterNames, patternNames, pointOf, startsWithUseStrict, strictFile, writeTargets } from './js-scope-decl.js';
 import { meaningIn, NONE_MEANING, OTHER_MEANING } from './js-scope-mean.js';
 import type { Binding, Scope, ScopeKind } from './js-scope-model.js';
 import type { JsMeaning } from './js-scope.js';
@@ -36,17 +36,16 @@ export class Scopes {
     variable_declaration: (node, scope, strict) => this.declareList(node, scope, 'var', strict),
     internal_module: (node, scope, strict) => this.declareModule(node, scope, strict),
     module: (node, scope, strict) => this.declareModule(node, scope, strict),
-    enum_declaration: (node, scope) => {
-      const name = node.childForFieldName('name');
-      if (name) this.add(scope, name.text, OTHER);
+    enum_declaration: (node, scope, strict) => {
+      if (node.childForFieldName('name')) this.add(scope, node.childForFieldName('name')!.text, OTHER);
+      this.children(node, scope, strict);
     },
     catch_clause: (node, scope, strict) => this.walkCatch(node, scope, strict),
-    for_statement: (node, scope, strict) => this.walkFor(node, scope, strict),
-    for_in_statement: (node, scope, strict) => this.walkFor(node, scope, strict),
+    for_statement: (node, scope, strict) => this.walkFor(node, scope, strict), for_in_statement: (node, scope, strict) => this.walkFor(node, scope, strict),
     switch_body: (node, scope, strict) => this.walkBlock(node, scope, strict),
     class_static_block: (node, scope) => this.walkBlock(node, scope, true, true),
     statement_block: (node, scope, strict) => this.walkBlock(node, scope, strict),
-    assignment_expression: (node, scope, strict) => this.walkUsing(node, scope, strict),
+    using_declaration: (node, scope, strict) => this.declareList(node, scope, 'const', strict), assignment_expression: (node, scope, strict) => this.walkUsing(node, scope, strict),
   };
 
   constructor(root: Node, path: string, imports: readonly Import[]) {
@@ -260,7 +259,8 @@ export class Scopes {
     if (name.type !== 'identifier') {
       for (const bound of patternNames(name)) this.add(target, bound, OTHER);
     } else if (this.isParameterBinding(target, name.text) || !value || !FUNCTION_VALUES.has(value.type)) {
-      this.add(target, name.text, OTHER);
+      const alias = value && !this.isParameterBinding(target, name.text) ? aliasName(value) : undefined;
+      this.add(target, name.text, alias ? { kind: 'other', alias } : OTHER);
     } else {
       this.add(target, name.text, { kind: 'def', start: pointOf(node), func: true });
     }

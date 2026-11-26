@@ -10,6 +10,8 @@ export interface Binding {
   signature?: boolean;
   /** A write in this binding's own scope chain reached it. */
   written?: boolean;
+  /** For `const x = other`: the name whose value `x` holds, followed when a class extends `x`. */
+  alias?: string;
 }
 
 export type ScopeKind = 'program' | 'function' | 'params' | 'name' | 'block';

@@ -1,5 +1,5 @@
 import type { Node, Query, Tree } from 'web-tree-sitter';
-import { jsScopes, type JsCallScope, type JsMeaning } from './js-scope.js';
+import { jsScopes, type JsCallScope, type JsMeaning, type JsScopeReader } from './js-scope.js';
 import type { CallRef, CallVia, CodeSymbol, Import } from './model.js';
 import { nodeRange, touches } from './tree.js';
 
@@ -90,12 +90,12 @@ export function extractCalls(
   tree: Tree,
   tags: Query,
   symbols: { symbols: readonly CodeSymbol[]; kept: readonly string[] },
-  context: { errors: readonly Node[]; imports: readonly Import[]; grammar?: 'python' },
+  context: { errors: readonly Node[]; imports: readonly Import[]; grammar?: 'python'; scopes?: JsScopeReader },
 ): ExtractedCalls {
-  const { errors, imports, grammar } = context;
+  const { errors, imports, grammar, scopes } = context;
   const calls: CallRef[] = [];
-  const scopes: JsCallScope[] = [];
-  const reader = grammar === 'python' ? undefined : jsScopes(tree.rootNode, path, imports);
+  const scopesOut: JsCallScope[] = [];
+  const reader = grammar === 'python' ? undefined : (scopes ?? jsScopes(tree.rootNode, path, imports));
   const seen = new Set<number>();
   const kept = new Set(symbols.kept);
   const python = grammar === 'python';
@@ -118,7 +118,7 @@ export function extractCalls(
       evidence: 'name-only',
       range: nodeRange(call),
     });
-    if (reader) scopes.push(callScope(reader, call));
+    if (reader) scopesOut.push(callScope(reader, call));
   }
-  return { calls, ...(reader && { scopes }) };
+  return { calls, ...(reader && { scopes: scopesOut }) };
 }

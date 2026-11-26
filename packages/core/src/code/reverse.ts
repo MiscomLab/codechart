@@ -49,12 +49,18 @@ export function nameUsers(index: ReverseIndex, names: Iterable<string>): Set<str
   return files;
 }
 
-/** The definition and export names a file contributes to the name index. */
+/**
+ * The definition, export and member names a file contributes to the name index: a class's members and the members its
+ * code writes decide what a member call elsewhere reaches, like the class's own symbols.
+ */
 export function namesOf(parsed: ParsedFile | undefined): Set<string> {
   const names = new Set<string>();
   if (!parsed) return names;
   for (const symbol of parsed.symbols) names.add(symbol.path[symbol.path.length - 1]!);
   for (const exported of parsed.exports.names) names.add(exported.name);
+  for (const info of parsed.classes ?? []) for (const name of [...info.members, ...info.writes]) names.add(name);
+  for (const name of parsed.attrWrites ?? []) names.add(name);
+  for (const name of parsed.memberWrites ?? []) names.add(name);
   return names;
 }
 

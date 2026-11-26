@@ -6,7 +6,13 @@ const IMPORT_MEANING: JsMeaning = { kind: 'import' };
 export const NONE_MEANING: JsMeaning = { kind: 'none' };
 
 const meaningOf = (binding: Binding): JsMeaning =>
-  binding.kind === 'def' ? { kind: 'def', start: binding.start! } : binding.kind === 'import' ? IMPORT_MEANING : OTHER_MEANING;
+  binding.kind === 'def'
+    ? { kind: 'def', start: binding.start! }
+    : binding.kind === 'import'
+      ? IMPORT_MEANING
+      : binding.alias
+        ? { kind: 'alias', name: binding.alias }
+        : OTHER_MEANING;
 
 /**
  * Whether entries are one TS overload group: signatures followed by at most one implementation, as `symbols.ts` merges

@@ -1,5 +1,5 @@
 import type { JsMeaning } from '../js-scope.js';
-import type { CallRef, CodeSymbol } from '../model.js';
+import type { CallRef, ClassInfo, CodeSymbol } from '../model.js';
 import type { ParsedFile } from '../parse.js';
 import { dispatchOf } from './dispatch.js';
 import { pythonCallTarget } from './python-calls.js';
@@ -11,6 +11,12 @@ type FoundTarget = CodeSymbol | undefined;
 const OTHER: JsMeaning = { kind: 'other' };
 
 const isPrefix = (prefix: readonly string[], path: readonly string[]) => prefix.every((part, i) => path[i] === part);
+
+const before = (a: { line: number; column: number }, b: { line: number; column: number }): boolean => a.line < b.line || (a.line === b.line && a.column < b.column);
+
+/** Whether a point is inside a range; the end position is past its last character. */
+const inside = (at: { line: number; column: number }, range: { start: { line: number; column: number }; end: { line: number; column: number } }): boolean =>
+  !before(at, range.start) && before(at, range.end);
 
 /** Per-file symbol lookup by leaf name and id, built once per link pass. */
 class SymbolLookup {
@@ -85,15 +91,31 @@ function classOwner(file: string, from: CodeSymbol, lookup: SymbolLookup): CodeS
 }
 
 /**
- * `this.name()` to the one method that name in the enclosing class, unless an instance can reach something else: a
- * class extending this one by name declares `name`, or `this.name = …` is written in this class or a subclass.
+ * Whether a `this.name()` in `call` reaches a callable member of the enclosing class: an instance method in an
+ * instance context (a constructor, a field, an instance method), a `static` one in a static method, static block or
+ * static field. A getter, an abstract member or a signature has no body, and a computed member may be the name, so
+ * none of those proves a target.
+ */
+function callableThrough(info: ClassInfo, from: CodeSymbol, call: CallRef): boolean {
+  if (info.members.includes('*') || !info.members.includes(call.name) || info.nonCallable?.includes(call.name)) return false;
+  const fromStatic =
+    from.kind === 'method' ? (info.statics?.includes(from.path.at(-1)!) ?? false) : from.kind === 'class' && (info.staticRanges?.some((range) => inside(call.range.start, range)) ?? false);
+  return (info.statics?.includes(call.name) ?? false) === fromStatic;
+}
+
+/**
+ * `this.name()` to the one method that name in the enclosing class, unless an instance can reach something else: any
+ * file of the repo writes the member, a class in the receiver's chain declares or writes it, or a base is unresolved.
  */
 function thisTarget(files: Files, call: CallRef, from: CodeSymbol, lookup: SymbolLookup): FoundTarget {
   const file = from.file;
   const owner = classOwner(file, from, lookup);
   if (!owner) return undefined;
-  if (files.get(file)?.classes?.find((c) => c.id === owner.id)?.writes.includes(call.name)) return undefined;
-  if (dispatchOf(files).subclassBinds(owner.path.at(-1)!, call.name)) return undefined;
+  const dispatch = dispatchOf(files);
+  const info = files.get(file)?.classes?.find((c) => c.id === owner.id);
+  if (!info || dispatch.jsMemberWritten(call.name)) return undefined;
+  if (dispatch.baseWrites(info, call.name) || dispatch.subclassBinds(owner.path.at(-1)!, call.name)) return undefined;
+  if (!callableThrough(info, from, call)) return undefined;
   const methods = lookup
     .byName(file, call.name)
     .filter((s) => s.kind === 'method' && s.path.length === owner.path.length + 1 && isPrefix(owner.path, s.path));

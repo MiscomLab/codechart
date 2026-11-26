@@ -71,6 +71,12 @@ export function importNames(node: Node): string[] {
   return identifier ? [identifier.text] : [];
 }
 
+/** A variable initializer that names another binding: `const Base = K` and `const Base = ns.K` both name `K`. */
+export function aliasName(value: Node | null | undefined): string | undefined {
+  if (value?.type === 'identifier' || value?.type === 'type_identifier') return value.text;
+  return value?.type === 'member_expression' ? value.childForFieldName('property')?.text : undefined;
+}
+
 /** Whether a statement list opens with a `"use strict"` directive, in its directive prologue. */
 export function startsWithUseStrict(node: Node): boolean {
   for (const child of node.namedChildren) {

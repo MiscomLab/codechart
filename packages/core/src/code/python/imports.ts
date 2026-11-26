@@ -57,6 +57,30 @@ function hasWildcard(root: Node): boolean {
 }
 
 /**
+ * Follows each base name through the bindings and the file's imports to the class it names: `Base = K` and
+ * `from k import K as Base` both make `class L(Base)` extend `K`, which is what dispatch compares. A name any binding
+ * or import leaves unsettled stays as written, so an unknown base still leaves a member call name-only.
+ */
+function resolveClassBases(classes: readonly ClassInfo[], bindings: readonly PyBinding[], imports: readonly ImportSpec[]): void {
+  const targetOf = (binding: PyBinding): string | undefined => {
+    if (binding.kind === 'def') return binding.name;
+    if (binding.kind !== 'import') return binding.aliasedTo;
+    const imported = imports[binding.import!]?.names?.find((n) => n.local === binding.name);
+    return imported && imported.imported !== '*' ? imported.imported : undefined;
+  };
+  const canonical = (name: string, seen: Set<string>): string => {
+    if (seen.has(name)) return name;
+    seen.add(name);
+    const targets = bindings.filter((b) => b.name === name && !b.attr && !b.inherited).map(targetOf);
+    // Any binding that names no single class, or two bindings naming different ones, leaves the base unprovable.
+    if (targets.some((target) => !target) || new Set(targets).size !== 1) return name;
+    const [target] = targets as [string];
+    return target === name ? name : canonical(target, seen);
+  };
+  for (const info of classes) info.bases = info.bases.map((base) => canonical(base, new Set()));
+}
+
+/**
  * The imports, scope bindings and own exports of a parsed Python file. `symbols` are the file's symbols, which give each
  * function and class scope its id. A module's exports are the names its own scope binds exactly once, imports
  * included, which is how a package's `__init__.py` re-exports through the shared tracer.
@@ -89,6 +113,7 @@ export function extractPythonImports(file: string, tree: Tree, query: Query, sym
     if (stated) index.set(main.id, { locals, typeOnly, wildcard });
   }
   const { bindings, defs, deferred, lambdas, classes } = collectBindings(tree.rootNode, symbols, index);
+  resolveClassBases(classes, bindings, imports);
   const attrWrites = attributeWrites(tree.rootNode, null);
   settleGuards(bindings, imports, new Set(attrWrites));
   return { imports, exports: moduleExports(bindings, hasWildcard(tree.rootNode)), hidden, bindings, defs, deferred, lambdas, attrWrites, classes, sysPathEdited: editsSysPath(tree.rootNode) };

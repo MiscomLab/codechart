@@ -6,8 +6,9 @@ import { Lines } from './entities/text.js';
 import { loadEntityGrammar, loadGrammar } from './grammars.js';
 import { entityGrammarOf, grammarOf, langOf, type EntityGrammar, type PatternGrammar } from './languages.js';
 import { extractImports, type ExportName, type ImportSpec, type ModuleExports } from './imports.js';
-import type { JsCallScope } from './js-scope.js';
-import { javascriptClasses } from './js-classes.js';
+import type { JsCallScope, JsScopeReader } from './js-scope.js';
+import { jsScopes } from './js-scope.js';
+import { javascriptClasses, javascriptMemberWrites } from './js-classes.js';
 import type { CallRef, ClassInfo, CodeEntity, CodeRef, CodeSymbol, FileInfo, CodeRange, Import, PatternMatch } from './model.js';
 import { matchPatterns } from './pattern-run.js';
 import type { PatternLimit, PatternSets } from './patterns.js';
@@ -46,6 +47,8 @@ export interface ParsedFile {
   lambdas?: CodeRange[];
   /** Every attribute name written anywhere in the file (`x.f = …`, `del x.f`, `x.f += …`), Python only. */
   attrWrites?: string[];
+  /** Every member name any write of the file rebinds (`x.f =`, `x['f'] =`, `x.f++`), JS/TS only. */
+  memberWrites?: string[];
   /** The classes the file defines and what they extend, declare and write, so a call knows what can override a method. */
   classes?: ClassInfo[];
   /** The file edits `sys.path`, so its absolute Python imports have no provable target. Absent for other files. */
@@ -241,6 +244,11 @@ function unlinked(imp: Import): Import {
   return copy;
 }
 
+/** JS/TS only: the classes and the member names its writes rebind, both read from the same tree and scopes. */
+function javascriptIndex(root: Node, symbols: readonly CodeSymbol[], imports: readonly Import[], scopes: JsScopeReader): Required<Pick<ParsedFile, 'classes' | 'memberWrites'>> {
+  return { classes: javascriptClasses(root, symbols, imports, scopes), memberWrites: javascriptMemberWrites(root) };
+}
+
 /**
  * Parses one file in isolation. `path` is repo-relative with `/`; `lastGood` is the file's previous parse, whose
  * symbols, entities, imports, exports, references and pattern matches stand in for what a syntax error hides.
@@ -263,8 +271,9 @@ export async function parseCode(path: string, text: string, lastGood?: LastGood,
     const stated = python ?? extractImports(path, tree, query);
     const imports = keepLastGoodImports(stated.imports, stated.hidden, extracted.errors, previous, text).map(unlinked);
     const exports = keepLastGoodExports(stated.exports, extracted.errors, previous, text);
-    const classes = python ? python.classes : grammar === 'python' ? undefined : javascriptClasses(tree.rootNode, good.symbols);
-    const calls = extractCalls(path, tree, tags, good, { errors, imports, ...(python && { grammar: 'python' as const }) });
+    const scopes = python ? undefined : jsScopes(tree.rootNode, path, imports);
+    const js = scopes && javascriptIndex(tree.rootNode, good.symbols, imports, scopes);
+    const calls = extractCalls(path, tree, tags, good, { errors, imports, ...(scopes && { scopes }), ...(python && { grammar: 'python' as const }) });
     return {
       file,
       ...good,
@@ -275,9 +284,9 @@ export async function parseCode(path: string, text: string, lastGood?: LastGood,
       ...(calls.scopes && { scopes: calls.scopes }),
       entities: [],
       refs: [],
-      ...(python && { bindings: python.bindings, defs: python.defs, deferred: python.deferred, lambdas: python.lambdas, attrWrites: python.attrWrites }),
+      ...(python && { bindings: python.bindings, defs: python.defs, deferred: python.deferred, lambdas: python.lambdas, attrWrites: python.attrWrites, classes: python.classes }),
       ...(python?.sysPathEdited && { sysPathEdited: true }),
-      ...(classes && { classes }),
+      ...js,
       ...patternsIn(opts, grammar, tree.rootNode, errors, previous),
     };
   } finally {
