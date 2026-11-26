@@ -66,12 +66,17 @@ function typeParametersIn(node: Node | null | undefined): Node | undefined {
   return undefined;
 }
 
-/** A definition's parameter default values: its own type parameters are not in scope there (PEP 695). */
-function defaultRanges(parameters: Node | null): CodeRange[] {
+/** A definition's parameter default expressions, which run in the scope enclosing the definition. */
+function defaultValues(parameters: Node | null): Node[] {
   return (parameters?.namedChildren ?? []).flatMap((parameter) => {
     const value = parameter?.childForFieldName('value');
-    return value ? [nodeRange(value)] : [];
+    return value ? [value] : [];
   });
+}
+
+/** A definition's parameter default values: its own type parameters are not in scope there (PEP 695). */
+function defaultRanges(parameters: Node | null): CodeRange[] {
+  return defaultValues(parameters).map(nodeRange);
 }
 
 /**
@@ -122,6 +127,7 @@ function walk(w: Walker, node: Node, at: Scope): void {
     if (!child) continue;
     const inner = child.type === 'decorated_definition' ? child.childForFieldName('definition') : child;
     if (inner?.type === 'function_definition' || inner?.type === 'class_definition') {
+      walkDecorators(w, child, at);
       enterDefinition(w, inner, bind, at);
       continue;
     }
@@ -144,6 +150,11 @@ function walk(w: Walker, node: Node, at: Scope): void {
   }
 }
 
+/** Decorator expressions run in the scope enclosing the definition they decorate. */
+function walkDecorators(w: Walker, node: Node, at: Scope): void {
+  for (const child of node.namedChildren) if (child?.type === 'decorator') walk(w, child, at);
+}
+
 /** A type alias binds its name here; its own type parameters live in its value only, never in the enclosing scope. */
 function bindTypeAlias(w: Walker, node: Node, bind: Bind): void {
   const left = node.childForFieldName('left');
@@ -162,11 +173,16 @@ function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   const typeParams = typeParameterNames(def.childForFieldName('type_parameters'));
   const inherited = at.typeParams ?? [];
   const body = def.childForFieldName('body');
+  const parameters = def.childForFieldName('parameters');
+  // Defaults and class bases/keywords run in the enclosing scope, before the definition exists.
+  if (fn) for (const value of defaultValues(parameters)) walk(w, value, at);
+  const bases = fn ? undefined : def.childForFieldName('superclasses');
+  if (bases) walk(w, bases, at);
   // Enclosing type parameters are live throughout nested definitions; a definition's own are not live in its defaults.
   for (const typeParam of inherited) w.out.push({ scope: own, name: typeParam, kind: 'other' });
-  const except = fn ? defaultRanges(def.childForFieldName('parameters')) : [];
+  const except = fn ? defaultRanges(parameters) : [];
   for (const typeParam of typeParams) w.out.push({ scope: own, name: typeParam, kind: 'other', ...(except.length && { except }) });
-  if (fn) for (const p of parameterNames(def.childForFieldName('parameters'))) w.out.push({ scope: own, name: p, kind: 'other' });
+  if (fn) for (const p of parameterNames(parameters)) w.out.push({ scope: own, name: p, kind: 'other' });
   if (!body) return;
   const outer = at.isFunction ? [at.scope, ...at.outer] : at.outer;
   walk(w, body, {
