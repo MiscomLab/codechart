@@ -118,7 +118,7 @@ export function statedModules(main: Node, capture: string): ImportedModule[] {
   return importModules(main);
 }
 
-const isTypeChecking = (test: Node | null): boolean =>
+export const isTypeChecking = (test: Node | null): boolean =>
   test?.type === 'identifier' ? test.text === 'TYPE_CHECKING' : test?.type === 'attribute' && test.childForFieldName('attribute')?.text === 'TYPE_CHECKING';
 
 const SCOPES = new Set(['function_definition', 'class_definition', 'lambda']);

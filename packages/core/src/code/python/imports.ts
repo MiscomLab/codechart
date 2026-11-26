@@ -35,6 +35,8 @@ export interface PythonFile {
   defs: PyDefinition[];
   /** Ranges evaluated in a nested scope that skips an intervening class body (lambda bodies, comprehension parts). */
   deferred: CodeRange[];
+  /** Lambda bodies: evaluated when the lambda is called, not where it is written. */
+  lambdas: CodeRange[];
   /** The file edits `sys.path`, so no absolute import's target is provable. */
   sysPathEdited: boolean;
 }
@@ -81,6 +83,6 @@ export function extractPythonImports(file: string, tree: Tree, query: Query, sym
     const wildcard = main.namedChildren.some((c) => c?.type === 'wildcard_import');
     if (stated) index.set(main.id, { locals, typeOnly, wildcard });
   }
-  const { bindings, defs, deferred } = collectBindings(tree.rootNode, symbols, index);
-  return { imports, exports: moduleExports(bindings, hasWildcard(tree.rootNode)), hidden, bindings, defs, deferred, sysPathEdited: editsSysPath(tree.rootNode) };
+  const { bindings, defs, deferred, lambdas } = collectBindings(tree.rootNode, symbols, index);
+  return { imports, exports: moduleExports(bindings, hasWildcard(tree.rootNode)), hidden, bindings, defs, deferred, lambdas, sysPathEdited: editsSysPath(tree.rootNode) };
 }

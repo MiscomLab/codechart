@@ -2,7 +2,7 @@ import type { Node } from 'web-tree-sitter';
 import type { ModuleExports } from '../imports.js';
 import type { CodeRange, CodeSymbol } from '../model.js';
 import { nodeRange } from '../tree.js';
-import { annotationExpressions, declared, defaultRanges, defaultValues, deferredRanges, identifiers, parameterNames, targets, typeParameterNames, typeParametersIn } from './scope-nodes.js';
+import { alwaysRuns, annotationExpressions, attributeWrites, declared, defaultRanges, defaultValues, deferredRanges, identifiers, parameterNames, targets, typeParameterNames, typeParametersIn } from './scope-nodes.js';
 
 /**
  * One name a Python scope binds. `scope` is the id of the function or class whose body binds it, `''` for the module.
@@ -25,6 +25,8 @@ export interface PyBinding {
   alias?: boolean;
   /** A class- or function-body binding made inside an `if`, `try`, loop, `with` or `match`, or after a jump: it may never have run. */
   conditional?: boolean;
+  /** A write `self.name = …` in a method of the class this scope is: the class attribute may be replaced per instance. */
+  attr?: boolean;
   /** Where the binding is written; a class body's binding is only visible to later calls in its headers and body. */
   start?: CodeRange['start'];
 }
@@ -46,20 +48,22 @@ const typeParamsScope = (scope: string): string => `${scope}#typeparams`;
  * own; a class body is a scope its methods do not see; comprehensions and lambdas have their own scope. Scope ids are
  * the symbols `extractSymbols` found for each `def` and `class`.
  */
-export function collectBindings(root: Node, symbols: readonly CodeSymbol[], imports: ImportIndex): { bindings: PyBinding[]; defs: PyDefinition[]; deferred: CodeRange[] } {
+export function collectBindings(root: Node, symbols: readonly CodeSymbol[], imports: ImportIndex): { bindings: PyBinding[]; defs: PyDefinition[]; deferred: CodeRange[]; lambdas: CodeRange[] } {
   const out: PyBinding[] = [];
   const defs: PyDefinition[] = [];
   const deferred: CodeRange[] = [];
+  const lambdas: CodeRange[] = [];
   const idAt = new Map(symbols.map((s) => [`${s.range.start.line}:${s.range.start.column}`, s.id]));
-  const walker: Walker = { out, defs, deferred, imports, scopeOf: (def) => idAt.get(`${def.startPosition.row + 1}:${def.startPosition.column}`) ?? `?${def.id}` };
+  const walker: Walker = { out, defs, deferred, lambdas, imports, scopeOf: (def) => idAt.get(`${def.startPosition.row + 1}:${def.startPosition.column}`) ?? `?${def.id}` };
   walk(walker, root, { scope: '', isFunction: false, outer: [], globals: new Set(), nonlocals: new Set() });
-  return { bindings: out, defs, deferred };
+  return { bindings: out, defs, deferred, lambdas };
 }
 
 interface Walker {
   out: PyBinding[];
   defs: PyDefinition[];
   deferred: CodeRange[];
+  lambdas: CodeRange[];
   imports: ImportIndex;
   scopeOf: (def: Node) => string;
 }
@@ -89,8 +93,8 @@ function binder(w: Walker, at: Scope): Bind {
   return (name, kind, extra = {}) => {
     // Only a class body looks names up by running: in a function a name assigned anywhere is local, run or not.
     if (at.dead && !at.isFunction && at.scope) return;
-    // In a function, a binding that may not have run still makes the name local but proves no target.
-    const unsure = !!at.scope && (at.conditional || at.dead);
+    // A function, or the module, where a binding may not have run still binds the name but proves no target.
+    const unsure = at.conditional || at.dead;
     if (at.globals.has(name)) w.out.push({ scope: '', name, kind, ...extra });
     // `nonlocal f` writes an enclosing function's f; which one is not tracked, so every enclosing scope loses its proof.
     else if (at.nonlocals.has(name)) for (const outer of at.outer) w.out.push({ scope: outer, name, kind: 'other' });
@@ -100,7 +104,7 @@ function binder(w: Walker, at: Scope): Bind {
 
 /** The scope a statement runs in: inside a compound statement or after a jump, its bindings are conditional or dead. */
 function childScope(scope: Scope, child: Node, dead: boolean): Scope {
-  if (COMPOUND.has(child.type) && !scope.conditional) return { ...scope, conditional: true, dead };
+  if (COMPOUND.has(child.type) && !scope.conditional && !alwaysRuns(child)) return { ...scope, conditional: true, dead };
   return dead === !!scope.dead ? scope : { ...scope, dead };
 }
 
@@ -118,6 +122,7 @@ function walk(w: Walker, node: Node, scope: Scope): void {
   // A lambda may itself be the expression walked (a parameter default): its own parameters bind where it is written.
   if (node.type === 'lambda') for (const p of parameterNames(node.childForFieldName('parameters'))) binder(w, scope)(p, 'other', { start: nodeRange(node).start });
   for (const range of deferredRanges(node)) w.deferred.push(range);
+  if (node.type === 'lambda' && node.childForFieldName('body')) w.lambdas.push(nodeRange(node.childForFieldName('body')!));
   let dead = !!scope.dead;
   for (const child of node.namedChildren) {
     if (!child) continue;
@@ -180,6 +185,13 @@ function bindTypeParameters(w: Walker, own: string, inherited: readonly string[]
   }
 }
 
+/** A method's `self.f = …` writes poison the class attribute `f` for member calls, though not for a bare name. */
+function bindAttributeWrites(w: Walker, def: Node, at: Scope): void {
+  const body = def.childForFieldName('body');
+  if (def.type !== 'function_definition' || !body || at.isFunction || !at.scope) return;
+  for (const attr of attributeWrites(body, parameterNames(def.childForFieldName('parameters'))[0])) w.out.push({ scope: at.scope, name: attr, kind: 'other', attr: true });
+}
+
 /** A decorator's return value is what a decorated definition's name binds, so it proves no target. */
 const definitionKind = (def: Node): PyBinding['kind'] => (def.parent?.type === 'decorated_definition' ? 'other' : 'def');
 
@@ -205,6 +217,7 @@ function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   bindTypeParameters(w, own, inherited, typeParams, except);
   if (fn) for (const p of parameterNames(parameters)) w.out.push({ scope: own, name: p, kind: 'other' });
   if (body) w.defs.push({ id: own, body: nodeRange(body).start });
+  bindAttributeWrites(w, def, at);
   if (!body) return;
   // `global f` / `nonlocal f` in a class body sends its writes elsewhere while reads still reach the class: unprovable.
   if (!fn) for (const name of [...declared(body, 'global_statement'), ...declared(body, 'nonlocal_statement')]) w.out.push({ scope: own, name, kind: 'other' });

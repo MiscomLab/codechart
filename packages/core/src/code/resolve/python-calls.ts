@@ -5,6 +5,12 @@ import { submoduleIn, type Found, type Tracer } from './trace.js';
 
 type Files = ReadonlyMap<string, ParsedFile>;
 
+/** Where a call sits, and whether it runs while its module is being imported. */
+interface Site {
+  at: CallRef['range']['start'];
+  eager: boolean;
+}
+
 /** What a name means at a call site, from the one binding Python would use; undefined when that is not provable. */
 type Meaning =
   | { kind: 'def'; scope: string }
@@ -67,27 +73,29 @@ function headerChain(parsed: ParsedFile, caller: CodeSymbol, deferred: boolean):
 
 /**
  * A class or function body runs as ordinary code: a binding is provable only if it is the one unconditional binding of
- * the name and starts before the call, whichever scope the call sits in. Otherwise the name may or may not exist at
- * runtime: undefined, name-only. The module scope is exempt: its functions run after it has defined everything.
+ * the name and starts before the call, whichever scope the call sits in. The module scope allows several (dotted
+ * imports) and orders only calls that run at import time: a function body runs after the module defined everything.
+ * Otherwise the name may or may not exist at runtime: undefined, name-only.
  */
-function classBindings(parsed: ParsedFile, scope: string, scoped: PyBinding[], at: CallRef['range']['start'] | undefined): PyBinding[] | undefined {
-  if (!scope || !parsed.symbols.some((s) => s.id === scope)) return scoped;
-  if (scoped.length !== 1 || scoped[0]!.conditional) return undefined;
-  const ordered = at ? scoped.filter((b) => !b.start || before(b.start, at)) : scoped;
+function scopedBindings(parsed: ParsedFile, scope: string, scoped: PyBinding[], site: Site | undefined): PyBinding[] | undefined {
+  if (scoped.some((b) => b.conditional)) return undefined;
+  const local = !!scope && parsed.symbols.some((s) => s.id === scope);
+  if (local && scoped.length !== 1) return undefined;
+  const at = site?.at;
+  const ordered = at && (local || (!scope && site.eager)) ? scoped.filter((b) => !b.start || before(b.start, at)) : scoped;
   return ordered.length ? ordered : undefined;
 }
 
-function meaning(parsed: ParsedFile, name: string, chain: readonly string[], at: CallRef['range']['start'] | undefined): Meaning {
+function meaning(parsed: ParsedFile, name: string, chain: readonly string[], site: Site | undefined): Meaning {
+  const at = site?.at;
   const bindings: readonly PyBinding[] = parsed.bindings ?? [];
   for (let i = 0; i < chain.length; i++) {
     // A star import can rebind any name of its scope, at a point the parse does not order.
     if (bindings.some((b) => b.scope === chain[i] && b.name === '*')) return undefined;
-    const scoped = bindings.filter((b) => b.scope === chain[i] && b.name === name && visible(b, at));
+    const scoped = bindings.filter((b) => b.scope === chain[i] && b.name === name && !b.attr && visible(b, at));
     if (!scoped.length) continue;
-    const ordered = classBindings(parsed, chain[i]!, scoped, at);
-    if (!ordered) return undefined;
-    const found = ordered;
-    if (!found.length) continue;
+    const found = scopedBindings(parsed, chain[i]!, scoped, site);
+    if (!found) return undefined;
     // `import a.b` and `import a.c` both bind the package `a`; the dotted path decides which module a call reaches.
     if (found.every((b) => b.dotted)) return { kind: 'dotted', imports: found.map((b) => parsed.imports[b.import!]!) };
     if (found.length !== 1) return undefined;
@@ -157,9 +165,9 @@ function submodulePath(files: Files, file: string, parts: readonly string[]): st
 }
 
 /** The class a constructed receiver was built from, and its one method `name`. */
-function builtMethod(parsed: ParsedFile, files: Files, m: Meaning, name: string, at: CallRef['range']['start'], trace: Tracer): CodeSymbol | undefined {
+function builtMethod(parsed: ParsedFile, files: Files, m: Meaning, name: string, site: Site, trace: Tracer): CodeSymbol | undefined {
   if (m?.kind !== 'built') return undefined;
-  const ctor = meaning(parsed, m.ctor, m.chain, at);
+  const ctor = meaning(parsed, m.ctor, m.chain, site);
   const cls =
     ctor?.kind === 'def'
       ? defIn(parsed, ctor.scope, m.ctor)
@@ -167,8 +175,9 @@ function builtMethod(parsed: ParsedFile, files: Files, m: Meaning, name: string,
         ? topLevel(files, trace(ctor.imp.resolved, ctor.name.imported), ['class'])
         : undefined;
   if (cls?.kind !== 'class') return undefined;
-  const methods = (files.get(cls.file)?.symbols ?? []).filter((s) => s.kind === 'method' && s.path.length === cls.path.length + 1 && isPrefix(cls.path, s.path) && s.path.at(-1) === name);
-  return methods.length === 1 ? methods[0] : undefined;
+  const classFile = files.get(cls.file);
+  const methods = (classFile?.symbols ?? []).filter((s) => s.kind === 'method' && s.path.length === cls.path.length + 1 && isPrefix(cls.path, s.path) && s.path.at(-1) === name);
+  return methods.length === 1 && plainMethod(classFile, cls, name) ? methods[0] : undefined;
 }
 
 /** The class whose method holds this call; a call in a class body belongs to the class. */
@@ -178,9 +187,31 @@ function classOwner(parsed: ParsedFile, from: CodeSymbol): CodeSymbol | undefine
   return parsed.symbols.find((s) => s.kind === 'class' && s.path.length === from.path.length - 1 && isPrefix(s.path, from.path) && holds(s, from));
 }
 
+/** A class's one binding of `name` is a plain `def`: not rebound, deleted, decorated, conditional or set on an instance. */
+function plainMethod(parsed: ParsedFile | undefined, cls: CodeSymbol, name: string): boolean {
+  const scoped = (parsed?.bindings ?? []).filter((b) => b.scope === cls.id && b.name === name);
+  return scoped.length === 1 && scoped[0]!.kind === 'def' && !scoped[0]!.conditional;
+}
+
+/** Whether a call runs while its module is being imported: in module code, class bodies and the headers of both. */
+function runsAtImport(parsed: ParsedFile, symbol: CodeSymbol): boolean {
+  const owner = executingOwner(parsed, symbol);
+  return !owner || (owner.kind === 'class' && runsAtImport(parsed, owner));
+}
+
+function eagerCall(parsed: ParsedFile, caller: CodeSymbol, at: CallRef['range']['start']): boolean {
+  if (parsed.lambdas?.some((range) => inside(at, range))) return false;
+  const body = parsed.defs?.find((def) => def.id === caller.id)?.body;
+  if (body && before(at, body)) return runsAtImport(parsed, caller);
+  return (caller.kind === 'class' || caller.kind === 'module' || caller.kind === 'constant') && runsAtImport(parsed, caller);
+}
+
 function thisTarget(parsed: ParsedFile, call: CallRef, from: CodeSymbol): CodeSymbol | undefined {
+  // `self` and `cls` are bound in a method's body only: not in a class body, nor in the method's own header.
+  const body = parsed.defs?.find((def) => def.id === from.id)?.body;
+  if (from.kind !== 'method' || (body && before(call.range.start, body))) return undefined;
   const owner = classOwner(parsed, from);
-  if (!owner) return undefined;
+  if (!owner || !plainMethod(parsed, owner, call.name)) return undefined;
   const methods = parsed.symbols.filter((s) => s.kind === 'method' && s.path.length === owner.path.length + 1 && isPrefix(owner.path, s.path) && s.path.at(-1) === call.name && holds(owner, s));
   return methods.length === 1 ? methods[0] : undefined;
 }
@@ -194,12 +225,13 @@ export function pythonCallTarget(parsed: ParsedFile, files: Files, call: CallRef
   if (call.via === 'this') return thisTarget(parsed, call, from);
   const chain = scopeChain(parsed, from, call.range.start);
   const at = call.range.start;
-  if (call.via === 'bare') return bareTarget(parsed, files, call.name, chain, at, trace);
-  return call.receiver ? memberTarget(parsed, files, call, chain, at, trace) : undefined;
+  const site = { at, eager: eagerCall(parsed, from, at) };
+  if (call.via === 'bare') return bareTarget(parsed, files, call.name, chain, site, trace);
+  return call.receiver ? memberTarget(parsed, files, call, chain, site, trace) : undefined;
 }
 
-function bareTarget(parsed: ParsedFile, files: Files, name: string, chain: readonly string[], at: CallRef['range']['start'], trace: Tracer): CodeSymbol | undefined {
-  const m = meaning(parsed, name, chain, at);
+function bareTarget(parsed: ParsedFile, files: Files, name: string, chain: readonly string[], site: Site, trace: Tracer): CodeSymbol | undefined {
+  const m = meaning(parsed, name, chain, site);
   if (m?.kind === 'def') {
     const def = defIn(parsed, m.scope, name);
     return def && (def.kind === 'function' || def.kind === 'class') ? def : undefined;
@@ -208,9 +240,9 @@ function bareTarget(parsed: ParsedFile, files: Files, name: string, chain: reado
   return topLevel(files, trace(m.imp.resolved, m.name.imported));
 }
 
-function memberTarget(parsed: ParsedFile, files: Files, call: CallRef, chain: readonly string[], at: CallRef['range']['start'], trace: Tracer): CodeSymbol | undefined {
+function memberTarget(parsed: ParsedFile, files: Files, call: CallRef, chain: readonly string[], site: Site, trace: Tracer): CodeSymbol | undefined {
   const receiver = call.receiver!;
-  const m = meaning(parsed, receiver, chain, at);
+  const m = meaning(parsed, receiver, chain, site);
   let module: string | undefined;
   if (call.receiverPath) {
     const dotted = call.receiverPath.join('.');
@@ -221,7 +253,7 @@ function memberTarget(parsed: ParsedFile, files: Files, call: CallRef, chain: re
     }
   } else {
     module = moduleOf(m, trace);
-    if (!module) return builtMethod(parsed, files, m, call.name, at, trace);
+    if (!module) return builtMethod(parsed, files, m, call.name, site, trace);
   }
   return module ? topLevel(files, trace(module, call.name)) : undefined;
 }

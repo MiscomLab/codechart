@@ -41,6 +41,8 @@ export interface ParsedFile {
   defs?: PyDefinition[];
   /** Python only: ranges evaluated in a nested scope that skips an intervening class body (lambda bodies, comprehensions). */
   deferred?: CodeRange[];
+  /** Python only: lambda bodies, which run when the lambda is called, not where it is written. */
+  lambdas?: CodeRange[];
   /** The file edits `sys.path`, so its absolute Python imports have no provable target. Absent for other files. */
   sysPathEdited?: boolean;
   /** The `@entity` captures of the `patterns` it was parsed with, every set's; absent when it was parsed without. */
@@ -267,7 +269,7 @@ export async function parseCode(path: string, text: string, lastGood?: LastGood,
       ...(calls.scopes && { scopes: calls.scopes }),
       entities: [],
       refs: [],
-      ...(python && { bindings: python.bindings, defs: python.defs, deferred: python.deferred }),
+      ...(python && { bindings: python.bindings, defs: python.defs, deferred: python.deferred, lambdas: python.lambdas }),
       ...(python?.sysPathEdited && { sysPathEdited: true }),
       ...patternsIn(opts, grammar, tree.rootNode, errors, previous),
     };

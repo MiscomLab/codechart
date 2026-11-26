@@ -1,6 +1,7 @@
 import type { Node } from 'web-tree-sitter';
 import type { CodeRange } from '../model.js';
 import { nodeRange } from '../tree.js';
+import { isTypeChecking } from './nodes.js';
 
 /** Pure readers of Python syntax nodes: write targets, parameters, annotations, type parameters and deferred ranges. */
 
@@ -106,4 +107,36 @@ export function declared(body: Node, statement: 'global_statement' | 'nonlocal_s
     for (const c of node.namedChildren) if (c && c.type !== 'function_definition' && c.type !== 'class_definition') stack.push(c);
   }
   return names;
+}
+
+/** The attribute names a method writes through its first parameter (`self.f = …`, `cls.f += …`, `del self.f`, `for self.f in …`). */
+export function attributeWrites(body: Node, owner: string | undefined): string[] {
+  const names: string[] = [];
+  if (!owner) return names;
+  const collect = (target: Node | null | undefined): void => {
+    if (!target) return;
+    if (target.type === 'attribute') {
+      const object = target.childForFieldName('object');
+      const attribute = target.childForFieldName('attribute');
+      if (object?.type === 'identifier' && object.text === owner && attribute) names.push(attribute.text);
+    } else if (PATTERNS.has(target.type)) for (const child of target.namedChildren) collect(child);
+  };
+  const stack: Node[] = [body];
+  while (stack.length) {
+    const node = stack.pop()!;
+    if (node.type === 'delete_statement') for (const child of node.namedChildren) collect(child);
+    else if (node.type === 'as_pattern') collect(node.childForFieldName('alias'));
+    else if (WRITE_FIELDS[node.type]) collect(node.childForFieldName(WRITE_FIELDS[node.type]!));
+    for (const child of node.namedChildren) if (child) stack.push(child);
+  }
+  return names;
+}
+
+const WRITE_FIELDS: Record<string, string> = { assignment: 'left', augmented_assignment: 'left', for_statement: 'left', for_in_clause: 'left' };
+
+/** `if not TYPE_CHECKING:` with no other branch: `TYPE_CHECKING` is False at run time, so the body always runs. */
+export function alwaysRuns(node: Node): boolean {
+  if (node.type !== 'if_statement' || node.childForFieldName('alternative')) return false;
+  const test = node.childForFieldName('condition');
+  return test?.type === 'not_operator' && isTypeChecking(test.childForFieldName('argument'));
 }
