@@ -15778,6 +15778,398 @@
         "tag": "run.K.f"
       }
     },
+    "classbody-class-decorated.class-body-type-alias-value.for": {
+      "hash": "1fc6bd5ee5cb752a8b54bc510a55876136b4818faa3fb746a306c273097a6e30",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.class-body-type-alias-value.if": {
+      "hash": "999c9dbefe969b576c558dac78d1e30e8cf2c93a1cb04e8ca0c4c7c889f9586a",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.class-body-type-alias-value.match": {
+      "hash": "12398cdcfa28f85178ed6a2dafcda2a9db73a66e94fae6948ea912d0f4d5e0e6",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.class-body-type-alias-value.none": {
+      "hash": "97b4f7e69387d1d863175e8ba140ce7104c941d28815a5813578f6212e3bdfbf",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.class-body-type-alias-value.try": {
+      "hash": "52182cef374b4d1c21406547bd8bb89ea534234ab5a3d0617b3c26eeb7778a8b",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.class-body-type-alias-value.while": {
+      "hash": "8d1503e52709766af608cf5634a7c54bf5d590832eb8d11c55f55acdd56c14ea",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.class-body-type-alias-value.with": {
+      "hash": "16825a50fe6370d45afe495d6b9982d8b64e3709d58acf1713485f48c9c90b39",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.class-body.for": {
+      "hash": "34f315e225a74f67a572b6b9fbd003b79d62145f3029231b0befd06f6d63afe9",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.class-body.if": {
+      "hash": "8618e4d8ce5dda5b429cad25819a37699d836f7293d8c1e2d477aaf05737feab",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.class-body.match": {
+      "hash": "13b772c23598b83daf4271837607cca01676dd9938c583d293ea0e186cf2b70a",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.class-body.none": {
+      "hash": "012a6b8354c5804357efc163a15f49541498106556dfcea31e502b7358c9535c",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.class-body.try": {
+      "hash": "d5726b5116195f4c5d712f108d0a6e4dc99234a6ce584a8955bc8cfb20e0bc12",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.class-body.while": {
+      "hash": "faf34939bb7bbfca01a5544ed17776c45e0ae2f7a9b86535eee4326d9927848c",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.class-body.with": {
+      "hash": "e968757b803db6a9ff3dd7f6ec7407e2fc107753aa7d0b9a704573f820880643",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.def-in-class-if.for": {
+      "hash": "76473cc17259bbe120dbff153c127962b6370c2f0f4ef26a14a30a07ee61a276",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.def-in-class-if.if": {
+      "hash": "9c2c8c8625beb80ef29d078b00b9ffb51121cb3405f98fcadb42eb8472031e09",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.def-in-class-if.match": {
+      "hash": "15ec8092df6826d73286bc197b90e22e4af9c7182b09586f60d9b464f4656bd9",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.def-in-class-if.none": {
+      "hash": "fd239faede3d5c6b9dafb98b4cafaf70e2fb109a188cfcfca8fc74ae4f2d2a56",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.def-in-class-if.try": {
+      "hash": "b411fd6b933d9a8bf7a397b8c351c7a2de54cd5006e97b58d8d16a577e88fc95",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.def-in-class-if.while": {
+      "hash": "273840cccf11c46d82ad0d7a2759d23273387bf0c1758ea656408ba0949bb752",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.def-in-class-if.with": {
+      "hash": "d43bee46ccd59e43c9a112f9659aa694bb61fcb9e4e1da100ef36c7a30259afb",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-default.for": {
+      "hash": "cb397f3f1caa6d0e71caf5bf564418f2f81738b8ec8aefbf398e4a102ec57ca3",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-default.if": {
+      "hash": "fd239faede3d5c6b9dafb98b4cafaf70e2fb109a188cfcfca8fc74ae4f2d2a56",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-default.match": {
+      "hash": "633493cc66717e465c33078dfb155c3747808c14dd0ac9fc535789466f098f01",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-default.none": {
+      "hash": "f5e802b2101865dcfb265db54c3ee7c01aa913e6e1e299b4ef06e951c71cad30",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-default.try": {
+      "hash": "a07732e69525e2741dc708b850bdae1ed753ad91b11912294cce57011e2d8064",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-default.while": {
+      "hash": "37146ab7587438509a4210b7f708241f2af3af4338a473df981c3ff6ca76a244",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-default.with": {
+      "hash": "5b14aae9e7c35e2af1e6dcb3d56989166d28f44a66029f9344d69891862b4626",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-parameter-annotation.for": {
+      "hash": "301b07e4e1de0ba947e5757d573747222ed52b2a665480213d6b1f8cf2915520",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-parameter-annotation.if": {
+      "hash": "f1ca94cbab94651e79f5263fb8b42a719373320eef400fa416cbd9dd4cd679e2",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-parameter-annotation.match": {
+      "hash": "d7d2a0be29ab8066f7044e34dd1cc3bbe8d78dbf456490cd381a4865c592e999",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-parameter-annotation.none": {
+      "hash": "67b76721499835d4c3bb43fd939ecacdb514ec02807d83c84d80373a55283ee8",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-parameter-annotation.try": {
+      "hash": "f92d3ea1bfd6a47aad884f1b42afca8882e7eb02135ec0b159cc8af8b6955821",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-parameter-annotation.while": {
+      "hash": "056267e057488714b16fb3d95275ef79a44fb1f377a457e3d42623b5d5659545",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-parameter-annotation.with": {
+      "hash": "ae12767993aea5e8ebdce5e89f933459d5d46d383dfc7ffb08ce8ac80ea873a3",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-return-annotation.for": {
+      "hash": "58569fd5163938e100e4fcf8932e58579060252a740ab2de8f1692cd9e861e62",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-return-annotation.if": {
+      "hash": "11f8ec72889d9d46392cde95b0dfffe3e0b0e1ad2f23091f45242aafd37729cb",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-return-annotation.match": {
+      "hash": "94c53e3c13829f6199974565239d0d0a97c604f1ea9eebe211913d8e01df48b4",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-return-annotation.none": {
+      "hash": "872fa5b932c3bc47f154f2587d423aea8970616a4ccfc2729b4dd2bda8beeb69",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-return-annotation.try": {
+      "hash": "35998927fb5200972fe7ccbe9cfc3182061b786468e5181f0ea0d518388adc89",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-return-annotation.while": {
+      "hash": "5d60e00fe67a5cef995bee271e0a97b8f014a8c985a36394a5f1062cb8097474",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.method-return-annotation.with": {
+      "hash": "ae21fb3e802d060efa84b4c9fcd12799e91c6fc02ba4a92eb490f8bfa14232a8",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.nested-class-header.for": {
+      "hash": "76952da85a849d9976c302ee8350ad50e8c0b2a169bd2cc6debcdcfdbd46f50c",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.nested-class-header.if": {
+      "hash": "82ff333e378e32a23ae7cebfa7973184b8f098f49de6028fb3a333806d2f2393",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.nested-class-header.match": {
+      "hash": "c5d509b0a85a984f75035e42fc9733f075c1d38740d294daea6b28dae1c79546",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.nested-class-header.none": {
+      "hash": "2bf2589aa555fa4d328745699628116feaaf11ef4acf267b46300b8e0407e0fd",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.nested-class-header.try": {
+      "hash": "614acb20bc8734026e57b892672c24d9b09fb3747d0966e667b988c131d5a95a",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.nested-class-header.while": {
+      "hash": "5e5ea9a8de3fde6b317f2b1a264a36e94d7e98381c0cae326c1be744c1d8e3eb",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.nested-class-header.with": {
+      "hash": "7cfde39170327e0448e2704800fbf0ec9c3c9e1d4a5da13c25655b54a942590a",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.nested-class-keyword.for": {
+      "hash": "913e2749bb1417924e06660720286d040ba802df0bb6e4f3a445556640677897",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.nested-class-keyword.if": {
+      "hash": "78e6993d4c2c4f1400386374064b26ca453aca43bc3f57a8752d9fd085511d8e",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.nested-class-keyword.match": {
+      "hash": "ccc028969a91038458df654aa7912e514d0b0d4160c08ddda437e7cc5e20b497",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.nested-class-keyword.none": {
+      "hash": "bc994fa0ae10174ceb978cbc6faa4fc084fc51d86f7f04b93b04e8a50019c05f",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.nested-class-keyword.try": {
+      "hash": "78072b2ea37ffa932343d6764166428ff445f2c1abcd63d068a9ad1e52bf3ca4",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.nested-class-keyword.while": {
+      "hash": "8456f1f00821fb4b0898735a35f6e62accb524f71d55fc8e56a41c2712ea3ca3",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "classbody-class-decorated.nested-class-keyword.with": {
+      "hash": "ca52198c8d1c64b5f23bc75538c53194a8a2556e01041b0f25de28234aa3eefa",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
     "classbody-class-if-false.class-body-type-alias-value.for": {
       "hash": "72c5321b13071e584f2e8f92db2f018847c334fcbb8ebbe8dabfc94f19ddb36d",
       "outcome": {

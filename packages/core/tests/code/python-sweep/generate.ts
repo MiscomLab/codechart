@@ -373,6 +373,13 @@ const CONSTRUCTS: readonly Construct[] = [
       classPlan: classSite(shape, placement),
     })),
   ),
+  // A decorated class binding: the name at run time is the decorator's return value, not the class statement.
+  {
+    name: 'classbody-class-decorated',
+    run: true,
+    classSiteOnly: true,
+    classPlan: () => ({ pre: ["@(lambda c: mk('K.deco'))", 'class f:', '    pass'] }),
+  },
   // Function-scope flow: a dead assignment still makes the name local; a loop rebinds or deletes it after the site.
   { name: 'flow-if-false', run: true, pre: ['if False:', "    f = mk('run.if-false')"] },
   { name: 'flow-try-raised', run: true, pre: ['try:', '    raise ValueError', "    f = mk('run.try-raised')", 'except ValueError:', '    pass'] },
