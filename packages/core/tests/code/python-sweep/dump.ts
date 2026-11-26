@@ -1,4 +1,5 @@
 import { programs } from './generate.js';
 
-/** Dumps every generated program for `record.py`: `dump.ts | python3 -I record.py`. */
-process.stdout.write(JSON.stringify({ programs: programs().map(({ id, text }) => ({ id, text })) }));
+/** Dumps every generated program and the shared `b.py` for `record.py`: `dump.ts | python3 -I record.py`. */
+const all = programs();
+process.stdout.write(JSON.stringify({ b: all[0]?.b, programs: all.map(({ id, text }) => ({ id, text })) }));

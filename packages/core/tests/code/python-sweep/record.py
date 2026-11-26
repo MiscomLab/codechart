@@ -18,20 +18,16 @@ The log tag `<site>` is the generator's sentinel, logged just before the call; a
 and an exception with the sentinel but no tag happened at the call. `b.py` logs into its own list, merged per program.
 """
 
+import builtins
 import hashlib
 import json
 import os
 import sys
 import tempfile
+import types
 
 SITE_TAG = '<site>'
 
-B_SOURCE = """LOG = []
-def f():
-    LOG.append('b.f')
-    return object
-__all__ = ['f']
-"""
 
 
 def site_events(a_log):
@@ -53,16 +49,32 @@ def site_events(a_log):
 def run_program(b, program_id, text):
     """Compile and execute one program; return its outcome. Raises when the harness itself cannot explain the run."""
     b.LOG.clear()
-    namespace = {'__name__': 'sweep_program', '__file__': program_id}
+    # A program may install `builtins.f`; it must not leak into the next program.
+    try:
+        del builtins.f
+    except AttributeError:
+        pass
+    # The program runs as a real module in sys.modules, so `sys.modules[__name__].f = …` writes the program's own
+    # namespace (record.py used to exec into a bare dict, where that lookup raises KeyError).
+    module = types.ModuleType('sweep_program')
+    namespace = module.__dict__
+    namespace['__file__'] = program_id
     try:
         code = compile(text, program_id, 'exec')
     except SyntaxError:
         return {'kind': 'syntax'}
     error = None
+    sys.modules['sweep_program'] = module
     try:
         exec(code, namespace)
     except BaseException as exc:  # noqa: BLE001 - the program's failure is the observation
         error = exc
+    finally:
+        sys.modules.pop('sweep_program', None)
+        try:
+            del builtins.f
+        except AttributeError:
+            pass
     a_log = namespace.get('LOG')
     events, before = site_events(a_log if isinstance(a_log, list) else [])
     if before:
@@ -107,8 +119,10 @@ def main():
         seen.add(program['id'])
 
     with tempfile.TemporaryDirectory() as folder:
+        # The shared `b.py` comes from the generator with the programs, so the two can never drift apart.
+        source = data['b']
         with open(os.path.join(folder, 'b.py'), 'w', encoding='utf-8') as handle:
-            handle.write(B_SOURCE)
+            handle.write(source)
         sys.path.insert(0, folder)
         import b  # noqa: E402 - after sys.path holds the module
 

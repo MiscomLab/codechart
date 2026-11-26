@@ -91,16 +91,20 @@ const symbolById = (id: string, files: Files): CodeSymbol | undefined => files.g
 function expectedTag(call: CallRef, path: string, files: Files): { tag?: string; problem?: string } {
   if (!call.to) return {};
   if (call.to === `${path}::f::function`) return { tag: 'module' };
-  if (call.to === 'b.py::f::function') return { tag: 'b.f' };
   const symbol = symbolById(call.to, files);
-  return symbol ? { tag: symbol.path.join('.') } : { problem: `core to=${call.to} is not a symbol of the linked files` };
+  if (!symbol) return { problem: `core to=${call.to} is not a symbol of the linked files` };
+  // A target in the shared `b.py` is tagged with its module prefix, since its log lives in b's own list.
+  return { tag: call.to.startsWith('b.py::') ? `b.${symbol.path.join('.')}` : symbol.path.join('.') };
 }
 
 /** Whether a reached tag names a symbol the link pass already has, in this program or in `b.py`. */
 function hasSymbolForTag(tag: string, path: string, files: Files): boolean {
-  if (tag === 'module') return (files.get(path)?.symbols ?? []).some((symbol) => symbol.id === `${path}::f::function`);
-  if (tag === 'b.f') return (files.get('b.py')?.symbols ?? []).some((symbol) => symbol.id === 'b.py::f::function');
   const callableKinds = new Set(['function', 'method', 'class']);
+  if (tag === 'module') return (files.get(path)?.symbols ?? []).some((symbol) => symbol.id === `${path}::f::function`);
+  if (tag.startsWith('b.')) {
+    const wanted = tag.slice(2);
+    return (files.get('b.py')?.symbols ?? []).some((symbol) => callableKinds.has(symbol.kind) && symbol.path.join('.') === wanted);
+  }
   return (files.get(path)?.symbols ?? []).some((symbol) => callableKinds.has(symbol.kind) && symbol.path.join('.') === tag);
 }
 
@@ -161,6 +165,9 @@ export async function checkAll(programs: readonly Program[], fixture: Fixture): 
       continue;
     }
     const call = calls[0]!;
+    if (program.site === 'constructed' && (call.via !== 'member' || call.receiver !== 'c')) {
+      result.harnessErrors.push(`${program.id}: constructed site emitted via=${call.via} receiver=${call.receiver ?? 'none'}, expected the member call c.f()`);
+    }
     if (outcome.kind === 'not-run') result.notRun.push(program.id);
     if (outcome.kind === 'varies') result.varies.push(program.id);
     if (outcome.kind === 'error' && !SITE_ERRORS.has(outcome.type)) result.harnessErrors.push(`${program.id}: site error ${outcome.type}`);

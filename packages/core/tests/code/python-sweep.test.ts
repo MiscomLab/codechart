@@ -23,6 +23,9 @@ import { type CheckResult, type Fixture, checkAll, describeDisagreement } from '
 
 const fixture = JSON.parse(readFileSync(new URL('./python-sweep/outcomes.json', import.meta.url), 'utf8')) as Fixture;
 
+/** The documented limit's programs, by exact id: module code runs a function above the def it calls (see the last test). */
+const IMPORT_TIME_LIMIT = new Set(JSON.parse(readFileSync(new URL('./python-sweep/import-time-limit.json', import.meta.url), 'utf8')) as string[]);
+
 /** CPython rejects exactly the in-function star import; any other rejected program is a generator bug, not an exclusion. */
 const EXPECTED_SYNTAX = ['star-import-in-function.function.none'];
 
@@ -76,12 +79,11 @@ describe('generated Python sweep: every resolved call is checked against CPython
     // possibly running any function. Pinned exactly, so a new case or a fixed one both fail this test.
     const limited = result.disagreements.filter(importTimeLimit);
     expect(limited.every((d) => d.outcome.kind === 'error' && d.outcome.type === 'NameError'), 'every limited case is the import-time NameError').toBe(true);
-    const counts = Object.fromEntries(['module-def-after-call', 'module-def-after'].map((c) => [c, limited.filter((d) => d.construct === c).length]));
-    expect(counts).toEqual({ 'module-def-after-call': 245, 'module-def-after': 7 });
+    expect(limited.map((d) => d.id).sort(), 'the limit, by exact program id').toEqual([...IMPORT_TIME_LIMIT].sort());
   });
 });
 
 /** The documented limit: module code calls a function (directly, or through a method of an instance) above the def. */
 function importTimeLimit(d: CheckResult['disagreements'][number]): boolean {
-  return d.construct === 'module-def-after-call' || (d.construct === 'module-def-after' && d.position === 'module-class-method-body');
+  return IMPORT_TIME_LIMIT.has(d.id);
 }

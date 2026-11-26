@@ -20,6 +20,8 @@ export interface Program {
   construct: string;
   position: string;
   wrapper: string;
+  /** How the one call is written: `f()`, `self.f()`, or `c.f()` for a constructed receiver. */
+  site: 'bare' | 'this' | 'constructed';
 }
 
 /** The sentinel the harness logs just before the one call site, so an error can be told from a site that never ran. */
@@ -58,11 +60,27 @@ ${MODULE_F}
 import annotationlib
 `;
 
-/** `b.py`: the site reaches it only through an import of `f`, and logs `b.f` into its own list the recorder merges. */
+/** `b.py`: the site reaches it only through an import of `f`; its own `_Mark` logs into `LOG`, merged per program. */
 const B = `LOG = []
+class _Mark:
+    def __init__(self, tag): self.tag = tag
+    def __call__(self, *a, **k): LOG.append(self.tag); return object
+def mk(tag): return _Mark(tag)
 def f():
     LOG.append('b.f')
     return object
+class K:
+    def f(self):
+        LOG.append('b.K.f')
+        return object
+K.f = mk('b.K.attr')
+class AliasBase:
+    def f(self):
+        LOG.append('b.AliasBase.f')
+        return object
+class Base:
+    def __init__(self):
+        self.f = mk('b.base.attr')
 __all__ = ['f']
 `;
 
@@ -301,6 +319,12 @@ const classSite = (shape: 'class' | 'def', placement: ClassSitePlacement) => (ta
 /** A class body's plain method f, logging the core path of the class the member site sits in. */
 const memberMethod = (tag: string): string[] => ['def f(self):', `    LOG.append('${tag}.f')`, '    return object'];
 
+/** A class body whose `__init__` writes the instance's f before the site reads it. */
+const memberInit = (tag: string, write: readonly string[]): string[] => [...memberMethod(tag), 'def __init__(self):', ...write.map((line) => `    ${line}`)];
+
+/** A run-local class K with method f and a constructed `c = K()` before the site. */
+const constructedRun = (tag: string, extra: readonly string[] = []): string[] => ['class K:', ...shifted(memberMethod(tag)), 'c = K()', ...extra];
+
 /** A run-local `def`/`class` binding that logs its core path; the flow constructs place it where it may never run. */
 const runDef = (tag: string): string[] => ['def f():', `    LOG.append('${tag}')`, '    return object'];
 const runClass = (tag: string): string[] => ['class f:', `    def __init__(self): LOG.append('${tag}')`];
@@ -351,6 +375,8 @@ interface Construct {
   lambdaParam?: boolean;
   /** The site calls `self.f()`: a member site for the class body the position defines. */
   thisCall?: boolean;
+  /** The site calls `c.f()` on a constructed receiver; the construct defines `c = K()`. */
+  constructed?: boolean;
   /** Restricts the construct to these positions. */
   positions?: readonly string[];
   /** CPython rejects the program at compile time; generated once and excluded from the sweep. */
@@ -519,6 +545,152 @@ const CONSTRUCTS: readonly Construct[] = [
       };
     },
   },
+  // Constructed receivers: `c = K(); c.f()`. The class and `c` are local; the harness checks core's receiver is `c`.
+  { name: 'member-constructed-run', run: true, constructed: true, positions: ['function'], pre: constructedRun('run.K') },
+  {
+    name: 'member-constructed-method',
+    run: true,
+    module: true,
+    constructed: true,
+    positions: ['method-body', 'module-class-method-body'],
+    classPlan: (tag) => ({ pre: memberMethod(tag), driverPre: ['c = K()'] }),
+  },
+  // Attribute writes after construction: the instance's f is the written value, not the class method.
+  {
+    name: 'member-setattr-init', run: true, module: true, thisCall: true, positions: ['method-body', 'module-class-method-body'],
+    classPlan: (tag) => ({ pre: memberInit(tag, [`setattr(self, 'f', mk('${tag}.setattr-init'))`]) }),
+  },
+  {
+    name: 'member-setattr-dynamic', run: true, module: true, thisCall: true, positions: ['method-body', 'module-class-method-body'],
+    classPlan: (tag) => ({ pre: memberInit(tag, ['name = \'f\'', `setattr(self, name, mk('${tag}.setattr-dynamic'))`]) }),
+  },
+  {
+    name: 'member-self-dict', run: true, module: true, thisCall: true, positions: ['method-body', 'module-class-method-body'],
+    classPlan: (tag) => ({ pre: memberInit(tag, [`self.__dict__['f'] = mk('${tag}.dict')`]) }),
+  },
+  {
+    name: 'member-vars-self', run: true, module: true, thisCall: true, positions: ['method-body', 'module-class-method-body'],
+    classPlan: (tag) => ({ pre: memberInit(tag, [`vars(self)['f'] = mk('${tag}.vars')`]) }),
+  },
+  {
+    name: 'member-object-setattr', run: true, module: true, thisCall: true, positions: ['method-body', 'module-class-method-body'],
+    classPlan: (tag) => ({ pre: memberInit(tag, [`object.__setattr__(self, 'f', mk('${tag}.object-setattr'))`]) }),
+  },
+  // Attribute lookup itself replaced: `__getattribute__` intercepts f; a real method wins over `__getattr__`.
+  {
+    name: 'member-getattribute',
+    run: true,
+    module: true,
+    thisCall: true,
+    positions: ['method-body', 'module-class-method-body'],
+    classPlan: (tag) => ({
+      pre: [...memberMethod(tag), 'def __getattribute__(self, name):', `    if name == 'f': return mk('${tag}.getattribute')`, '    return object.__getattribute__(self, name)'],
+    }),
+  },
+  {
+    name: 'member-getattr',
+    run: true,
+    module: true,
+    thisCall: true,
+    positions: ['method-body', 'module-class-method-body'],
+    classPlan: (tag) => ({ pre: [...memberMethod(tag), 'def __getattr__(self, name):', `    return mk('${tag}.getattr')`] }),
+  },
+  // A class attribute written from outside replaces the method for every instance.
+  {
+    name: 'member-setattr-class',
+    module: true,
+    thisCall: true,
+    positions: ['module-class-method-body'],
+    classPlan: (tag) => ({ pre: memberMethod(tag), driverPre: ["setattr(K, 'f', mk('K.setattr-class'))"] }),
+  },
+  { name: 'member-imported-class-attr', run: true, constructed: true, positions: ['function'], pre: ['from b import K', 'c = K()'] },
+  { name: 'member-constructed-instance-write', run: true, constructed: true, positions: ['function'], pre: constructedRun('run.K', ["c.f = mk('run.K.inst')"]) },
+  // Constructors that return another type: the receiver is not an instance of the class spelled at the call.
+  {
+    name: 'member-metaclass-call',
+    run: true,
+    constructed: true,
+    positions: ['function'],
+    pre: [
+      'class Other:',
+      '    def f(self):',
+      "        LOG.append('Other.f')",
+      '        return object',
+      'class M(type):',
+      '    def __call__(cls, *a, **k):',
+      '        return Other()',
+      'class K(metaclass=M):',
+      '    def f(self):',
+      "        LOG.append('run.K.f')",
+      '        return object',
+      'c = K()',
+    ],
+  },
+  {
+    name: 'member-new-other',
+    run: true,
+    constructed: true,
+    positions: ['function'],
+    pre: [
+      'class Other:',
+      '    def f(self):',
+      "        LOG.append('Other.f')",
+      '        return object',
+      'class K:',
+      '    def __new__(cls):',
+      '        return Other()',
+      '    def f(self):',
+      "        LOG.append('run.K.f')",
+      '        return object',
+      'c = K()',
+    ],
+  },
+  // Bases: a base __init__ writes self.f; an aliased imported base; a multiple-inheritance MRO.
+  {
+    name: 'member-base-b-attr-write',
+    run: true,
+    module: true,
+    thisCall: true,
+    positions: ['method-body', 'module-class-method-body'],
+    outer: ['from b import Base'],
+    classPlan: (tag) => ({ base: 'Base', pre: memberMethod(tag) }),
+  },
+  {
+    name: 'member-imported-alias-override',
+    run: true,
+    module: true,
+    thisCall: true,
+    positions: ['method-body', 'module-class-method-body'],
+    outer: ['from b import AliasBase as Base'],
+    classPlan: (tag) => ({ base: 'Base', pre: memberMethod(tag) }),
+  },
+  {
+    name: 'member-imported-alias-inherited',
+    run: true,
+    module: true,
+    thisCall: true,
+    positions: ['method-body', 'module-class-method-body'],
+    outer: ['from b import AliasBase as Base'],
+    classPlan: () => ({ base: 'Base' }),
+  },
+  {
+    name: 'member-multiple-inheritance',
+    run: true,
+    module: true,
+    thisCall: true,
+    positions: ['method-body', 'module-class-method-body'],
+    outer: ['class A:', '    def f(self):', "        LOG.append('A.f')", '        return object', 'class B:', '    def f(self):', "        LOG.append('B.f')", '        return object'],
+    classPlan: () => ({ base: 'A, B' }),
+  },
+  // Module-binding writes: the module's `f` is the written value, not the def the linker sees.
+  { name: 'module-globals-after', run: true, module: true, outer: ["globals()['f'] = mk('module.globals')"] },
+  { name: 'module-globals-before', run: true, module: true, preludeF: `globals()['f'] = mk('module.globals.before')\n${MODULE_F}` },
+  { name: 'module-globals-update', run: true, module: true, outer: ["globals().update(f=mk('module.update'))"] },
+  { name: 'module-globals-dynamic', run: true, module: true, outer: ["_name = 'f'", "globals()[_name] = mk('module.dynamic')"] },
+  { name: 'module-vars', run: true, module: true, outer: ["vars()['f'] = mk('module.vars')"] },
+  { name: 'module-exec', run: true, module: true, outer: ["exec(\"def f(): LOG.append('module.exec'); return object\")"] },
+  { name: 'module-sysmod', run: true, module: true, outer: ['import sys', "sys.modules[__name__].f = mk('module.sysmod')"] },
+  { name: 'module-builtins', run: true, module: true, preludeF: '# no module f: the bare call falls back to builtins.f', outer: ['import builtins', "builtins.f = mk('builtins.f')"] },
 ];
 
 interface Wrapper {
@@ -552,7 +724,7 @@ function applies(construct: Construct, position: Position): boolean {
 
 /** The one call site: a sentinel tuple whose second element is the call, so an error is told from a site never reached. */
 function siteOf(construct: Construct): string {
-  const call = construct.thisCall ? 'self.f()' : construct.lambdaParam ? "(lambda f: f())(mk('param'))" : 'f()';
+  const call = construct.constructed ? 'c.f()' : construct.thisCall ? 'self.f()' : construct.lambdaParam ? "(lambda f: f())(mk('param'))" : 'f()';
   return `(LOG.append('${SITE_TAG}'), ${call})[1]`;
 }
 
@@ -591,6 +763,7 @@ export function programs(): Program[] {
           construct: construct.name,
           position: position.name,
           wrapper: wrapper.name,
+          site: construct.constructed ? 'constructed' : construct.thisCall ? 'this' : 'bare',
         });
       }
     }
