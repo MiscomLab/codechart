@@ -2,6 +2,7 @@ import type { Node } from 'web-tree-sitter';
 import type { ModuleExports } from '../imports.js';
 import type { CodeRange, CodeSymbol } from '../model.js';
 import { nodeRange } from '../tree.js';
+import { annotationExpressions, declared, defaultRanges, defaultValues, deferredRanges, identifiers, parameterNames, targets, typeParameterNames, typeParametersIn } from './scope-nodes.js';
 
 /**
  * One name a Python scope binds. `scope` is the id of the function or class whose body binds it, `''` for the module.
@@ -22,70 +23,14 @@ export interface PyBinding {
   within?: CodeRange[];
   /** A type alias's own type parameter: local to the alias value, never an export. */
   alias?: boolean;
+  /** A class-body binding made inside an `if`, `try`, loop, `with` or `match` of that body: it may never have run. */
+  conditional?: boolean;
   /** Where the binding is written; a class body's binding is only visible to later calls in its headers and body. */
   start?: CodeRange['start'];
 }
 
-const PATTERNS = new Set(['pattern_list', 'tuple_pattern', 'list_pattern', 'tuple', 'list', 'list_splat_pattern', 'as_pattern_target', 'parenthesized_expression']);
-const PARAMETERS = new Set(['default_parameter', 'typed_parameter', 'typed_default_parameter', 'list_splat_pattern', 'dictionary_splat_pattern']);
-
-/** Identifiers a write target binds: `a`, `a, b`, `(a, [b, *c])`. Attributes and subscripts bind no name. */
-function targets(node: Node | null | undefined): string[] {
-  if (!node) return [];
-  if (node.type === 'identifier') return [node.text];
-  if (PATTERNS.has(node.type)) return node.namedChildren.flatMap((c) => targets(c));
-  return [];
-}
-
-function parameterNames(params: Node | null): string[] {
-  return (params?.namedChildren ?? []).flatMap((p) => {
-    if (!p) return [];
-    if (p.type === 'identifier') return [p.text];
-    if (PARAMETERS.has(p.type)) return targets(p.childForFieldName('name') ?? p.namedChildren.find((c) => c?.type === 'identifier'));
-    return [];
-  });
-}
-
 /** The import index of each import or import call node, by node id; the extractor fills it. */
 export type ImportIndex = ReadonlyMap<number, { locals: { name: string; dotted: boolean; index: number }[]; typeOnly: boolean; wildcard: boolean }>;
-
-/** The name each PEP 695 type parameter in a `type_parameter` node binds: `[T: int, *Ts, **P]` binds `T`, `Ts` and `P`. */
-function typeParameterNames(list: Node | null | undefined): string[] {
-  return (list?.namedChildren ?? []).flatMap((parameter) => {
-    const name = parameter ? identifiers(parameter)[0] : undefined;
-    return name ? [name] : [];
-  });
-}
-
-/** The `type_parameter` node a type expression holds (`Alias[T]` in a type alias's left side). */
-function typeParametersIn(node: Node | null | undefined): Node | undefined {
-  if (!node) return undefined;
-  if (node.type === 'type_parameter') return node;
-  for (const child of node.namedChildren) {
-    const found = typeParametersIn(child);
-    if (found) return found;
-  }
-  return undefined;
-}
-
-/** A definition's parameter default expressions, which run in the scope enclosing the definition. */
-function defaultValues(parameters: Node | null): Node[] {
-  return (parameters?.namedChildren ?? []).flatMap((parameter) => {
-    const value = parameter?.childForFieldName('value');
-    return value ? [value] : [];
-  });
-}
-
-/** A function's parameter and return annotations, evaluated in its header's annotation scope, never in its body. */
-function annotationExpressions(def: Node, parameters: Node | null): Node[] {
-  const nodes = [...(parameters?.namedChildren ?? []).map((p) => p?.childForFieldName('type')), def.childForFieldName('return_type')];
-  return nodes.filter((n): n is Node => !!n);
-}
-
-/** A definition's parameter default values: its own type parameters are not in scope there (PEP 695). */
-function defaultRanges(parameters: Node | null): CodeRange[] {
-  return defaultValues(parameters).map(nodeRange);
-}
 
 /** A Python definition's scope id and where its body starts: calls before it sit in the header (defaults, annotations). */
 export interface PyDefinition {
@@ -95,34 +40,6 @@ export interface PyDefinition {
 
 /** The id of a definition's PEP 695 type-parameter scope, which encloses its annotations but not its defaults. */
 const typeParamsScope = (scope: string): string => `${scope}#typeparams`;
-
-const COMPREHENSIONS = new Set(['list_comprehension', 'set_comprehension', 'dictionary_comprehension', 'generator_expression']);
-
-/**
- * Ranges evaluated in a nested scope that does not see a class body in between: a lambda body, a comprehension's
- * element and conditions, its iterables after the first `for`, and a generator expression's element.
- */
-function deferredRanges(node: Node): CodeRange[] {
-  if (node.type === 'lambda') {
-    const body = node.childForFieldName('body');
-    return body ? [nodeRange(body)] : [];
-  }
-  if (!COMPREHENSIONS.has(node.type)) return [];
-  const out: CodeRange[] = [];
-  const body = node.childForFieldName('body');
-  if (body) out.push(nodeRange(body));
-  let first = true;
-  for (const child of node.namedChildren) {
-    if (child?.type === 'for_in_clause') {
-      const right = child.childForFieldName('right');
-      if (right && !first) out.push(nodeRange(right));
-      first = false;
-    } else if (child?.type === 'if_clause') {
-      for (const condition of child.namedChildren) if (condition) out.push(nodeRange(condition));
-    }
-  }
-  return out;
-}
 
 /**
  * Every name every scope of a Python file binds, by Python's scoping rules: a function's parameters and writes are its
@@ -157,26 +74,55 @@ interface Scope {
   nonlocals: ReadonlySet<string>;
   /** PEP 695 type parameters in scope here: this body's own and every enclosing generic definition's. */
   typeParams?: readonly string[];
+  /** Inside a compound statement of this body: a binding made here may or may not have run. */
+  conditional?: boolean;
+  /** After a `raise`, `break` or `continue` in the same block: nothing here runs, so a class body binds nothing here. */
+  dead?: boolean;
 }
+
+const JUMPS = new Set(['raise_statement', 'break_statement', 'continue_statement']);
+const COMPOUND = new Set(['if_statement', 'try_statement', 'for_statement', 'while_statement', 'with_statement', 'match_statement']);
 
 type Bind = (name: string, kind: PyBinding['kind'], extra?: Partial<PyBinding>) => void;
 
 function binder(w: Walker, at: Scope): Bind {
   return (name, kind, extra = {}) => {
+    // Only a class body looks names up by running: in a function a name assigned anywhere is local, run or not.
+    if (at.dead && !at.isFunction && at.scope) return;
     if (at.globals.has(name)) w.out.push({ scope: '', name, kind, ...extra });
     // `nonlocal f` writes an enclosing function's f; which one is not tracked, so every enclosing scope loses its proof.
     else if (at.nonlocals.has(name)) for (const outer of at.outer) w.out.push({ scope: outer, name, kind: 'other' });
-    else w.out.push({ scope: at.scope, name, kind, ...extra });
+    else w.out.push({ scope: at.scope, name, kind, ...(at.conditional && !at.isFunction && at.scope && { conditional: true }), ...extra });
   };
 }
 
-function walk(w: Walker, node: Node, at: Scope): void {
-  const bind = binder(w, at);
+/** The scope a statement runs in: inside a compound statement or after a jump, its bindings are conditional or dead. */
+function childScope(scope: Scope, child: Node, dead: boolean): Scope {
+  if (COMPOUND.has(child.type) && !scope.conditional) return { ...scope, conditional: true, dead };
+  return dead === !!scope.dead ? scope : { ...scope, dead };
+}
+
+/** Binds the names an import node brings in; false when the node is not an import. */
+function bindImports(w: Walker, node: Node, bind: Bind): boolean {
+  const imported = w.imports.get(node.id);
+  if (!imported) return false;
+  const start = nodeRange(node).start;
+  if (imported.wildcard) bind('*', 'other', { start });
+  if (!imported.typeOnly) for (const l of imported.locals) bind(l.name, 'import', { import: l.index, start, ...(l.dotted && { dotted: true }) });
+  return true;
+}
+
+function walk(w: Walker, node: Node, scope: Scope): void {
   // A lambda may itself be the expression walked (a parameter default): its own parameters bind where it is written.
-  if (node.type === 'lambda') for (const p of parameterNames(node.childForFieldName('parameters'))) bind(p, 'other', { start: nodeRange(node).start });
+  if (node.type === 'lambda') for (const p of parameterNames(node.childForFieldName('parameters'))) binder(w, scope)(p, 'other', { start: nodeRange(node).start });
   for (const range of deferredRanges(node)) w.deferred.push(range);
+  let dead = !!scope.dead;
   for (const child of node.namedChildren) {
     if (!child) continue;
+    // The target of a `for`, a `with` or an `except` is bound only if the compound statement runs that far.
+    const at = childScope(scope, child, dead);
+    if (JUMPS.has(child.type)) dead = true;
+    const bind = binder(w, at);
     const inner = child.type === 'decorated_definition' ? child.childForFieldName('definition') : child;
     if (inner?.type === 'function_definition' || inner?.type === 'class_definition') {
       walkDecorators(w, child, at);
@@ -184,17 +130,10 @@ function walk(w: Walker, node: Node, at: Scope): void {
       continue;
     }
     if (child.type === 'type_alias_statement') {
-      bindTypeAlias(w, child, bind);
+      bindTypeAlias(w, child, bind, at);
       continue;
     }
-    const imported = w.imports.get(child.id);
-    if (imported) {
-      if (imported.wildcard) bind('*', 'other', { start: nodeRange(child).start });
-      if (!imported.typeOnly) {
-        for (const l of imported.locals) bind(l.name, 'import', { import: l.index, start: nodeRange(child).start, ...(l.dotted && { dotted: true }) });
-      }
-      continue;
-    }
+    if (bindImports(w, child, bind)) continue;
     // A comprehension, lambda or `case` pattern binds names a call inside it sees instead of the enclosing ones. Calls are
     // attributed to the enclosing function, so those names count as writes there: the call is then not proven.
     if (child.type === 'case_pattern') for (const name of identifiers(child)) bind(name, 'other', { start: nodeRange(child).start });
@@ -209,8 +148,13 @@ function walkDecorators(w: Walker, node: Node, at: Scope): void {
 }
 
 /** A type alias binds its name here; its own type parameters live in its value only, never in the enclosing scope. */
-function bindTypeAlias(w: Walker, node: Node, bind: Bind): void {
+function bindTypeAlias(w: Walker, node: Node, bind: Bind, at: Scope): void {
   const left = node.childForFieldName('left');
+  const value = node.childForFieldName('right');
+  // The value and the bounds evaluate lazily, but a lambda or comprehension in them is a scope like in an annotation.
+  if (value) walk(w, value, at);
+  const bounds = typeParametersIn(left);
+  if (bounds) walk(w, bounds, at);
   const name = left ? identifiers(left)[0] : undefined;
   const start = nodeRange(node).start;
   if (name) bind(name, 'other', { start });
@@ -247,6 +191,8 @@ function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   // Defaults and class bases/keywords run in the enclosing scope, before the definition exists.
   if (fn) for (const value of defaultValues(parameters)) walk(w, value, at);
   if (fn) for (const annotation of annotationExpressions(def, parameters)) walk(w, annotation, at);
+  const typeParameterList = def.childForFieldName('type_parameters');
+  if (typeParameterList) walk(w, typeParameterList, at);
   const bases = fn ? undefined : def.childForFieldName('superclasses');
   if (bases) walk(w, bases, at);
   // Enclosing type parameters are live throughout nested definitions; a definition's own are not live in its defaults.
@@ -255,6 +201,8 @@ function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   if (fn) for (const p of parameterNames(parameters)) w.out.push({ scope: own, name: p, kind: 'other' });
   if (body) w.defs.push({ id: own, body: nodeRange(body).start });
   if (!body) return;
+  // `global f` / `nonlocal f` in a class body sends its writes elsewhere while reads still reach the class: unprovable.
+  if (!fn) for (const name of [...declared(body, 'global_statement'), ...declared(body, 'nonlocal_statement')]) w.out.push({ scope: own, name, kind: 'other' });
   const outer = at.isFunction ? [at.scope, ...at.outer] : at.outer;
   walk(w, body, {
     scope: own,
@@ -264,11 +212,6 @@ function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
     nonlocals: new Set(declared(body, 'nonlocal_statement')),
     typeParams: [...inherited, ...typeParams],
   });
-}
-
-function identifiers(node: Node): string[] {
-  if (node.type === 'identifier') return [node.text];
-  return node.namedChildren.flatMap((c) => (c ? identifiers(c) : []));
 }
 
 /** The names that writes in `node` bind in the current scope. */
@@ -285,7 +228,8 @@ function bindWrites(w: Walker, node: Node, bind: Bind): void {
     return;
   }
   const field = WRITES[node.type];
-  if (field) for (const name of targets(node.childForFieldName(field))) bind(name, 'other', { start });
+  // A walrus can sit behind a short-circuit, so it is never an unconditional binding.
+  if (field) for (const name of targets(node.childForFieldName(field))) bind(name, 'other', { start, ...(node.type === 'named_expression' && { conditional: true }) });
   else if (node.type === 'delete_statement') for (const name of node.namedChildren.flatMap((c) => targets(c))) bind(name, 'other', { start });
 }
 
@@ -297,18 +241,6 @@ const WRITES: Record<string, string> = {
   as_pattern: 'alias',
   named_expression: 'name',
 };
-
-/** Names a function body declares with `global` or `nonlocal`, so its writes to them land in another scope. */
-function declared(body: Node, statement: 'global_statement' | 'nonlocal_statement'): string[] {
-  const names: string[] = [];
-  const stack: Node[] = [body];
-  while (stack.length) {
-    const node = stack.pop()!;
-    if (node.type === statement) for (const c of node.namedChildren) if (c?.type === 'identifier') names.push(c.text);
-    for (const c of node.namedChildren) if (c && c.type !== 'function_definition' && c.type !== 'class_definition') stack.push(c);
-  }
-  return names;
-}
 
 /**
  * The names a module exports: each name bound once at module scope. A name bound more than once (two branches, an

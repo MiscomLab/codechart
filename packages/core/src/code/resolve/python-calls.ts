@@ -65,6 +65,17 @@ function headerChain(parsed: ParsedFile, caller: CodeSymbol, deferred: boolean):
   return [...chain, ''];
 }
 
+/**
+ * A class body runs as ordinary code: a binding is provable only if it is the one unconditional binding of the name, and
+ * an earlier call cannot reach a later one. Otherwise the name may or may not exist at runtime: undefined, name-only.
+ */
+function classBindings(parsed: ParsedFile, scope: string, scoped: PyBinding[], at: CallRef['range']['start'] | undefined): PyBinding[] | undefined {
+  if (!parsed.symbols.some((s) => s.id === scope && s.kind === 'class')) return scoped;
+  if (scoped.length !== 1 || scoped[0]!.conditional) return undefined;
+  const ordered = at ? scoped.filter((b) => !b.start || before(b.start, at)) : scoped;
+  return ordered.length ? ordered : undefined;
+}
+
 function meaning(parsed: ParsedFile, name: string, chain: readonly string[], at: CallRef['range']['start'] | undefined): Meaning {
   const bindings: readonly PyBinding[] = parsed.bindings ?? [];
   for (let i = 0; i < chain.length; i++) {
@@ -72,10 +83,8 @@ function meaning(parsed: ParsedFile, name: string, chain: readonly string[], at:
     if (bindings.some((b) => b.scope === chain[i] && b.name === '*')) return undefined;
     const scoped = bindings.filter((b) => b.scope === chain[i] && b.name === name);
     if (!scoped.length) continue;
-    // A class body binds names in order: a later binding cannot be what an earlier header or body call reaches.
-    const classScope = parsed.symbols.some((s) => s.id === chain[i] && s.kind === 'class');
-    const ordered = classScope && at ? scoped.filter((b) => !b.start || before(b.start, at)) : scoped;
-    if (classScope && !ordered.length) return undefined;
+    const ordered = classBindings(parsed, chain[i]!, scoped, at);
+    if (!ordered) return undefined;
     const found = ordered.filter((b) => visible(b, at));
     if (!found.length) continue;
     // `import a.b` and `import a.c` both bind the package `a`; the dotted path decides which module a call reaches.
