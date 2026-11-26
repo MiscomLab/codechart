@@ -394,3 +394,29 @@ describe('30. namespaces', () => {
     resolved(repo, 'f', 'a.ts::N.f::function', { kind: 'FunctionDeclaration', parentKind: 'ModuleBlock' }, 'N.run');
   });
 });
+
+describe('Greptile review', () => {
+  it('a write to an import in one file leaves imports in other files resolvable', async () => {
+    // Each parse owns its bindings: a write in w.ts says nothing about a.ts's import of the same module.
+    await link({ 'w.ts': "import { f } from './b';\nexport function run() { (f as any) = () => {}; }\n", 'b.ts': 'export function f() {}\nexport function g() {}\n' });
+    const repo = await link({ 'a.ts': "import { g } from './b';\nimport * as ns from './b';\nexport function run() { g(); ns.f(); }\n", 'b.ts': 'export function f() {}\nexport function g() {}\n' });
+    resolved(repo, 'g', 'b.ts::g::function', { kind: 'FunctionDeclaration', file: 'b.ts' }, 'run');
+    expect(callOf(repo, 'f', 'run')).toMatchObject({ via: 'member', receiver: 'ns', to: 'b.ts::f::function', evidence: 'resolved' });
+  });
+
+  it.each([
+    ['a class static block', 'class K { static { var f = () => {}; } }\nfunction f() {}\nfunction run() { f(); }\n'],
+    ['a namespace body', 'export {};\nnamespace N { var f = () => {}; }\nfunction f() {}\nfunction run() { f(); }\n'],
+  ])('a var in %s stays inside it', async (_form, text) => {
+    const repo = await link({ 'a.ts': text });
+    resolved(repo, 'f', 'a.ts::f::function', { kind: 'FunctionDeclaration', parentKind: 'SourceFile' }, 'run');
+  });
+
+  it.each([
+    ['a destructuring declaration', 'function f() {}\nfunction run(o) { const { x = (f) => f() } = o; }\n'],
+    ['a destructured parameter', 'function f() {}\nfunction run({ x = (f) => f() }) {}\n'],
+  ])('a callback in a default of %s gets its own parameter scope', async (_form, text) => {
+    const repo = await link({ 'a.ts': text });
+    nameOnly(repo, 'f', { kind: 'Parameter', parentKind: 'ArrowFunction' }, 'run');
+  });
+});
