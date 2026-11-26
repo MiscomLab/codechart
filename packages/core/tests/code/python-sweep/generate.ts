@@ -159,6 +159,18 @@ const POSITIONS: readonly Position[] = [
     build: ({ site, wrap, classPre, classPost }) => classWith('class K:', classPre, wrap(`def m(self, a=${site}):\n    pass`), classPost, 'K().m()'),
   },
   { name: 'module-class-method-body', module: true, classBody: true, build: ({ site, wrap, classPre, classPost }) => classWith('class K:', classPre, `def m(self):\n${indent(wrap(site))}`, classPost, 'K().m()') },
+  // A type alias's value is evaluated lazily: its annotation scope sees the enclosing scope (and, in a class body,
+  // the class namespace); a lambda or comprehension inside it has its own nested scope.
+  { name: 'type-alias-value', build: ({ site, wrap }) => joined([wrap(`type A = ${site}`), 'A.__value__']) },
+  {
+    name: 'class-body-type-alias-value',
+    classBody: true,
+    build: ({ site, wrap, classPre, classPost }) => classWith('class K:', classPre, wrap(`type A = ${site}`), classPost, 'K.A.__value__'),
+  },
+  // A PEP 695 type-parameter bound is evaluated lazily, in the definition's annotation scope: the enclosing function
+  // for a nested def, and the class body (through __classdict__) for a method.
+  { name: 'type-param-bound', build: ({ site, wrap }) => joined([wrap(`def inner[T: ${site}]():\n    pass`), 'inner.__type_params__[0].__bound__']) },
+  { name: 'class-type-param-bound', build: ({ site, wrap }) => joined([wrap(`class Inner[T: ${site}]:\n    pass`), 'Inner.__type_params__[0].__bound__']) },
 ];
 
 interface Construct {
