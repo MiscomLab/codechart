@@ -76,6 +76,12 @@ function defaultValues(parameters: Node | null): Node[] {
   });
 }
 
+/** A function's parameter and return annotations, evaluated in its header's annotation scope, never in its body. */
+function annotationExpressions(def: Node, parameters: Node | null): Node[] {
+  const nodes = [...(parameters?.namedChildren ?? []).map((p) => p?.childForFieldName('type')), def.childForFieldName('return_type')];
+  return nodes.filter((n): n is Node => !!n);
+}
+
 /** A definition's parameter default values: its own type parameters are not in scope there (PEP 695). */
 function defaultRanges(parameters: Node | null): CodeRange[] {
   return defaultValues(parameters).map(nodeRange);
@@ -240,6 +246,7 @@ function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   const parameters = def.childForFieldName('parameters');
   // Defaults and class bases/keywords run in the enclosing scope, before the definition exists.
   if (fn) for (const value of defaultValues(parameters)) walk(w, value, at);
+  if (fn) for (const annotation of annotationExpressions(def, parameters)) walk(w, annotation, at);
   const bases = fn ? undefined : def.childForFieldName('superclasses');
   if (bases) walk(w, bases, at);
   // Enclosing type parameters are live throughout nested definitions; a definition's own are not live in its defaults.
