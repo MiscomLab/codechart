@@ -24,8 +24,13 @@ const holds = (outer: CodeSymbol, inner: CodeSymbol) =>
  */
 function scopeChain(parsed: ParsedFile, caller: CodeSymbol, at: CallRef['range']['start']): string[] {
   const body = parsed.defs?.find((def) => def.id === caller.id)?.body;
-  const header = !!body && (caller.kind === 'function' || caller.kind === 'method') && before(at, body);
-  if (header) return headerChain(parsed, caller);
+  const header = !!body && before(at, body);
+  const deferred = parsed.deferred?.some((range) => inside(at, range)) ?? false;
+  // A deferred expression in a class body or a method header is unprovable: the class body it would skip may still
+  // hold a same-named binding, and the nested scope is not modelled. Only the enclosing type-parameter/function scopes
+  // remain; the module is not claimed either.
+  if (deferred && (caller.kind === 'class' || (caller.kind === 'method' && header))) return headerChain(parsed, caller, true).slice(0, -1);
+  if (header) return headerChain(parsed, caller, deferred);
   const chain = [caller.id];
   for (let depth = caller.path.length - 1; depth >= 1; depth--) {
     const outer = parsed.symbols.find((s) => s.path.length === depth && isPrefix(s.path, caller.path) && holds(s, caller));
@@ -35,14 +40,15 @@ function scopeChain(parsed: ParsedFile, caller: CodeSymbol, at: CallRef['range']
 }
 
 /**
- * A def's header (parameter defaults, annotations) runs before its body: its own scope binds no parameters yet, only
- * its type parameters, and the class body (for a method) or the enclosing function (for a nested def) is the scope.
+ * A def's header (parameter defaults, annotations) or class header (bases, keywords) runs before its body: its own
+ * scope holds no parameters yet, only its type parameters, and the class body (for a method) or the enclosing scope
+ * (for a nested def/class) is the scope. A deferred expression skips the class body as well.
  */
-function headerChain(parsed: ParsedFile, caller: CodeSymbol): string[] {
+function headerChain(parsed: ParsedFile, caller: CodeSymbol, deferred: boolean): string[] {
   const owner = caller.kind === 'method' ? classOwner(parsed, caller) : undefined;
   const from = owner ?? caller;
   const chain = [`${caller.id}#typeparams`];
-  if (owner) chain.push(owner.id);
+  if (owner && !deferred) chain.push(owner.id);
   for (let depth = from.path.length - 1; depth >= 1; depth--) {
     const outer = parsed.symbols.find((s) => s.path.length === depth && isPrefix(s.path, from.path) && holds(s, from));
     if (outer && outer.kind !== 'class') chain.push(outer.id);
@@ -55,7 +61,13 @@ function meaning(parsed: ParsedFile, name: string, chain: readonly string[], at:
   for (let i = 0; i < chain.length; i++) {
     // A star import can rebind any name of its scope, at a point the parse does not order.
     if (bindings.some((b) => b.scope === chain[i] && b.name === '*')) return undefined;
-    const found = bindings.filter((b) => b.scope === chain[i] && b.name === name && visible(b, at));
+    const scoped = bindings.filter((b) => b.scope === chain[i] && b.name === name);
+    if (!scoped.length) continue;
+    // A class body binds names in order: a later binding cannot be what an earlier header or body call reaches.
+    const classScope = parsed.symbols.some((s) => s.id === chain[i] && s.kind === 'class');
+    const ordered = classScope && at ? scoped.filter((b) => !b.start || before(b.start, at)) : scoped;
+    if (classScope && !ordered.length) return undefined;
+    const found = ordered.filter((b) => visible(b, at));
     if (!found.length) continue;
     // `import a.b` and `import a.c` both bind the package `a`; the dotted path decides which module a call reaches.
     if (found.every((b) => b.dotted)) return { kind: 'dotted', imports: found.map((b) => parsed.imports[b.import!]!) };

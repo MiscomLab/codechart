@@ -22,6 +22,8 @@ export interface PyBinding {
   within?: CodeRange[];
   /** A type alias's own type parameter: local to the alias value, never an export. */
   alias?: boolean;
+  /** Where the binding is written; a class body's binding is only visible to later calls in its headers and body. */
+  start?: CodeRange['start'];
 }
 
 const PATTERNS = new Set(['pattern_list', 'tuple_pattern', 'list_pattern', 'tuple', 'list', 'list_splat_pattern', 'as_pattern_target', 'parenthesized_expression']);
@@ -88,23 +90,53 @@ export interface PyDefinition {
 /** The id of a definition's PEP 695 type-parameter scope, which encloses its annotations but not its defaults. */
 const typeParamsScope = (scope: string): string => `${scope}#typeparams`;
 
+const COMPREHENSIONS = new Set(['list_comprehension', 'set_comprehension', 'dictionary_comprehension', 'generator_expression']);
+
+/**
+ * Ranges evaluated in a nested scope that does not see a class body in between: a lambda body, a comprehension's
+ * element and conditions, its iterables after the first `for`, and a generator expression's element.
+ */
+function deferredRanges(node: Node): CodeRange[] {
+  if (node.type === 'lambda') {
+    const body = node.childForFieldName('body');
+    return body ? [nodeRange(body)] : [];
+  }
+  if (!COMPREHENSIONS.has(node.type)) return [];
+  const out: CodeRange[] = [];
+  const body = node.childForFieldName('body');
+  if (body) out.push(nodeRange(body));
+  let first = true;
+  for (const child of node.namedChildren) {
+    if (child?.type === 'for_in_clause') {
+      const right = child.childForFieldName('right');
+      if (right && !first) out.push(nodeRange(right));
+      first = false;
+    } else if (child?.type === 'if_clause') {
+      for (const condition of child.namedChildren) if (condition) out.push(nodeRange(condition));
+    }
+  }
+  return out;
+}
+
 /**
  * Every name every scope of a Python file binds, by Python's scoping rules: a function's parameters and writes are its
  * own; a class body is a scope its methods do not see; comprehensions and lambdas have their own scope. Scope ids are
  * the symbols `extractSymbols` found for each `def` and `class`.
  */
-export function collectBindings(root: Node, symbols: readonly CodeSymbol[], imports: ImportIndex): { bindings: PyBinding[]; defs: PyDefinition[] } {
+export function collectBindings(root: Node, symbols: readonly CodeSymbol[], imports: ImportIndex): { bindings: PyBinding[]; defs: PyDefinition[]; deferred: CodeRange[] } {
   const out: PyBinding[] = [];
   const defs: PyDefinition[] = [];
+  const deferred: CodeRange[] = [];
   const idAt = new Map(symbols.map((s) => [`${s.range.start.line}:${s.range.start.column}`, s.id]));
-  const walker: Walker = { out, defs, imports, scopeOf: (def) => idAt.get(`${def.startPosition.row + 1}:${def.startPosition.column}`) ?? `?${def.id}` };
+  const walker: Walker = { out, defs, deferred, imports, scopeOf: (def) => idAt.get(`${def.startPosition.row + 1}:${def.startPosition.column}`) ?? `?${def.id}` };
   walk(walker, root, { scope: '', isFunction: false, outer: [], globals: new Set(), nonlocals: new Set() });
-  return { bindings: out, defs };
+  return { bindings: out, defs, deferred };
 }
 
 interface Walker {
   out: PyBinding[];
   defs: PyDefinition[];
+  deferred: CodeRange[];
   imports: ImportIndex;
   scopeOf: (def: Node) => string;
 }
@@ -134,6 +166,9 @@ function binder(w: Walker, at: Scope): Bind {
 
 function walk(w: Walker, node: Node, at: Scope): void {
   const bind = binder(w, at);
+  // A lambda may itself be the expression walked (a parameter default): its own parameters bind where it is written.
+  if (node.type === 'lambda') for (const p of parameterNames(node.childForFieldName('parameters'))) bind(p, 'other', { start: nodeRange(node).start });
+  for (const range of deferredRanges(node)) w.deferred.push(range);
   for (const child of node.namedChildren) {
     if (!child) continue;
     const inner = child.type === 'decorated_definition' ? child.childForFieldName('definition') : child;
@@ -148,14 +183,15 @@ function walk(w: Walker, node: Node, at: Scope): void {
     }
     const imported = w.imports.get(child.id);
     if (imported) {
-      if (imported.wildcard) bind('*', 'other');
-      if (!imported.typeOnly) for (const l of imported.locals) bind(l.name, 'import', { import: l.index, ...(l.dotted && { dotted: true }) });
+      if (imported.wildcard) bind('*', 'other', { start: nodeRange(child).start });
+      if (!imported.typeOnly) {
+        for (const l of imported.locals) bind(l.name, 'import', { import: l.index, start: nodeRange(child).start, ...(l.dotted && { dotted: true }) });
+      }
       continue;
     }
     // A comprehension, lambda or `case` pattern binds names a call inside it sees instead of the enclosing ones. Calls are
     // attributed to the enclosing function, so those names count as writes there: the call is then not proven.
-    if (child.type === 'lambda') for (const p of parameterNames(child.childForFieldName('parameters'))) bind(p, 'other');
-    if (child.type === 'case_pattern') for (const name of identifiers(child)) bind(name, 'other');
+    if (child.type === 'case_pattern') for (const name of identifiers(child)) bind(name, 'other', { start: nodeRange(child).start });
     bindWrites(w, child, bind);
     walk(w, child, at);
   }
@@ -170,31 +206,32 @@ function walkDecorators(w: Walker, node: Node, at: Scope): void {
 function bindTypeAlias(w: Walker, node: Node, bind: Bind): void {
   const left = node.childForFieldName('left');
   const name = left ? identifiers(left)[0] : undefined;
-  if (name) bind(name, 'other');
+  const start = nodeRange(node).start;
+  if (name) bind(name, 'other', { start });
   const within = [nodeRange(node)];
-  for (const typeParam of typeParameterNames(typeParametersIn(left))) bind(typeParam, 'other', { within, alias: true });
+  for (const typeParam of typeParameterNames(typeParametersIn(left))) bind(typeParam, 'other', { within, alias: true, start });
 }
 
 /**
- * Binds a definition's own and inherited type parameters in its scope and, for functions, in the header's synthetic
- * type-parameter scope (annotations see them; defaults are excluded by `except`).
+ * Binds a definition's own and inherited type parameters in its scope and in the header's synthetic type-parameter
+ * scope (annotations and class headers see them; defaults are excluded by `except`).
  */
-function bindTypeParameters(w: Walker, own: string, fn: boolean, inherited: readonly string[], typeParams: readonly string[], except: CodeRange[]): void {
-  const annotationScope = fn ? typeParamsScope(own) : undefined;
+function bindTypeParameters(w: Walker, own: string, inherited: readonly string[], typeParams: readonly string[], except: CodeRange[]): void {
+  const annotationScope = typeParamsScope(own);
   for (const typeParam of inherited) {
     w.out.push({ scope: own, name: typeParam, kind: 'other' });
-    if (annotationScope) w.out.push({ scope: annotationScope, name: typeParam, kind: 'other' });
+    w.out.push({ scope: annotationScope, name: typeParam, kind: 'other' });
   }
   for (const typeParam of typeParams) {
     w.out.push({ scope: own, name: typeParam, kind: 'other', ...(except.length && { except }) });
-    if (annotationScope) w.out.push({ scope: annotationScope, name: typeParam, kind: 'other', ...(except.length && { except }) });
+    w.out.push({ scope: annotationScope, name: typeParam, kind: 'other', ...(except.length && { except }) });
   }
 }
 
 /** A `def` or `class` binds its name here; its parameters and body bind in its own scope. */
 function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   const name = def.childForFieldName('name')?.text;
-  if (name) bind(name, 'def');
+  if (name) bind(name, 'def', { start: nodeRange(def).start });
   const own = w.scopeOf(def);
   const fn = def.type === 'function_definition';
   const typeParams = typeParameterNames(def.childForFieldName('type_parameters'));
@@ -207,9 +244,9 @@ function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   if (bases) walk(w, bases, at);
   // Enclosing type parameters are live throughout nested definitions; a definition's own are not live in its defaults.
   const except = fn ? defaultRanges(parameters) : [];
-  bindTypeParameters(w, own, fn, inherited, typeParams, except);
+  bindTypeParameters(w, own, inherited, typeParams, except);
   if (fn) for (const p of parameterNames(parameters)) w.out.push({ scope: own, name: p, kind: 'other' });
-  if (fn && body) w.defs.push({ id: own, body: nodeRange(body).start });
+  if (body) w.defs.push({ id: own, body: nodeRange(body).start });
   if (!body) return;
   const outer = at.isFunction ? [at.scope, ...at.outer] : at.outer;
   walk(w, body, {
@@ -229,6 +266,7 @@ function identifiers(node: Node): string[] {
 
 /** The names that writes in `node` bind in the current scope. */
 function bindWrites(w: Walker, node: Node, bind: Bind): void {
+  const start = nodeRange(node).start;
   if (node.type === 'assignment') {
     const right = node.childForFieldName('right');
     // `m = importlib.import_module('x')` binds `m` through the import itself.
@@ -236,12 +274,12 @@ function bindWrites(w: Walker, node: Node, bind: Bind): void {
     const callee = right?.type === 'call' ? right.childForFieldName('function') : undefined;
     const left = node.childForFieldName('left');
     const built = left?.type === 'identifier' && callee?.type === 'identifier' ? { built: callee.text } : {};
-    for (const name of targets(left)) bind(name, 'other', built);
+    for (const name of targets(left)) bind(name, 'other', { ...built, start });
     return;
   }
   const field = WRITES[node.type];
-  if (field) for (const name of targets(node.childForFieldName(field))) bind(name, 'other');
-  else if (node.type === 'delete_statement') for (const name of node.namedChildren.flatMap((c) => targets(c))) bind(name, 'other');
+  if (field) for (const name of targets(node.childForFieldName(field))) bind(name, 'other', { start });
+  else if (node.type === 'delete_statement') for (const name of node.namedChildren.flatMap((c) => targets(c))) bind(name, 'other', { start });
 }
 
 /** Statements that write a name, and the field holding the target. */
