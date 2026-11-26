@@ -129,3 +129,103 @@ describe('PEP 695 type parameters and type aliases bind names', () => {
     resolved(files, 'a.py', 'f', 'a.py::f::function');
   });
 });
+
+/**
+ * Section-B constructs with no explicit test above. Expectations confirmed with Python 3.14 symtable (the scratch
+ * py-harness): name-only where Python binds the name in the same or an enclosing scope to something other than the
+ * module `f`; resolved where it is the module `f`, the nested def, or an import of it.
+ */
+describe('section B: parameters, patterns, imports and the remaining scopes', () => {
+  it.each([
+    ['a default', 'def run(f=1):\n    f()\n'],
+    ['a typed', 'def run(f: int):\n    f()\n'],
+    ['a typed default', 'def run(f: int = 1):\n    f()\n'],
+    ['a *args', 'def run(*f):\n    f()\n'],
+    ['a positional-only', 'def run(f, /):\n    f()\n'],
+    ['a keyword-only', 'def run(*, f):\n    f()\n'],
+  ])('%s parameter shadows the module function', async (_form, body) => {
+    nameOnly(await at(body), 'a.py', 'f');
+  });
+
+  it('a lambda default parameter shadows the module function', async () => {
+    nameOnly(await at('g = lambda f=1: f()\n'), 'a.py', 'f');
+  });
+
+  it.each([
+    ['a parenthesized tuple pattern', '(f, g) = pair'],
+    ['a list pattern', '[f, g] = pair'],
+  ])('an assignment with %s shadows the module function', async (_form, target) => {
+    nameOnly(await at(`def run(pair):\n    ${target}\n    f()\n`), 'a.py', 'f');
+  });
+
+  it('an augmented assignment shadows the module function', async () => {
+    nameOnly(await at('def run():\n    f += 1\n    f()\n'), 'a.py', 'f');
+  });
+
+  // CPython 3.12+ inlines list/set/dict comprehensions (PEP 709), so Python 3.14's symtable no longer exposes their
+  // target; the language reference still scopes the target to the comprehension. Core treats the target as a write in
+  // the enclosing function, so the call inside stays name-only. Generator expressions keep their own symtable scope.
+  it.each([
+    ['a set comprehension', 'return {f() for f in items}'],
+    ['a dict comprehension', 'return {f: f() for f in items}'],
+    ['a generator expression', 'return (f() for f in items)'],
+  ])('%s target shadows the module function inside it', async (_form, expr) => {
+    nameOnly(await at(`def run(items):\n    ${expr}\n`), 'a.py', 'f');
+  });
+
+  it('a with ... as tuple target shadows the module function', async () => {
+    nameOnly(await at('def run(cm):\n    with cm as (f, g):\n        f()\n'), 'a.py', 'f');
+  });
+
+  it.each([
+    ['an as pattern', 'case 1 as f:\n            f()'],
+    ['a sequence pattern', 'case [f, *r]:\n            f()'],
+    ['a mapping pattern', "case {'k': f}:\n            f()"],
+    ['a mapping rest pattern', 'case {**f}:\n            f()'],
+    ['a class keyword pattern', 'case C(x=f):\n            f()'],
+    ['a class positional pattern', 'case C(f):\n            f()'],
+  ])('a match %s shadows the module function', async (_form, clause) => {
+    nameOnly(await at(`def run(x):\n    match x:\n        ${clause}\n`), 'a.py', 'f');
+  });
+
+  it('nonlocal f bound to an outer def resolves to that def', async () => {
+    const files = await at('def run():\n    def f():\n        pass\n    def inner():\n        nonlocal f\n        f()\n');
+    resolved(files, 'a.py', 'f', 'a.py::run.f::function');
+  });
+
+  it('a decorated nested def resolves to itself', async () => {
+    const files = await at('def run():\n    @deco\n    def f():\n        pass\n    f()\n');
+    resolved(files, 'a.py', 'f', 'a.py::run.f::function');
+  });
+
+  it('a class body call reaches the class-body def, so the call stays name-only', async () => {
+    // symtable binds f in K's class scope; core's truth rule has no class-body target for a bare call.
+    nameOnly(await at('class K:\n    def f():\n        pass\n\n    x = f()\n'), 'a.py', 'f');
+  });
+
+  it('an import binds a module, not that module’s function', async () => {
+    const files = await link({ 'f.py': 'VALUE = 1\n', 'a.py': MODULE + 'def run():\n    import f\n    f()\n' });
+    nameOnly(files, 'a.py', 'f');
+  });
+
+  it('an aliased dotted import binds a module, not a function', async () => {
+    const files = await link({ 'a/__init__.py': 'VALUE = 1\n', 'a/b.py': 'VALUE = 1\n', 'main.py': MODULE + 'def run():\n    import a.b as f\n    f()\n' });
+    nameOnly(files, 'main.py', 'f');
+  });
+
+  it('a plain from-import resolves through the imported function', async () => {
+    const files = await link({ 'b.py': 'def f():\n    pass\n', 'a.py': MODULE + 'def run():\n    from b import f\n    f()\n' });
+    resolved(files, 'a.py', 'f', 'b.py::f::function');
+  });
+
+  it('a relative from-import resolves through the package attribute', async () => {
+    const files = await link({ 'pkg/__init__.py': 'def f():\n    pass\n', 'pkg/mod.py': MODULE + 'def run():\n    from . import f\n    f()\n' });
+    resolved(files, 'pkg/mod.py', 'f', 'pkg/__init__.py::f::function');
+  });
+
+  it('a wildcard import can rebind the name, so the call stays name-only', async () => {
+    // symtable does not model star imports; b exports f, so the wildcard may rebind it and only name-only is sound.
+    const files = await link({ 'b.py': 'def f():\n    pass\n', 'a.py': MODULE + 'from b import *\n\n\ndef run():\n    f()\n' });
+    nameOnly(files, 'a.py', 'f');
+  });
+});

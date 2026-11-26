@@ -131,6 +131,30 @@ export function tsDeclarationAt(tree: Record<string, string>, file: string, line
   return declaration && describeDeclaration(declaration);
 }
 
+/** The result of looking for a call: `found: false` means no call starts there, a harness bug, not a name with no binding. */
+export type TsCallLookup = { found: false } | { found: true; declaration: TsDeclaration | undefined };
+
+/**
+ * The declaration the checker gives the callee of the call at (`line`, `column`) whose written name is `name`, with the
+ * call itself reported separately. A name declared by several script files is one global symbol: the declaration in the
+ * call's own file is the one that file writes, so it is preferred over whichever declaration the symbol lists first.
+ */
+export function tsCallAt(tree: Record<string, string>, file: string, line: number, column: number, name: string): TsCallLookup {
+  const program = programOf(tree);
+  const sourceFile = sourceFileOf(program, file);
+  if (!sourceFile) return { found: false };
+  const call = callAt(sourceFile, line, column);
+  const node = call && calleeName(call);
+  if (!call || !node || node.text !== name) return { found: false };
+  const checker = program.getTypeChecker();
+  const symbol = checker.getSymbolAtLocation(node);
+  const target = symbol && symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
+  const wanted = ROOT + normalize(file);
+  const declarations = target?.declarations ?? [];
+  const declaration = declarations.find((d) => normalize(d.getSourceFile().fileName) === wanted) ?? declarations[0];
+  return { found: true, declaration: declaration && describeDeclaration(declaration) };
+}
+
 /** The declaration the checker binds to the identifier written at (`line`, `column`): a receiver, for example. */
 export function tsDeclarationOfIdentifier(tree: Record<string, string>, file: string, line: number, column: number, name: string): TsDeclaration | undefined {
   const program = programOf(tree);
