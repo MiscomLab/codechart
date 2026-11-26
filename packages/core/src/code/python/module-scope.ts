@@ -1,6 +1,7 @@
 import type { Node } from 'web-tree-sitter';
 import type { ModuleExports } from '../imports.js';
-import type { CodeSymbol } from '../model.js';
+import type { CodeRange, CodeSymbol } from '../model.js';
+import { nodeRange } from '../tree.js';
 
 /**
  * One name a Python scope binds. `scope` is the id of the function or class whose body binds it, `''` for the module.
@@ -15,8 +16,12 @@ export interface PyBinding {
   /** For `import a.b` without an alias: binds `a`, and `a.b` stays reachable through it. */
   dotted?: boolean;
   built?: string;
-  /** A PEP 695 type parameter: bound only from this point on (the definition's body), not in its own parameter defaults. */
-  from?: { line: number; column: number };
+  /** Ranges the binding is not yet in scope for: a generic definition's parameter default values. */
+  except?: CodeRange[];
+  /** When set, the binding is in scope only inside these ranges: a type alias's own type parameters. */
+  within?: CodeRange[];
+  /** A type alias's own type parameter: local to the alias value, never an export. */
+  alias?: boolean;
 }
 
 const PATTERNS = new Set(['pattern_list', 'tuple_pattern', 'list_pattern', 'tuple', 'list', 'list_splat_pattern', 'as_pattern_target', 'parenthesized_expression']);
@@ -42,12 +47,30 @@ function parameterNames(params: Node | null): string[] {
 /** The import index of each import or import call node, by node id; the extractor fills it. */
 export type ImportIndex = ReadonlyMap<number, { locals: { name: string; dotted: boolean; index: number }[]; typeOnly: boolean; wildcard: boolean }>;
 
-/** The name each PEP 695 type parameter binds: `[T: int, *Ts, **P]` binds `T`, `Ts` and `P`. */
-function typeParameterNames(def: Node): string[] {
-  const list = def.childForFieldName('type_parameters');
+/** The name each PEP 695 type parameter in a `type_parameter` node binds: `[T: int, *Ts, **P]` binds `T`, `Ts` and `P`. */
+function typeParameterNames(list: Node | null | undefined): string[] {
   return (list?.namedChildren ?? []).flatMap((parameter) => {
     const name = parameter ? identifiers(parameter)[0] : undefined;
     return name ? [name] : [];
+  });
+}
+
+/** The `type_parameter` node a type expression holds (`Alias[T]` in a type alias's left side). */
+function typeParametersIn(node: Node | null | undefined): Node | undefined {
+  if (!node) return undefined;
+  if (node.type === 'type_parameter') return node;
+  for (const child of node.namedChildren) {
+    const found = typeParametersIn(child);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+/** A definition's parameter default values: its own type parameters are not in scope there (PEP 695). */
+function defaultRanges(parameters: Node | null): CodeRange[] {
+  return (parameters?.namedChildren ?? []).flatMap((parameter) => {
+    const value = parameter?.childForFieldName('value');
+    return value ? [nodeRange(value)] : [];
   });
 }
 
@@ -103,9 +126,7 @@ function walk(w: Walker, node: Node, at: Scope): void {
       continue;
     }
     if (child.type === 'type_alias_statement') {
-      const left = child.childForFieldName('left');
-      const name = left ? identifiers(left)[0] : undefined;
-      if (name) bind(name, 'other');
+      bindTypeAlias(w, child, bind);
       continue;
     }
     const imported = w.imports.get(child.id);
@@ -123,19 +144,28 @@ function walk(w: Walker, node: Node, at: Scope): void {
   }
 }
 
+/** A type alias binds its name here; its own type parameters live in its value only, never in the enclosing scope. */
+function bindTypeAlias(w: Walker, node: Node, bind: Bind): void {
+  const left = node.childForFieldName('left');
+  const name = left ? identifiers(left)[0] : undefined;
+  if (name) bind(name, 'other');
+  const within = [nodeRange(node)];
+  for (const typeParam of typeParameterNames(typeParametersIn(left))) bind(typeParam, 'other', { within, alias: true });
+}
+
 /** A `def` or `class` binds its name here; its parameters and body bind in its own scope. */
 function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   const name = def.childForFieldName('name')?.text;
   if (name) bind(name, 'def');
   const own = w.scopeOf(def);
   const fn = def.type === 'function_definition';
-  const typeParams = typeParameterNames(def);
+  const typeParams = typeParameterNames(def.childForFieldName('type_parameters'));
   const inherited = at.typeParams ?? [];
   const body = def.childForFieldName('body');
-  const from = body ? { line: body.startPosition.row + 1, column: body.startPosition.column } : undefined;
   // Enclosing type parameters are live throughout nested definitions; a definition's own are not live in its defaults.
   for (const typeParam of inherited) w.out.push({ scope: own, name: typeParam, kind: 'other' });
-  for (const typeParam of typeParams) w.out.push({ scope: own, name: typeParam, kind: 'other', ...(from && { from }) });
+  const except = fn ? defaultRanges(def.childForFieldName('parameters')) : [];
+  for (const typeParam of typeParams) w.out.push({ scope: own, name: typeParam, kind: 'other', ...(except.length && { except }) });
   if (fn) for (const p of parameterNames(def.childForFieldName('parameters'))) w.out.push({ scope: own, name: p, kind: 'other' });
   if (!body) return;
   const outer = at.isFunction ? [at.scope, ...at.outer] : at.outer;
@@ -201,7 +231,7 @@ export function moduleExports(bindings: readonly PyBinding[], wildcard: boolean)
   const byName = new Map<string, PyBinding[]>();
   // A star import can rebind any module name after the line that defines it: no name is provable.
   if (wildcard) return { names: [], complete: false };
-  for (const b of bindings) if (b.scope === '') byName.set(b.name, [...(byName.get(b.name) ?? []), b]);
+  for (const b of bindings) if (b.scope === '' && !b.alias) byName.set(b.name, [...(byName.get(b.name) ?? []), b]);
   const names: ModuleExports['names'] = [];
   let complete = !byName.has('__getattr__');
   for (const [name, list] of byName) {

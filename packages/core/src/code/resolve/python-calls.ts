@@ -51,9 +51,19 @@ function meaning(parsed: ParsedFile, name: string, chain: readonly string[], at:
   return undefined;
 }
 
-/** Whether a binding is in scope at a call: a type parameter only from its definition's body on. */
-const visible = (binding: PyBinding, at: CallRef['range']['start'] | undefined): boolean =>
-  !binding.from || !at || at.line > binding.from.line || (at.line === binding.from.line && at.column >= binding.from.column);
+/** Whether a binding is in scope at a call: type parameters have per-binding visibility windows (PEP 695). */
+const visible = (binding: PyBinding, at: CallRef['range']['start'] | undefined): boolean => {
+  if (!at) return true;
+  if (binding.within && !binding.within.some((range) => inside(at, range))) return false;
+  return !binding.except?.some((range) => inside(at, range));
+};
+
+/** Whether a point is inside a tree-sitter range; the end position is past its last character. */
+const inside = (at: CallRef['range']['start'], range: { start: CallRef['range']['start']; end: CallRef['range']['start'] }): boolean =>
+  !before(at, range.start) && before(at, range.end);
+
+const before = (a: { line: number; column: number }, b: { line: number; column: number }): boolean =>
+  a.line < b.line || (a.line === b.line && a.column < b.column);
 
 /** The `def` or `class` a scope binds under `name`. */
 function defIn(parsed: ParsedFile, scope: string, name: string): CodeSymbol | undefined {

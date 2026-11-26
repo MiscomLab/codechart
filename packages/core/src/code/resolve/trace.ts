@@ -56,11 +56,11 @@ function binding(parsed: ParsedFile, kind: Import['kind'], local: string): { imp
 }
 
 /**
- * A Python module's own name, from the one module-scope binding its exports were built from: a function-local or
- * type-checking-only import of the same name binds nothing at module scope.
+ * A Python module's own name, from the one module-scope binding its exports were built from: a function-local,
+ * type-alias type-parameter or type-checking-only import of the same name binds nothing at module scope.
  */
 function pythonOwn(files: Files, parsed: ParsedFile, file: string, name: string, seen: Set<string>): Found {
-  const bound = parsed.bindings!.find((b) => b.scope === '' && b.name === name);
+  const bound = parsed.bindings!.find((b) => b.scope === '' && b.name === name && !b.alias);
   const imp = bound?.kind === 'import' && !bound.dotted ? parsed.imports[bound.import!] : undefined;
   const entry = imp?.names?.find((n) => n.local === name);
   return imp && entry ? through(files, imp, entry.imported, seen) : { file, binding: name };
