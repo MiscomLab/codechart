@@ -66,3 +66,15 @@ describe('a nested def’s defaults run in the enclosing scope', () => {
     expect(file!.calls.filter((c) => c.name === 'f').map((c) => c.to)).toEqual(['a.py::f::function']);
   });
 });
+
+describe('python sweep: a lambda in an annotation binds its own parameters', () => {
+  it.each([
+    ['a parameter annotation', 'def run():\n    def inner(a: (lambda f: f())(g)):\n        pass\n'],
+    ['a return annotation', 'def run():\n    def inner() -> (lambda f: f())(g):\n        pass\n'],
+    ['a method parameter annotation', 'class K:\n    def m(self, a: (lambda f: f())(g)):\n        pass\n'],
+  ])('in %s, the call reaches the lambda parameter', async (_form, body) => {
+    // python3 -I with annotationlib VALUE: the annotation evaluates to 'param', the lambda's argument, not the module f.
+    const [file] = linkCode([(await parseCode('a.py', `def f():\n    pass\n\n\ndef g():\n    pass\n\n\n${body}`))!], createResolver(['a.py'], () => undefined));
+    expect(file!.calls.filter((c) => c.name === 'f').map((c) => [c.evidence, c.to])).toEqual([['name-only', undefined]]);
+  });
+});
