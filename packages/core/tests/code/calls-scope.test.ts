@@ -345,6 +345,16 @@ describe('gate 2: functions as bodies, parameters re-declared, catch blocks and 
     resolved(repo, 'f', 'a.ts::f::function', { kind: 'FunctionDeclaration', parentKind: 'SourceFile' }, 'run');
   });
 
+  it.each([
+    ['an as cast', 'export function f() {}\nexport function run() { (f as any) = () => {}; f(); }\n', 'f', 'FunctionDeclaration'],
+    ['an angle-bracket cast', 'export function f() {}\nexport function run() { (<any>f) = () => {}; f(); }\n', 'f', 'FunctionDeclaration'],
+    ['a satisfies expression', 'export function f() {}\nexport function run() { let g = () => {}; (g satisfies unknown) = () => {}; g(); }\n', 'g', 'VariableDeclaration'],
+  ])('a binding written through %s stays name-only', async (_form, text, name, kind) => {
+    // A cast on the left of `=` still assigns the binding (ECMA-262 assignment); TS reports the original declaration.
+    const repo = await link({ 'a.ts': text });
+    nameOnly(repo, name, { kind }, 'run');
+  });
+
   it('a function declaration written elsewhere stays name-only', async () => {
     const repo = await link({ 'a.ts': 'export function f() {}\nexport function run() { f = () => {}; f(); }\n' });
     // TS reports the declaration; after the write the call reaches whatever was assigned (ECMA-262 assignment semantics).
