@@ -404,6 +404,16 @@ describe('Greptile review', () => {
     expect(callOf(repo, 'f', 'run')).toMatchObject({ via: 'member', receiver: 'ns', to: 'b.ts::f::function', evidence: 'resolved' });
   });
 
+  it('a file parsed after one that writes an import resolves exactly as when parsed alone', async () => {
+    const reader = "import { f } from './b';\nexport function run() { f(); }\n";
+    const b = 'export function f() {}\n';
+    const alone = fileOf(await link({ 'a.ts': reader, 'b.ts': b })).calls;
+    await link({ 'w.ts': "import { f } from './b';\nexport function run() { (f as any) = () => {}; f(); }\n", 'b.ts': b });
+    const after = fileOf(await link({ 'a.ts': reader, 'b.ts': b })).calls;
+    expect(after).toEqual(alone);
+    expect(alone[0]).toMatchObject({ to: 'b.ts::f::function', evidence: 'resolved' });
+  });
+
   it.each([
     ['a class static block', 'class K { static { var f = () => {}; } }\nfunction f() {}\nfunction run() { f(); }\n'],
     ['a namespace body', 'export {};\nnamespace N { var f = () => {}; }\nfunction f() {}\nfunction run() { f(); }\n'],
@@ -415,6 +425,10 @@ describe('Greptile review', () => {
   it.each([
     ['a destructuring declaration', 'function f() {}\nfunction run(o) { const { x = (f) => f() } = o; }\n'],
     ['a destructured parameter', 'function f() {}\nfunction run({ x = (f) => f() }) {}\n'],
+    ['an array destructuring declaration', 'function f() {}\nfunction run(a) { const [x = (f) => f()] = a; }\n'],
+    ['an array destructured parameter', 'function f() {}\nfunction run([x = (f) => f()]) {}\n'],
+    ['a nested destructuring declaration', 'function f() {}\nfunction run(o) { const { a: { b = (f) => f() } } = o; }\n'],
+    ['a computed key', "function f() {}\nfunction run(o) { const { [((f) => f())(1)]: y } = o; }\n"],
   ])('a callback in a default of %s gets its own parameter scope', async (_form, text) => {
     const repo = await link({ 'a.ts': text });
     nameOnly(repo, 'f', { kind: 'Parameter', parentKind: 'ArrowFunction' }, 'run');
