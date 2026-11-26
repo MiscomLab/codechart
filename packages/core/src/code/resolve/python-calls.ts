@@ -26,10 +26,11 @@ function scopeChain(parsed: ParsedFile, caller: CodeSymbol, at: CallRef['range']
   const body = parsed.defs?.find((def) => def.id === caller.id)?.body;
   const header = !!body && before(at, body);
   const deferred = parsed.deferred?.some((range) => inside(at, range)) ?? false;
-  // A deferred expression in a class body or a method header is unprovable: the class body it would skip may still
-  // hold a same-named binding, and the nested scope is not modelled. Only the enclosing type-parameter/function scopes
-  // remain; the module is not claimed either.
-  if (deferred && (caller.kind === 'class' || (caller.kind === 'method' && header))) return headerChain(parsed, caller, true).slice(0, -1);
+  const owner = executingOwner(parsed, caller);
+  // A deferred expression in a class body or a class-executed header is unprovable: the class body it would skip may
+  // still hold a same-named binding, and the nested scope is not modelled. Only the enclosing type-parameter/function
+  // scopes remain; the module is not claimed either.
+  if (deferred && (caller.kind === 'class' || (header && owner?.kind === 'class'))) return headerChain(parsed, caller, true).slice(0, -1);
   if (header) return headerChain(parsed, caller, deferred);
   const chain = [caller.id];
   for (let depth = caller.path.length - 1; depth >= 1; depth--) {
@@ -39,16 +40,24 @@ function scopeChain(parsed: ParsedFile, caller: CodeSymbol, at: CallRef['range']
   return [...chain, ''];
 }
 
+/** The def or class whose body executes `caller`'s statement: its parent by path and range, whatever the caller's kind. */
+function executingOwner(parsed: ParsedFile, caller: CodeSymbol): CodeSymbol | undefined {
+  const parent = caller.path.slice(0, -1);
+  if (!parent.length) return undefined;
+  return parsed.symbols.find((s) => s.path.length === parent.length && isPrefix(s.path, parent) && holds(s, caller) && (s.kind === 'class' || s.kind === 'function' || s.kind === 'method'));
+}
+
 /**
- * A def's header (parameter defaults, annotations) or class header (bases, keywords) runs before its body: its own
- * scope holds no parameters yet, only its type parameters, and the class body (for a method) or the enclosing scope
- * (for a nested def/class) is the scope. A deferred expression skips the class body as well.
+ * A def's header (parameter defaults, annotations) or class header (bases, keywords) runs before its body, in the
+ * scope that executes the statement: the nearest enclosing def/class's scope. For a class owner that is its body,
+ * order-filtered by binding starts; for a def owner it is the function's body. A deferred expression skips a class
+ * owner's body.
  */
 function headerChain(parsed: ParsedFile, caller: CodeSymbol, deferred: boolean): string[] {
-  const owner = caller.kind === 'method' ? classOwner(parsed, caller) : undefined;
-  const from = owner ?? caller;
+  const owner = executingOwner(parsed, caller);
   const chain = [`${caller.id}#typeparams`];
-  if (owner && !deferred) chain.push(owner.id);
+  const from = owner ?? caller;
+  if (owner && !(deferred && owner.kind === 'class')) chain.push(owner.id);
   for (let depth = from.path.length - 1; depth >= 1; depth--) {
     const outer = parsed.symbols.find((s) => s.path.length === depth && isPrefix(s.path, from.path) && holds(s, from));
     if (outer && outer.kind !== 'class') chain.push(outer.id);
