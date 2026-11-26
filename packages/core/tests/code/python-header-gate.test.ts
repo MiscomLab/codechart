@@ -46,3 +46,13 @@ describe('gate: class bases and keywords run in the enclosing scope, not the cla
     expect(await fCall(text)).toMatchObject({ to: 'a.py::f::function', evidence: 'resolved' });
   });
 });
+
+describe('gate: a method header finds its class through an if/try/with block', () => {
+  it('a default of a method inside an if block sees the class-body binding', async () => {
+    // Runtime: `K.m.__defaults__` holds g's result: the default ran in the class body after `f = g`.
+    // Core cannot prove the value of the class-body `f`, so the call must stay name-only (not the module f).
+    const call = await fCall('def g(): pass\nclass K:\n    f = g\n    if True:\n        def m(self, x=f()):\n            pass\n');
+    expect(call.evidence).toBe('name-only');
+    expect(call).not.toHaveProperty('to');
+  });
+});
