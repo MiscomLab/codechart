@@ -1,8 +1,8 @@
 import type { Node } from 'web-tree-sitter';
 import type { ModuleExports } from '../imports.js';
-import type { CodeRange, CodeSymbol } from '../model.js';
+import type { ClassInfo, CodeRange, CodeSymbol, Import } from '../model.js';
 import { nodeRange } from '../tree.js';
-import { alwaysRuns, annotationExpressions, attributeWrites, declared, defaultRanges, defaultValues, deferredRanges, identifiers, parameterNames, targets, typeParameterNames, typeParametersIn } from './scope-nodes.js';
+import { annotationExpressions, attributeWrites, baseNames, declared, defaultRanges, defaultValues, deferredRanges, identifiers, parameterNames, targets, typeParameterNames, typeCheckingGuard, typeParametersIn } from './scope-nodes.js';
 
 /**
  * One name a Python scope binds. `scope` is the id of the function or class whose body binds it, `''` for the module.
@@ -25,6 +25,8 @@ export interface PyBinding {
   alias?: boolean;
   /** A class- or function-body binding made inside an `if`, `try`, loop, `with` or `match`, or after a jump: it may never have run. */
   conditional?: boolean;
+  /** The `if not TYPE_CHECKING` guards this binding sits under; they run only if the name is typing's constant. */
+  guards?: string[];
   /** A write `self.name = …` in a method of the class this scope is: the class attribute may be replaced per instance. */
   attr?: boolean;
   /** Where the binding is written; a class body's binding is only visible to later calls in its headers and body. */
@@ -48,15 +50,20 @@ const typeParamsScope = (scope: string): string => `${scope}#typeparams`;
  * own; a class body is a scope its methods do not see; comprehensions and lambdas have their own scope. Scope ids are
  * the symbols `extractSymbols` found for each `def` and `class`.
  */
-export function collectBindings(root: Node, symbols: readonly CodeSymbol[], imports: ImportIndex): { bindings: PyBinding[]; defs: PyDefinition[]; deferred: CodeRange[]; lambdas: CodeRange[] } {
+export function collectBindings(root: Node, symbols: readonly CodeSymbol[], imports: ImportIndex): { bindings: PyBinding[]; defs: PyDefinition[]; deferred: CodeRange[]; lambdas: CodeRange[]; classes: ClassInfo[] } {
   const out: PyBinding[] = [];
   const defs: PyDefinition[] = [];
   const deferred: CodeRange[] = [];
   const lambdas: CodeRange[] = [];
+  const classes: ClassInfo[] = [];
   const idAt = new Map(symbols.map((s) => [`${s.range.start.line}:${s.range.start.column}`, s.id]));
-  const walker: Walker = { out, defs, deferred, lambdas, imports, scopeOf: (def) => idAt.get(`${def.startPosition.row + 1}:${def.startPosition.column}`) ?? `?${def.id}` };
+  const walker: Walker = { out, defs, deferred, lambdas, classes, imports, scopeOf: (def) => idAt.get(`${def.startPosition.row + 1}:${def.startPosition.column}`) ?? `?${def.id}` };
   walk(walker, root, { scope: '', isFunction: false, outer: [], globals: new Set(), nonlocals: new Set() });
-  return { bindings: out, defs, deferred, lambdas };
+  for (const info of classes) {
+    info.members = out.filter((b) => b.scope === info.id && !b.attr).map((b) => b.name);
+    info.writes = out.filter((b) => b.scope === info.id && b.attr).map((b) => b.name);
+  }
+  return { bindings: out, defs, deferred, lambdas, classes };
 }
 
 interface Walker {
@@ -64,6 +71,7 @@ interface Walker {
   defs: PyDefinition[];
   deferred: CodeRange[];
   lambdas: CodeRange[];
+  classes: ClassInfo[];
   imports: ImportIndex;
   scopeOf: (def: Node) => string;
 }
@@ -82,6 +90,8 @@ interface Scope {
   conditional?: boolean;
   /** After a `raise`, `break`, `continue` or `return` in the same block: nothing here runs, so a class body binds nothing here. */
   dead?: boolean;
+  /** The `if not TYPE_CHECKING:` guards around this statement, which count as running if each guard is provably typing's. */
+  guards?: readonly string[];
 }
 
 const JUMPS = new Set(['raise_statement', 'break_statement', 'continue_statement', 'return_statement']);
@@ -98,13 +108,15 @@ function binder(w: Walker, at: Scope): Bind {
     if (at.globals.has(name)) w.out.push({ scope: '', name, kind, ...extra });
     // `nonlocal f` writes an enclosing function's f; which one is not tracked, so every enclosing scope loses its proof.
     else if (at.nonlocals.has(name)) for (const outer of at.outer) w.out.push({ scope: outer, name, kind: 'other' });
-    else w.out.push({ scope: at.scope, name, kind, ...(unsure && { conditional: true }), ...extra });
+    else w.out.push({ scope: at.scope, name, kind, ...(unsure && { conditional: true }), ...(!unsure && at.guards && { guards: [...at.guards] }), ...extra });
   };
 }
 
 /** The scope a statement runs in: inside a compound statement or after a jump, its bindings are conditional or dead. */
 function childScope(scope: Scope, child: Node, dead: boolean): Scope {
-  if (COMPOUND.has(child.type) && !scope.conditional && !alwaysRuns(child)) return { ...scope, conditional: true, dead };
+  const guard = COMPOUND.has(child.type) && !scope.conditional ? typeCheckingGuard(child) : undefined;
+  if (guard) return { ...scope, guards: [...(scope.guards ?? []), guard], dead };
+  if (COMPOUND.has(child.type) && !scope.conditional) return { ...scope, conditional: true, dead };
   return dead === !!scope.dead ? scope : { ...scope, dead };
 }
 
@@ -185,11 +197,40 @@ function bindTypeParameters(w: Walker, own: string, inherited: readonly string[]
   }
 }
 
+/** A class's name and bases for the dispatch index; its members and writes are read from the bindings once all are made. */
+function recordClass(w: Walker, def: Node, id: string): void {
+  if (def.type === 'class_definition') w.classes.push({ id, name: def.childForFieldName('name')?.text ?? '', bases: baseNames(def.childForFieldName('superclasses')), members: [], writes: [] });
+}
+
 /** A method's `self.f = …` writes poison the class attribute `f` for member calls, though not for a bare name. */
 function bindAttributeWrites(w: Walker, def: Node, at: Scope): void {
   const body = def.childForFieldName('body');
   if (def.type !== 'function_definition' || !body || at.isFunction || !at.scope) return;
   for (const attr of attributeWrites(body, parameterNames(def.childForFieldName('parameters'))[0])) w.out.push({ scope: at.scope, name: attr, kind: 'other', attr: true });
+}
+
+const TYPING = new Set(['typing', 'typing_extensions']);
+
+/** Whether a guard's `TYPE_CHECKING` is typing's constant: its one binding is the import, and nothing rewrites it. */
+function typingConstant(guard: string, bindings: readonly PyBinding[], imports: readonly Pick<Import, 'spec' | 'names'>[], attrWrites: ReadonlySet<string>): boolean {
+  const [name, attribute] = guard.split('.') as [string, string | undefined];
+  const bound = bindings.filter((b) => b.name === name && !b.attr);
+  const imp = bound.length === 1 && bound[0]!.kind === 'import' && !bound[0]!.dotted && !bound[0]!.scope ? imports[bound[0]!.import!] : undefined;
+  const entry = imp?.names?.find((n) => n.local === name);
+  if (!imp || !entry || !TYPING.has(imp.spec)) return false;
+  return attribute ? entry.imported === '*' && !attrWrites.has('TYPE_CHECKING') : entry.imported === 'TYPE_CHECKING';
+}
+
+/**
+ * Settles the `if not TYPE_CHECKING:` guards once the whole file is bound: the body always runs only if every guard names
+ * typing's constant. Otherwise `TYPE_CHECKING` is any value, so the bindings under it may never have run.
+ */
+export function settleGuards(bindings: PyBinding[], imports: readonly Pick<Import, 'spec' | 'names'>[], attrWrites: ReadonlySet<string>): void {
+  for (const b of bindings) {
+    if (!b.guards) continue;
+    if (!b.guards.every((g) => typingConstant(g, bindings, imports, attrWrites))) b.conditional = true;
+    delete b.guards;
+  }
 }
 
 /** A decorator's return value is what a decorated definition's name binds, so it proves no target. */
@@ -218,6 +259,7 @@ function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   if (fn) for (const p of parameterNames(parameters)) w.out.push({ scope: own, name: p, kind: 'other' });
   if (body) w.defs.push({ id: own, body: nodeRange(body).start });
   bindAttributeWrites(w, def, at);
+  recordClass(w, def, own);
   if (!body) return;
   // `global f` / `nonlocal f` in a class body sends its writes elsewhere while reads still reach the class: unprovable.
   if (!fn) for (const name of [...declared(body, 'global_statement'), ...declared(body, 'nonlocal_statement')]) w.out.push({ scope: own, name, kind: 'other' });

@@ -1,6 +1,7 @@
 import type { JsMeaning } from '../js-scope.js';
 import type { CallRef, CodeSymbol } from '../model.js';
 import type { ParsedFile } from '../parse.js';
+import { dispatchOf } from './dispatch.js';
 import { pythonCallTarget } from './python-calls.js';
 import type { Found, Tracer } from './trace.js';
 
@@ -83,10 +84,16 @@ function classOwner(file: string, from: CodeSymbol, lookup: SymbolLookup): CodeS
   return classes.sort((a, b) => b.path.length - a.path.length)[0];
 }
 
-/** `this.name()` to the one method that name in the enclosing class. */
-function thisTarget(file: string, call: CallRef, from: CodeSymbol, lookup: SymbolLookup): FoundTarget {
+/**
+ * `this.name()` to the one method that name in the enclosing class, unless an instance can reach something else: a
+ * class extending this one by name declares `name`, or `this.name = …` is written in this class or a subclass.
+ */
+function thisTarget(files: Files, call: CallRef, from: CodeSymbol, lookup: SymbolLookup): FoundTarget {
+  const file = from.file;
   const owner = classOwner(file, from, lookup);
   if (!owner) return undefined;
+  if (files.get(file)?.classes?.find((c) => c.id === owner.id)?.writes.includes(call.name)) return undefined;
+  if (dispatchOf(files).subclassBinds(owner.path.at(-1)!, call.name)) return undefined;
   const methods = lookup
     .byName(file, call.name)
     .filter((s) => s.kind === 'method' && s.path.length === owner.path.length + 1 && isPrefix(owner.path, s.path));
@@ -122,7 +129,7 @@ function resolveCall(parsed: ParsedFile, files: Files, call: CallRef, index: num
     if (meaning.kind === 'def') return withTarget(call, definedTarget(parsed.file.path, call.name, meaning.start, lookup));
     return withTarget(call, meaning.kind === 'import' ? importedTarget(call, parsed, trace, lookup) : undefined);
   }
-  if (call.via === 'this') return withTarget(call, thisTarget(parsed.file.path, call, from, lookup));
+  if (call.via === 'this') return withTarget(call, thisTarget(files, call, from, lookup));
   return withTarget(call, scope?.receiver?.kind === 'import' ? namespaceTarget(call, parsed, trace, lookup) : undefined);
 }
 

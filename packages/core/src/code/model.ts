@@ -19,6 +19,20 @@ export type FileInfo = z.infer<typeof fileInfoSchema>;
 export const SYMBOL_KINDS = ['class', 'interface', 'type', 'enum', 'function', 'method', 'module', 'constant'] as const;
 export type SymbolKind = (typeof SYMBOL_KINDS)[number];
 
+/**
+ * What a class says about the names its instances dispatch on: the classes it extends (the last identifier of each
+ * base expression), the names its body declares (`*` for a computed one) and the names its methods write through
+ * `this`/`self`/`cls`. Call linking reads it to see that a subclass or an instance write can replace a method.
+ */
+export interface ClassInfo {
+  /** The class symbol's id; absent for a class expression the symbol table does not hold. */
+  id?: string;
+  name: string;
+  bases: string[];
+  members: string[];
+  writes: string[];
+}
+
 export const codeSymbolSchema = z.object({
   /** `symbolId(file, path, kind)`; a repeated identity in one file gets `~2`, `~3`… in source order. */
   id: z.string().min(1),

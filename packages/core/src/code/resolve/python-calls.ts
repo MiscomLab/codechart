@@ -1,6 +1,7 @@
 import type { CallRef, CodeSymbol, Import, ImportedName } from '../model.js';
 import type { ParsedFile } from '../parse.js';
 import type { PyBinding } from '../python/module-scope.js';
+import { dispatchOf } from './dispatch.js';
 import { submoduleIn, type Found, type Tracer } from './trace.js';
 
 type Files = ReadonlyMap<string, ParsedFile>;
@@ -133,11 +134,12 @@ function defIn(parsed: ParsedFile, scope: string, name: string): CodeSymbol | un
 }
 
 /** The top-level function or class a proven export binding points at. */
-function topLevel(files: Files, found: Found, kinds: readonly string[] = ['function', 'class']): CodeSymbol | undefined {
+function topLevel(files: Files, found: Found, kinds: readonly string[] = ['function', 'class'], strict = false): CodeSymbol | undefined {
   if (typeof found !== 'object' || found.binding === '*') return undefined;
   // A decorated definition binds the decorator's result, not the definition.
   const bound = files.get(found.file)?.bindings?.find((b) => b.scope === '' && b.name === found.binding && !b.alias);
-  if (bound && bound.kind !== 'def') return undefined;
+  // A module attribute call needs the binding to have run: an import of the name fails otherwise, an attribute read does not.
+  if (bound && (bound.kind !== 'def' || (strict && bound.conditional))) return undefined;
   const symbols = (files.get(found.file)?.symbols ?? []).filter((s) => s.path.length === 1 && s.path[0] === found.binding && kinds.includes(s.kind));
   return symbols.length === 1 ? symbols[0] : undefined;
 }
@@ -177,7 +179,7 @@ function builtMethod(parsed: ParsedFile, files: Files, m: Meaning, name: string,
   if (cls?.kind !== 'class') return undefined;
   const classFile = files.get(cls.file);
   const methods = (classFile?.symbols ?? []).filter((s) => s.kind === 'method' && s.path.length === cls.path.length + 1 && isPrefix(cls.path, s.path) && s.path.at(-1) === name);
-  return methods.length === 1 && plainMethod(classFile, cls, name) ? methods[0] : undefined;
+  return methods.length === 1 && undisturbed(files, classFile, cls, name) ? methods[0] : undefined;
 }
 
 /** The class whose method holds this call; a call in a class body belongs to the class. */
@@ -193,6 +195,18 @@ function plainMethod(parsed: ParsedFile | undefined, cls: CodeSymbol, name: stri
   return scoped.length === 1 && scoped[0]!.kind === 'def' && !scoped[0]!.conditional;
 }
 
+/**
+ * Whether `name` on an instance of `cls` is that class's plain method: also not written on any object in the class's
+ * file (`K.f = …`, `k.f = …`), not bound by a class extending it by name, and not written through `self` by a base class.
+ * A base the repo does not hold may bind it, so an unresolved base leaves the call name-only.
+ */
+function undisturbed(files: Files, parsed: ParsedFile | undefined, cls: CodeSymbol, name: string): boolean {
+  if (!parsed || !plainMethod(parsed, cls, name) || parsed.attrWrites?.includes(name)) return false;
+  const dispatch = dispatchOf(files);
+  const info = parsed.classes?.find((c) => c.id === cls.id);
+  return !!info && !dispatch.subclassBinds(info.name, name) && !dispatch.baseWrites(info, name);
+}
+
 /** Whether a call runs while its module is being imported: in module code, class bodies and the headers of both. */
 function runsAtImport(parsed: ParsedFile, symbol: CodeSymbol): boolean {
   const owner = executingOwner(parsed, symbol);
@@ -206,12 +220,12 @@ function eagerCall(parsed: ParsedFile, caller: CodeSymbol, at: CallRef['range'][
   return (caller.kind === 'class' || caller.kind === 'module' || caller.kind === 'constant') && runsAtImport(parsed, caller);
 }
 
-function thisTarget(parsed: ParsedFile, call: CallRef, from: CodeSymbol): CodeSymbol | undefined {
+function thisTarget(parsed: ParsedFile, files: Files, call: CallRef, from: CodeSymbol): CodeSymbol | undefined {
   // `self` and `cls` are bound in a method's body only: not in a class body, nor in the method's own header.
   const body = parsed.defs?.find((def) => def.id === from.id)?.body;
   if (from.kind !== 'method' || (body && before(call.range.start, body))) return undefined;
   const owner = classOwner(parsed, from);
-  if (!owner || !plainMethod(parsed, owner, call.name)) return undefined;
+  if (!owner || !undisturbed(files, parsed, owner, call.name)) return undefined;
   const methods = parsed.symbols.filter((s) => s.kind === 'method' && s.path.length === owner.path.length + 1 && isPrefix(owner.path, s.path) && s.path.at(-1) === call.name && holds(owner, s));
   return methods.length === 1 ? methods[0] : undefined;
 }
@@ -222,7 +236,7 @@ function thisTarget(parsed: ParsedFile, call: CallRef, from: CodeSymbol): CodeSy
  * binds) leaves the call name-only.
  */
 export function pythonCallTarget(parsed: ParsedFile, files: Files, call: CallRef, from: CodeSymbol, trace: Tracer): CodeSymbol | undefined {
-  if (call.via === 'this') return thisTarget(parsed, call, from);
+  if (call.via === 'this') return thisTarget(parsed, files, call, from);
   const chain = scopeChain(parsed, from, call.range.start);
   const at = call.range.start;
   const site = { at, eager: eagerCall(parsed, from, at) };
@@ -255,5 +269,5 @@ function memberTarget(parsed: ParsedFile, files: Files, call: CallRef, chain: re
     module = moduleOf(m, trace);
     if (!module) return builtMethod(parsed, files, m, call.name, site, trace);
   }
-  return module ? topLevel(files, trace(module, call.name)) : undefined;
+  return module ? topLevel(files, trace(module, call.name), undefined, true) : undefined;
 }

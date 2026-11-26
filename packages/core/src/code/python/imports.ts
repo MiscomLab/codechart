@@ -1,9 +1,10 @@
 import type { Node, Query, Tree } from 'web-tree-sitter';
 import type { ModuleExports } from '../imports.js';
-import type { CodeRange, CodeSymbol, Import } from '../model.js';
+import type { ClassInfo, CodeRange, CodeSymbol, Import } from '../model.js';
 import { nodeRange } from '../tree.js';
-import { collectBindings, moduleExports, type PyBinding, type PyDefinition } from './module-scope.js';
+import { collectBindings, moduleExports, settleGuards, type PyBinding, type PyDefinition } from './module-scope.js';
 import { editsSysPath, statedModules, typeGuarded } from './nodes.js';
+import { attributeWrites } from './scope-nodes.js';
 
 /**
  * Finds Python imports and the calls that name a module at run time: `import`, `from … import`, and
@@ -37,6 +38,10 @@ export interface PythonFile {
   deferred: CodeRange[];
   /** Lambda bodies: evaluated when the lambda is called, not where it is written. */
   lambdas: CodeRange[];
+  /** Every attribute name the file writes on any object. */
+  attrWrites: string[];
+  /** The file's classes: what each extends, binds in its body and writes through `self`. */
+  classes: ClassInfo[];
   /** The file edits `sys.path`, so no absolute import's target is provable. */
   sysPathEdited: boolean;
 }
@@ -83,6 +88,8 @@ export function extractPythonImports(file: string, tree: Tree, query: Query, sym
     const wildcard = main.namedChildren.some((c) => c?.type === 'wildcard_import');
     if (stated) index.set(main.id, { locals, typeOnly, wildcard });
   }
-  const { bindings, defs, deferred, lambdas } = collectBindings(tree.rootNode, symbols, index);
-  return { imports, exports: moduleExports(bindings, hasWildcard(tree.rootNode)), hidden, bindings, defs, deferred, lambdas, sysPathEdited: editsSysPath(tree.rootNode) };
+  const { bindings, defs, deferred, lambdas, classes } = collectBindings(tree.rootNode, symbols, index);
+  const attrWrites = attributeWrites(tree.rootNode, null);
+  settleGuards(bindings, imports, new Set(attrWrites));
+  return { imports, exports: moduleExports(bindings, hasWildcard(tree.rootNode)), hidden, bindings, defs, deferred, lambdas, attrWrites, classes, sysPathEdited: editsSysPath(tree.rootNode) };
 }

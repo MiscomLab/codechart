@@ -1,7 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { CodeRange } from '../model.js';
 import { nodeRange } from '../tree.js';
-import { isTypeChecking } from './nodes.js';
 
 /** Pure readers of Python syntax nodes: write targets, parameters, annotations, type parameters and deferred ranges. */
 
@@ -109,16 +108,19 @@ export function declared(body: Node, statement: 'global_statement' | 'nonlocal_s
   return names;
 }
 
-/** The attribute names a method writes through its first parameter (`self.f = …`, `cls.f += …`, `del self.f`, `for self.f in …`). */
-export function attributeWrites(body: Node, owner: string | undefined): string[] {
+/**
+ * The attribute names written through `owner` (`self.f = …`, `cls.f += …`, `del self.f`, `for self.f in …`), or through
+ * any object when `owner` is null. A method with no first parameter (`undefined`) writes none.
+ */
+export function attributeWrites(body: Node, owner: string | null | undefined): string[] {
   const names: string[] = [];
-  if (!owner) return names;
+  if (owner === undefined || owner === '') return names;
   const collect = (target: Node | null | undefined): void => {
     if (!target) return;
     if (target.type === 'attribute') {
       const object = target.childForFieldName('object');
       const attribute = target.childForFieldName('attribute');
-      if (object?.type === 'identifier' && object.text === owner && attribute) names.push(attribute.text);
+      if (attribute && (owner === null || (object?.type === 'identifier' && object.text === owner))) names.push(attribute.text);
     } else if (PATTERNS.has(target.type)) for (const child of target.namedChildren) collect(child);
   };
   const stack: Node[] = [body];
@@ -134,9 +136,26 @@ export function attributeWrites(body: Node, owner: string | undefined): string[]
 
 const WRITE_FIELDS: Record<string, string> = { assignment: 'left', augmented_assignment: 'left', for_statement: 'left', for_in_clause: 'left' };
 
-/** `if not TYPE_CHECKING:` with no other branch: `TYPE_CHECKING` is False at run time, so the body always runs. */
-export function alwaysRuns(node: Node): boolean {
-  if (node.type !== 'if_statement' || node.childForFieldName('alternative')) return false;
+/**
+ * `if not TYPE_CHECKING:` (or `not typing.TYPE_CHECKING`) with no other branch: the text of the guard. It always runs only
+ * if the name is typing's constant, which a whole-file view of the bindings decides.
+ */
+export function typeCheckingGuard(node: Node): string | undefined {
+  if (node.type !== 'if_statement' || node.childForFieldName('alternative')) return undefined;
   const test = node.childForFieldName('condition');
-  return test?.type === 'not_operator' && isTypeChecking(test.childForFieldName('argument'));
+  const argument = test?.type === 'not_operator' ? test.childForFieldName('argument') : undefined;
+  if (argument?.type === 'identifier' && argument.text === 'TYPE_CHECKING') return 'TYPE_CHECKING';
+  const object = argument?.type === 'attribute' ? argument.childForFieldName('object') : undefined;
+  return object?.type === 'identifier' && argument?.childForFieldName('attribute')?.text === 'TYPE_CHECKING' ? `${object.text}.TYPE_CHECKING` : undefined;
+}
+
+/** The names a class's base list extends: the last identifier of each base, every identifier of a call. Keywords are skipped. */
+export function baseNames(superclasses: Node | null): string[] {
+  const names = (node: Node): string[] => {
+    if (node.type === 'identifier') return [node.text];
+    if (node.type === 'attribute') return [node.childForFieldName('attribute')?.text ?? ''].filter(Boolean);
+    if (node.type === 'subscript') return names(node.childForFieldName('value')!);
+    return node.namedChildren.flatMap((c) => (c ? names(c) : []));
+  };
+  return (superclasses?.namedChildren ?? []).flatMap((base) => (base && base.type !== 'keyword_argument' ? names(base) : []));
 }
