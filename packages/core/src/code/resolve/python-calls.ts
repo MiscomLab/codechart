@@ -31,12 +31,12 @@ function scopeChain(parsed: ParsedFile, caller: CodeSymbol): string[] {
   return [...chain, ''];
 }
 
-function meaning(parsed: ParsedFile, name: string, chain: readonly string[]): Meaning {
+function meaning(parsed: ParsedFile, name: string, chain: readonly string[], at: CallRef['range']['start'] | undefined): Meaning {
   const bindings: readonly PyBinding[] = parsed.bindings ?? [];
   for (let i = 0; i < chain.length; i++) {
     // A star import can rebind any name of its scope, at a point the parse does not order.
     if (bindings.some((b) => b.scope === chain[i] && b.name === '*')) return undefined;
-    const found = bindings.filter((b) => b.scope === chain[i] && b.name === name);
+    const found = bindings.filter((b) => b.scope === chain[i] && b.name === name && visible(b, at));
     if (!found.length) continue;
     // `import a.b` and `import a.c` both bind the package `a`; the dotted path decides which module a call reaches.
     if (found.every((b) => b.dotted)) return { kind: 'dotted', imports: found.map((b) => parsed.imports[b.import!]!) };
@@ -50,6 +50,10 @@ function meaning(parsed: ParsedFile, name: string, chain: readonly string[]): Me
   }
   return undefined;
 }
+
+/** Whether a binding is in scope at a call: a type parameter only from its definition's body on. */
+const visible = (binding: PyBinding, at: CallRef['range']['start'] | undefined): boolean =>
+  !binding.from || !at || at.line > binding.from.line || (at.line === binding.from.line && at.column >= binding.from.column);
 
 /** The `def` or `class` a scope binds under `name`. */
 function defIn(parsed: ParsedFile, scope: string, name: string): CodeSymbol | undefined {
@@ -90,9 +94,9 @@ function submodulePath(files: Files, file: string, parts: readonly string[]): st
 }
 
 /** The class a constructed receiver was built from, and its one method `name`. */
-function builtMethod(parsed: ParsedFile, files: Files, m: Meaning, name: string, trace: Tracer): CodeSymbol | undefined {
+function builtMethod(parsed: ParsedFile, files: Files, m: Meaning, name: string, at: CallRef['range']['start'], trace: Tracer): CodeSymbol | undefined {
   if (m?.kind !== 'built') return undefined;
-  const ctor = meaning(parsed, m.ctor, m.chain);
+  const ctor = meaning(parsed, m.ctor, m.chain, at);
   const cls =
     ctor?.kind === 'def'
       ? defIn(parsed, ctor.scope, m.ctor)
@@ -126,12 +130,13 @@ function thisTarget(parsed: ParsedFile, call: CallRef, from: CodeSymbol): CodeSy
 export function pythonCallTarget(parsed: ParsedFile, files: Files, call: CallRef, from: CodeSymbol, trace: Tracer): CodeSymbol | undefined {
   if (call.via === 'this') return thisTarget(parsed, call, from);
   const chain = scopeChain(parsed, from);
-  if (call.via === 'bare') return bareTarget(parsed, files, call.name, chain, trace);
-  return call.receiver ? memberTarget(parsed, files, call, call.receiver, chain, trace) : undefined;
+  const at = call.range.start;
+  if (call.via === 'bare') return bareTarget(parsed, files, call.name, chain, at, trace);
+  return call.receiver ? memberTarget(parsed, files, call, chain, at, trace) : undefined;
 }
 
-function bareTarget(parsed: ParsedFile, files: Files, name: string, chain: readonly string[], trace: Tracer): CodeSymbol | undefined {
-  const m = meaning(parsed, name, chain);
+function bareTarget(parsed: ParsedFile, files: Files, name: string, chain: readonly string[], at: CallRef['range']['start'], trace: Tracer): CodeSymbol | undefined {
+  const m = meaning(parsed, name, chain, at);
   if (m?.kind === 'def') {
     const def = defIn(parsed, m.scope, name);
     return def && (def.kind === 'function' || def.kind === 'class') ? def : undefined;
@@ -140,8 +145,9 @@ function bareTarget(parsed: ParsedFile, files: Files, name: string, chain: reado
   return topLevel(files, trace(m.imp.resolved, m.name.imported));
 }
 
-function memberTarget(parsed: ParsedFile, files: Files, call: CallRef, receiver: string, chain: readonly string[], trace: Tracer): CodeSymbol | undefined {
-  const m = meaning(parsed, receiver, chain);
+function memberTarget(parsed: ParsedFile, files: Files, call: CallRef, chain: readonly string[], at: CallRef['range']['start'], trace: Tracer): CodeSymbol | undefined {
+  const receiver = call.receiver!;
+  const m = meaning(parsed, receiver, chain, at);
   let module: string | undefined;
   if (call.receiverPath) {
     const dotted = call.receiverPath.join('.');
@@ -152,7 +158,7 @@ function memberTarget(parsed: ParsedFile, files: Files, call: CallRef, receiver:
     }
   } else {
     module = moduleOf(m, trace);
-    if (!module) return builtMethod(parsed, files, m, call.name, trace);
+    if (!module) return builtMethod(parsed, files, m, call.name, at, trace);
   }
   return module ? topLevel(files, trace(module, call.name)) : undefined;
 }

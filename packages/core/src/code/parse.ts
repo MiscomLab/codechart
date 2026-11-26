@@ -6,6 +6,7 @@ import { Lines } from './entities/text.js';
 import { loadEntityGrammar, loadGrammar } from './grammars.js';
 import { entityGrammarOf, grammarOf, langOf, type EntityGrammar, type PatternGrammar } from './languages.js';
 import { extractImports, type ExportName, type ImportSpec, type ModuleExports } from './imports.js';
+import type { JsCallScope } from './js-scope.js';
 import type { CallRef, CodeEntity, CodeRef, CodeSymbol, FileInfo, CodeRange, Import, PatternMatch } from './model.js';
 import { matchPatterns } from './pattern-run.js';
 import type { PatternLimit, PatternSets } from './patterns.js';
@@ -28,6 +29,8 @@ export interface ParsedFile {
   exports: ModuleExports;
   /** Calls by `from` symbol; `name-only` until the link pass proves a target. */
   calls: CallRef[];
+  /** JS/TS only: what each call's callee and identifier receiver mean at its site, one per call, in the same order. */
+  scopes?: JsCallScope[];
   /** Tables, workflow jobs and steps, compose services and npm scripts (Code model #3); empty for languages with imports. */
   entities: CodeEntity[];
   /** Files this one runs, sources, loads or imports without an import statement; `unknown` until the link pass. */
@@ -247,13 +250,17 @@ export async function parseCode(path: string, text: string, lastGood?: LastGood,
     const good = keepLastGoodSymbols(extracted, Array.isArray(lastGood) ? lastGood : previous?.symbols);
     const python = grammar === 'python' ? extractPythonImports(path, tree, query, extracted.symbols) : undefined;
     const stated = python ?? extractImports(path, tree, query);
+    const imports = keepLastGoodImports(stated.imports, stated.hidden, extracted.errors, previous, text).map(unlinked);
+    const exports = keepLastGoodExports(stated.exports, extracted.errors, previous, text);
+    const calls = extractCalls(path, tree, tags, good, { errors, imports, ...(python && { grammar: 'python' as const }) });
     return {
       file,
       ...good,
       parseErrors: extracted.errors,
-      imports: keepLastGoodImports(stated.imports, stated.hidden, extracted.errors, previous, text).map(unlinked),
-      exports: keepLastGoodExports(stated.exports, extracted.errors, previous, text),
-      calls: extractCalls(tree, tags, good, errors, python ? 'python' : undefined),
+      imports,
+      exports,
+      calls: calls.calls,
+      ...(calls.scopes && { scopes: calls.scopes }),
       entities: [],
       refs: [],
       ...(python && { bindings: python.bindings }),

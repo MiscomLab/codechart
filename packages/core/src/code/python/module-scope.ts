@@ -15,6 +15,8 @@ export interface PyBinding {
   /** For `import a.b` without an alias: binds `a`, and `a.b` stays reachable through it. */
   dotted?: boolean;
   built?: string;
+  /** A PEP 695 type parameter: bound only from this point on (the definition's body), not in its own parameter defaults. */
+  from?: { line: number; column: number };
 }
 
 const PATTERNS = new Set(['pattern_list', 'tuple_pattern', 'list_pattern', 'tuple', 'list', 'list_splat_pattern', 'as_pattern_target', 'parenthesized_expression']);
@@ -39,6 +41,15 @@ function parameterNames(params: Node | null): string[] {
 
 /** The import index of each import or import call node, by node id; the extractor fills it. */
 export type ImportIndex = ReadonlyMap<number, { locals: { name: string; dotted: boolean; index: number }[]; typeOnly: boolean; wildcard: boolean }>;
+
+/** The name each PEP 695 type parameter binds: `[T: int, *Ts, **P]` binds `T`, `Ts` and `P`. */
+function typeParameterNames(def: Node): string[] {
+  const list = def.childForFieldName('type_parameters');
+  return (list?.namedChildren ?? []).flatMap((parameter) => {
+    const name = parameter ? identifiers(parameter)[0] : undefined;
+    return name ? [name] : [];
+  });
+}
 
 /**
  * Every name every scope of a Python file binds, by Python's scoping rules: a function's parameters and writes are its
@@ -67,6 +78,8 @@ interface Scope {
   outer: readonly string[];
   globals: ReadonlySet<string>;
   nonlocals: ReadonlySet<string>;
+  /** In a class body: its type parameters, which its methods also see (PEP 695). */
+  classTypeParams?: readonly string[];
 }
 
 type Bind = (name: string, kind: PyBinding['kind'], extra?: Partial<PyBinding>) => void;
@@ -87,6 +100,12 @@ function walk(w: Walker, node: Node, at: Scope): void {
     const inner = child.type === 'decorated_definition' ? child.childForFieldName('definition') : child;
     if (inner?.type === 'function_definition' || inner?.type === 'class_definition') {
       enterDefinition(w, inner, bind, at);
+      continue;
+    }
+    if (child.type === 'type_alias_statement') {
+      const left = child.childForFieldName('left');
+      const name = left ? identifiers(left)[0] : undefined;
+      if (name) bind(name, 'other');
       continue;
     }
     const imported = w.imports.get(child.id);
@@ -110,11 +129,26 @@ function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   if (name) bind(name, 'def');
   const own = w.scopeOf(def);
   const fn = def.type === 'function_definition';
-  if (fn) for (const p of parameterNames(def.childForFieldName('parameters'))) w.out.push({ scope: own, name: p, kind: 'other' });
+  const typeParams = typeParameterNames(def);
   const body = def.childForFieldName('body');
+  const from = body ? { line: body.startPosition.row + 1, column: body.startPosition.column } : undefined;
+  // A definition's own type parameters are not in scope for its parameter defaults; a class's are in its whole body.
+  for (const typeParam of typeParams) w.out.push({ scope: own, name: typeParam, kind: 'other', ...(from && { from }) });
+  if (fn) {
+    for (const typeParam of at.classTypeParams ?? []) w.out.push({ scope: own, name: typeParam, kind: 'other' });
+    for (const p of parameterNames(def.childForFieldName('parameters'))) w.out.push({ scope: own, name: p, kind: 'other' });
+  }
   if (!body) return;
   const outer = at.isFunction ? [at.scope, ...at.outer] : at.outer;
-  walk(w, body, { scope: own, isFunction: fn, outer, globals: new Set(declared(body, 'global_statement')), nonlocals: new Set(declared(body, 'nonlocal_statement')) });
+  const inner: Scope = {
+    scope: own,
+    isFunction: fn,
+    outer,
+    globals: new Set(declared(body, 'global_statement')),
+    nonlocals: new Set(declared(body, 'nonlocal_statement')),
+  };
+  if (!fn) inner.classTypeParams = typeParams;
+  walk(w, body, inner);
 }
 
 function identifiers(node: Node): string[] {

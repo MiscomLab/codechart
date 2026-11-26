@@ -1,3 +1,4 @@
+import type { JsMeaning } from '../js-scope.js';
 import type { CallRef, CodeSymbol } from '../model.js';
 import type { ParsedFile } from '../parse.js';
 import { pythonCallTarget } from './python-calls.js';
@@ -5,7 +6,8 @@ import type { Found, Tracer } from './trace.js';
 
 type Files = ReadonlyMap<string, ParsedFile>;
 type FoundTarget = CodeSymbol | undefined;
-type SameFile = { kind: 'found'; symbol: CodeSymbol } | { kind: 'ambiguous' } | { kind: 'none' };
+
+const OTHER: JsMeaning = { kind: 'other' };
 
 const isPrefix = (prefix: readonly string[], path: readonly string[]) => prefix.every((part, i) => path[i] === part);
 
@@ -45,14 +47,12 @@ class SymbolLookup {
   }
 }
 
-/** A bare call to a function defined in the same file: the nearest visible definition, or ambiguous. */
-function sameFileTarget(file: string, call: CallRef, from: CodeSymbol, lookup: SymbolLookup): SameFile {
-  const candidates = lookup.byName(file, call.name).filter((s) => s.kind === 'function');
-  const visible = candidates.filter((s) => s.path.length === 1 || isPrefix(s.path.slice(0, -1), from.path));
-  if (!visible.length) return { kind: 'none' };
-  const depth = Math.max(...visible.map((s) => s.path.length));
-  const nearest = visible.filter((s) => s.path.length === depth);
-  return nearest.length === 1 ? { kind: 'found', symbol: nearest[0]! } : { kind: 'ambiguous' };
+/** The one function symbol of this file whose leaf name matches and whose range starts where the binding starts. */
+function definedTarget(file: string, name: string, start: { line: number; column: number }, lookup: SymbolLookup): FoundTarget {
+  const matches = lookup
+    .byName(file, name)
+    .filter((s) => s.kind === 'function' && s.range.start.line === start.line && s.range.start.column === start.column);
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 /** The top-level function a proven export binding points at; anything else proves no call target. */
@@ -112,18 +112,18 @@ function withTarget(call: CallRef, target: FoundTarget): CallRef {
   return nameOnly;
 }
 
-function resolveCall(parsed: ParsedFile, files: Files, call: CallRef, trace: Tracer, lookup: SymbolLookup): CallRef {
+function resolveCall(parsed: ParsedFile, files: Files, call: CallRef, index: number, trace: Tracer, lookup: SymbolLookup): CallRef {
   const from = lookup.byId(parsed.file.path, call.from);
   if (!from || !call.via) return withTarget(call, undefined);
   if (parsed.file.lang === 'python') return withTarget(call, pythonCallTarget(parsed, files, call, from, trace));
+  const scope = parsed.scopes?.[index];
+  const meaning = scope?.callee ?? OTHER;
   if (call.via === 'bare') {
-    const same = sameFileTarget(parsed.file.path, call, from, lookup);
-    if (same.kind === 'found') return withTarget(call, same.symbol);
-    if (same.kind === 'ambiguous') return withTarget(call, undefined);
-    return withTarget(call, importedTarget(call, parsed, trace, lookup));
+    if (meaning.kind === 'def') return withTarget(call, definedTarget(parsed.file.path, call.name, meaning.start, lookup));
+    return withTarget(call, meaning.kind === 'import' ? importedTarget(call, parsed, trace, lookup) : undefined);
   }
   if (call.via === 'this') return withTarget(call, thisTarget(parsed.file.path, call, from, lookup));
-  return withTarget(call, namespaceTarget(call, parsed, trace, lookup));
+  return withTarget(call, scope?.receiver?.kind === 'import' ? namespaceTarget(call, parsed, trace, lookup) : undefined);
 }
 
 /** Resolves calls in `paths`; every other file keeps its current calls. */
@@ -135,7 +135,7 @@ export function resolveCalls(files: Files, paths: ReadonlySet<string>, trace: Tr
     if (!parsed) continue;
     out.set(
       path,
-      parsed.calls.map((call) => resolveCall(parsed, files, call, trace, lookup)),
+      parsed.calls.map((call, index) => resolveCall(parsed, files, call, index, trace, lookup)),
     );
   }
   return out;

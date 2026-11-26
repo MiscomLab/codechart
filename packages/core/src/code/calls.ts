@@ -1,5 +1,6 @@
 import type { Node, Query, Tree } from 'web-tree-sitter';
-import type { CallRef, CallVia, CodeSymbol } from './model.js';
+import { jsScopes, type JsCallScope, type JsMeaning } from './js-scope.js';
+import type { CallRef, CallVia, CodeSymbol, Import } from './model.js';
 import { nodeRange, touches } from './tree.js';
 
 interface Callee {
@@ -8,8 +9,15 @@ interface Callee {
   receiverPath?: string[];
 }
 
+/** A JS/TS call's callee and receiver meanings, one per emitted call, in the same order. */
+export interface ExtractedCalls {
+  calls: CallRef[];
+  scopes?: JsCallScope[];
+}
+
 const JS_CALLS = new Set(['call_expression']);
 const PY_CALLS = new Set(['call']);
+const OTHER: JsMeaning = { kind: 'other' };
 
 /** The call node a `@reference.call` capture belongs to: the capture is the call itself, or a node in it. */
 function callOf(ref: Node, python: boolean): Node | undefined {
@@ -64,19 +72,30 @@ function fromSymbol(symbols: readonly CodeSymbol[], kept: ReadonlySet<string>, c
   return parsed[0] && parsed[0].path.length >= keptDepth ? parsed[0] : undefined;
 }
 
+/** The callee's own identifier, or the identifier receiver of a member call, as the scopes see it. */
+function callScope(reader: ReturnType<typeof jsScopes>, call: Node): JsCallScope {
+  const fn = call.childForFieldName('function');
+  if (fn?.type === 'identifier') return { callee: reader.meaningAt(fn, fn.text) };
+  const object = fn?.type === 'member_expression' ? fn.childForFieldName('object') : undefined;
+  return object?.type === 'identifier' ? { callee: OTHER, receiver: reader.meaningAt(object, object.text) } : { callee: OTHER };
+}
+
 /**
  * Calls from the grammar's `@reference.call` captures. `from` is the innermost definition around the call; a call at
  * file scope has no symbol to point at and is skipped. Calls in or around a syntax error are not read: the broken text
  * proves nothing. Evidence is `name-only` until the link pass proves a target.
  */
 export function extractCalls(
+  path: string,
   tree: Tree,
   tags: Query,
   symbols: { symbols: readonly CodeSymbol[]; kept: readonly string[] },
-  errors: readonly Node[],
-  grammar: 'python' | undefined = undefined,
-): CallRef[] {
+  context: { errors: readonly Node[]; imports: readonly Import[]; grammar?: 'python' },
+): ExtractedCalls {
+  const { errors, imports, grammar } = context;
   const calls: CallRef[] = [];
+  const scopes: JsCallScope[] = [];
+  const reader = grammar === 'python' ? undefined : jsScopes(tree.rootNode, path, imports);
   const seen = new Set<number>();
   const kept = new Set(symbols.kept);
   const python = grammar === 'python';
@@ -99,6 +118,7 @@ export function extractCalls(
       evidence: 'name-only',
       range: nodeRange(call),
     });
+    if (reader) scopes.push(callScope(reader, call));
   }
-  return calls;
+  return { calls, ...(reader && { scopes }) };
 }

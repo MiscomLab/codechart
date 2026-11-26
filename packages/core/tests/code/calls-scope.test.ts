@@ -257,6 +257,12 @@ describe('14. local function values resolve to themselves unless the binding is 
     nameOnly(repo, 'f', { kind: 'VariableDeclaration', parentKind: 'VariableDeclarationList' }, 'run');
   });
 
+  it('a write to another binding of the same name leaves the let local resolvable', async () => {
+    // `other`'s own `let f` is the one written; `run`'s `f` is never assigned, so its call still reaches its arrow.
+    const repo = await link({ 'a.ts': 'function f() {}\nfunction run() { let f = () => {}; f(); }\nfunction other() { let f = 1; f = 2; }\n' });
+    resolved(repo, 'f', 'a.ts::run.f::function', { kind: 'VariableDeclaration' }, 'run');
+  });
+
   it.each([
     ['a compound assignment', 'f += 1;'],
     ['an increment', 'f++;'],
