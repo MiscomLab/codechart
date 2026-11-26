@@ -44,6 +44,29 @@ describe('gate: a class-body binding replaced later in a loop proves no single t
   });
 });
 
+describe('gate: a class-body binding inside any compound statement may never have run', () => {
+  it.each([
+    // Runtime (python3 -I, 3.14.7): each class's x == "MOD"; the class-body `class f` never ran.
+    ['a for loop over nothing', 'def f(): return "MOD"\nclass K:\n    for _ in []:\n        class f: pass\n    x = f()\n'],
+    ['a while loop that never runs', 'def f(): return "MOD"\nclass K:\n    while False:\n        class f: pass\n    x = f()\n'],
+    ['an except clause that never runs', 'def f(): return "MOD"\nclass K:\n    try:\n        pass\n    except Exception:\n        class f: pass\n    x = f()\n'],
+    [
+      'a with block whose body raised in a nested if',
+      'import contextlib\ndef f(): return "MOD"\nclass K:\n    with contextlib.suppress(ValueError):\n        if True:\n            raise ValueError\n        class f: pass\n    x = f()\n',
+    ],
+    ['a match case that does not match', 'def f(): return "MOD"\nclass K:\n    match 0:\n        case 1:\n            class f: pass\n    x = f()\n'],
+  ])('%s', async (_form, text) => {
+    await sound(text, MODULE_OR_NONE);
+  });
+});
+
+describe('gate: a lambda in a type alias’s own type-parameter bound binds its parameter', () => {
+  it('the call reaches the lambda argument, not the module function', async () => {
+    // Runtime: `type Al[T: (lambda f: f())(lambda: "P")] = int`; Al.__type_params__[0].__bound__ == "P".
+    await sound('def f(): return "MOD"\ndef run():\n    type Al[T: (lambda f: f())(lambda: "P")] = int\n    return Al\n', [undefined]);
+  });
+});
+
 describe('gate: a comprehension’s later iterable skips the class body', () => {
   it('a call in the second for clause reaches the module function', async () => {
     // Runtime: K.x == ["MOD"]: only the first iterable runs in the class body.
