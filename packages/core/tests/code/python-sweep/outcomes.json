@@ -106876,6 +106876,3730 @@
         "type": "TypeError"
       }
     },
+    "member-base-attr-write.class-body-comprehension-element.for": {
+      "hash": "aac764ffa958f41c2f25fe3afde9e5c95d8eff2f5cdbd2f000226d5c2a9e62ad",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-comprehension-element.if": {
+      "hash": "a70868c3b319e89e765a01bdd7e5b5841ae44e4d828653bc44bbd38453a8f69f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-comprehension-element.match": {
+      "hash": "2c84eddd66948cd321698d755023f372c6b2c5f805e8777b4cef1e3ff0d7836c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-comprehension-element.none": {
+      "hash": "09131510fa47e80a6fe4eb3477f0e6b1695555f57b4c3d691e5566cc571bece0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-comprehension-element.try": {
+      "hash": "647c84bae9b545e3788a4c6a06d1b7b13a3d03ff483bb273edfb78fcafc383f1",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-comprehension-element.while": {
+      "hash": "9ea9682d9a7d18b5fc7b45482d8a5421ffa2fc4bdfe80ebd12d612c013329d49",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-comprehension-element.with": {
+      "hash": "a7b52744474fbec220bf6e0c60e7b10e55eb45af8a4c1491386ce9baf97ef3b7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-comprehension-first-iterable.for": {
+      "hash": "0a0865853ced61447a2de484585fa7f1f298347688d1592e16235c16cf192c70",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-comprehension-first-iterable.if": {
+      "hash": "4d7b5b6ddaeb79d01d14e5a189cc75a290effa38313e03ff7cc43cc656bea722",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-comprehension-first-iterable.match": {
+      "hash": "f5b88606c271b4ae9bbd954cc7ef3e03de67ad1e845a3c82019e4b681fe1edca",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-comprehension-first-iterable.none": {
+      "hash": "9dae6f064b8fd01b14bcff42f00d9a111409ba102353995f98faa0f1f953069e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-comprehension-first-iterable.try": {
+      "hash": "0f2ba32a61d34b0b30cba0c0e55cbab941eca8dccb106fffa9549c8f880e04c9",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-comprehension-first-iterable.while": {
+      "hash": "126890fe110f0da8d4aa89be36c5df892ad98bb846bbbd5e56436aea05daba49",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-comprehension-first-iterable.with": {
+      "hash": "ca80651b38d1063d491d034850a0b778afac2d657dad0c6c1fab049dad8f5507",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-lambda-body.for": {
+      "hash": "407b6510a929e478013dcbdbdb03528e18b33f983b5bc9c7c3ffa4b404636222",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-lambda-body.if": {
+      "hash": "061a7882bc86126129b8dd5c373a708a5a15f9c8156f88ce5b83af2503fea243",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-lambda-body.match": {
+      "hash": "8e6be0cacb4dcb55ce6b4a6e3ee6844a3e5df439df6826479e966436f4f718a5",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-lambda-body.none": {
+      "hash": "53f7863a8a492c65b472157c5c9ceb1c7919bc80e00edc7f5f1114de1f7157ba",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-lambda-body.try": {
+      "hash": "488084675efa54579477da53befd4588b4a4ec41d6e0099e40a8a004a1df9046",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-lambda-body.while": {
+      "hash": "fb65272a0c7f4c77e1819ba8abef7d81ca66521cfcc6b6ab6f65a5590bffc7de",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-lambda-body.with": {
+      "hash": "fa23c9a2588156686dc860986f695d360db2b958ddd4cc6122a3859964fbfeed",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-type-alias-value.for": {
+      "hash": "6aac2718e5a9df8f49a91d28f3df45f37af461ecef79ef1b51381cf391404927",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-type-alias-value.if": {
+      "hash": "6459f0bc30a8d96f493f1518620be3bda858f7d7eaa195cd9da1c492db32f6e7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-type-alias-value.match": {
+      "hash": "5297bc35802bfeffef53e580a20983f5d1016570939b29334b79cb4ad9aebbe6",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-type-alias-value.none": {
+      "hash": "651c0719871e7c83381c707972c2af05a47eb7f2be0b309b7d6438f351fa336f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-type-alias-value.try": {
+      "hash": "9d75a841247b09cf179892503ea16df0c72cae8c4f7f03c48a39d5acad791eda",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-type-alias-value.while": {
+      "hash": "b2f97c0258a6fffd9a3df8860f3b3e13686909e6834c088da938628a027866d0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body-type-alias-value.with": {
+      "hash": "306b1e368e7123a1bcd0efc6a44af8c794367a4d49e726c7a33ae005162e7228",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body.for": {
+      "hash": "6dda639b19dda29e5bb17c68d7e9d3a30b47f24b7a15aa2d57714d2a73728405",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body.if": {
+      "hash": "1a9e0b2065a2d759c4c3a70a2722d3e6940864dcabb65e1afa616c4a6bcaebb3",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body.match": {
+      "hash": "2e79634e4b35a0ea6fa0b1bce0e80c3486a16f1da477139a52413b738e9fc25f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body.none": {
+      "hash": "8fde3895524ce3605d5ff8f834cacab566e25527121a53376124cdb89cc3d601",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body.try": {
+      "hash": "ced59faf932a7ff5a0bff47c089c3b013d7f1e03f9a99e9bd16b94967d7921bd",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body.while": {
+      "hash": "21f94dc8d473a09364b45841dee39d7d276da21c5094fc72aec110a90feee775",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.class-body.with": {
+      "hash": "e46ee7fc72c00a59365aab87aa7f5276a9e4c56d4e4427595e5970b0286ca005",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.def-in-class-if.for": {
+      "hash": "3f0fc9daed4ffc49edeaadcbeb95f04ab690ca9ec48ad2fe10cfe12f850423a0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.def-in-class-if.if": {
+      "hash": "94f629461624470733a4391289079d81747267d1535f9fbe1686fea95362eb60",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.def-in-class-if.match": {
+      "hash": "7653b19d584838154bfa4df5f13078abcaee7f1456e302ab7489048e3409cf87",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.def-in-class-if.none": {
+      "hash": "278dc44b31dfa8f906e573b5fef4604dc09d65c3bd957ebb25dba20aa76d197c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.def-in-class-if.try": {
+      "hash": "364a49d6d96a8290b61afeb7f4c1a7d3e1f4b16ba9ae827a44d4ed3de41dcbc9",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.def-in-class-if.while": {
+      "hash": "c1e83a94431175ec11735ac3703414edbdb79c8bc4a6024fb16b80036608cc6b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.def-in-class-if.with": {
+      "hash": "c95649cea23ea80e90ff149dd8083fa141f11c8aeef9522bc2d269d7a482aa1a",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-body.for": {
+      "hash": "222291f62369e18af867f1e808d1db674b7fb0509daca657615a1db8c7a3df0c",
+      "outcome": {
+        "kind": "reached",
+        "tag": "base.attr"
+      }
+    },
+    "member-base-attr-write.method-body.if": {
+      "hash": "c58064df51b20c5e13858e769637e358c7e7fd53b8d28d2f5234b902d3d2d7a6",
+      "outcome": {
+        "kind": "reached",
+        "tag": "base.attr"
+      }
+    },
+    "member-base-attr-write.method-body.match": {
+      "hash": "2252a694e9ec063917d284c9b03fcf9e47090b3438239b94c76d02aac44c62a4",
+      "outcome": {
+        "kind": "reached",
+        "tag": "base.attr"
+      }
+    },
+    "member-base-attr-write.method-body.none": {
+      "hash": "06c144668400dc9f7b226d9509017c1c391881f137408a98db00714c1ae33068",
+      "outcome": {
+        "kind": "reached",
+        "tag": "base.attr"
+      }
+    },
+    "member-base-attr-write.method-body.try": {
+      "hash": "8558265cf68554d640fc0bb0e52913921979f37adb3b71aae3e09728d0596d14",
+      "outcome": {
+        "kind": "reached",
+        "tag": "base.attr"
+      }
+    },
+    "member-base-attr-write.method-body.while": {
+      "hash": "d9c1896de6b4f918d851d9125efba69f2ad79688e6e94cb0b44d98c8b1234aae",
+      "outcome": {
+        "kind": "reached",
+        "tag": "base.attr"
+      }
+    },
+    "member-base-attr-write.method-body.with": {
+      "hash": "15c2d3f2aa6320a321586509ee8b7cfa7b748ccc1e45a6d989ebd87ce9a506c0",
+      "outcome": {
+        "kind": "reached",
+        "tag": "base.attr"
+      }
+    },
+    "member-base-attr-write.method-decorator.for": {
+      "hash": "6a186db6617189b4e630627805a6bd8f948357c201a91fada3a59098b8c991ca",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-decorator.if": {
+      "hash": "4ec36e85d4b20a41ee0c68b5ea38a6fa8a492589901f40229be811e921fb4d61",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-decorator.match": {
+      "hash": "9ffe9914ff5fcd1f8f4c4236eb2a1f40ed3fae195c398a4895992030a455042b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-decorator.none": {
+      "hash": "5ff9d6c915b5e4962da4f0a999eca28535722416e35f894e0ee1bb5fd6a3f863",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-decorator.try": {
+      "hash": "5a8c288782df52c9afe6e42760803ed331d05ad958ec3d0e0ac213fb773a7b39",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-decorator.while": {
+      "hash": "0ea0501a35e23e402f185496a0d061c72c72a11047c3f5e8510497f8d9cf9d77",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-decorator.with": {
+      "hash": "2d48a32639905e4117d8e0a368cf62fcfba98c00cf17da1c07a62c88bb62bab8",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-comprehension-element.for": {
+      "hash": "2950aa07ae80abbba793e1dc9a2a9e176a3bd2923ce42bb5b8218698eadef7be",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-comprehension-element.if": {
+      "hash": "315aed3a7657d7ae28a90061bd2a72a3f8a99a239195cb4b7b668cc139429762",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-comprehension-element.match": {
+      "hash": "5efa1cb07b2a476b65127537d510e0e0043ff3f8aedb73f4a18d1fcb835bb672",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-comprehension-element.none": {
+      "hash": "30d1674e49bc63441065010cf873a1d44ba39dd47233a8445a76dce6d1f583ad",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-comprehension-element.try": {
+      "hash": "2e9eb73ce9253a4d94dd845aa8b9bc8a265dda00bfb21b07dddefe027bec6734",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-comprehension-element.while": {
+      "hash": "d5c8f61617c8d21e8d85339387251ea2c7939b41d2b087b3c0f566ab16d0d6db",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-comprehension-element.with": {
+      "hash": "1a776acbdea7f770edf3ade072c9ebb511d3a1d81171e513822e4fc2e90fc2d3",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-comprehension-first-iterable.for": {
+      "hash": "70a64b8d5a859c1b9543951c79fef7887d5c8173f59417df58eb0eeec17ab6eb",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-comprehension-first-iterable.if": {
+      "hash": "14a45e5e7ae76b476947a8805fdd0f7b070e06b576a7c5579a13ae21e08ea91d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-comprehension-first-iterable.match": {
+      "hash": "6d4f600b90b6ad743bec24859cae19b25d2493210f0e3cce3a3f0381c12a5bfb",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-comprehension-first-iterable.none": {
+      "hash": "11781ad5157065766be15ee941b9de72eec792866395d77111d7910ccaf23839",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-comprehension-first-iterable.try": {
+      "hash": "4ae18c94ecf1f3e8b6ae816744486cb55011fac1da6156363aa32999543b2ade",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-comprehension-first-iterable.while": {
+      "hash": "9a04c47d5d609ca33bcaaf2f08b0260c56fde8cca724f53554208be9e3203f2c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-comprehension-first-iterable.with": {
+      "hash": "1a5bf99b02cf29637e22d0da2b952a177802f1b0ce2e01107b96c41830bb6603",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-lambda-body.for": {
+      "hash": "0dab2d336da2583b2d7c77089fdf82d66bc6a1d3627791cabde6a62b6853383c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-lambda-body.if": {
+      "hash": "8f323ae78c19b0145afa92c09d583f9dca202081af1b5039ce241eed2d04766a",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-lambda-body.match": {
+      "hash": "37755494beb44a55bf8240c94f9785ae8ccdf640d4377fc50a278ce3d1f1aa31",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-lambda-body.none": {
+      "hash": "a20ddf6097afff3d0da3ac98520aad888addf3d5e03010d5e4ea00e3254ab407",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-lambda-body.try": {
+      "hash": "5df723d10c756e3e62cb19e449b389c34b7b875760c6f4c14f05cca958b25d31",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-lambda-body.while": {
+      "hash": "6f1c7b6369785f54ea8b0b5869ff6c607e4847c9c5385f6e9dd2d041400382d2",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default-lambda-body.with": {
+      "hash": "e2a38722ef08f9a258aefa576673711a8788e81cb585e9213a7e25ddee0da5df",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default.for": {
+      "hash": "ab1bac5bd433f7022f3cc2eb57691a9928cdfdc80c094b53f6af835d5ccf3937",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default.if": {
+      "hash": "278dc44b31dfa8f906e573b5fef4604dc09d65c3bd957ebb25dba20aa76d197c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default.match": {
+      "hash": "5df7088732b8f11cc722230c182184f9efaca1aeb24bd8df4761bb586c25815c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default.none": {
+      "hash": "b0aaff6943efe430322b1facbb6eb69618f69d5e92babe50a0d6f74ee2a1df0d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default.try": {
+      "hash": "2ce021038d9ee7af327522785fb0a14f26c760c9a2561d049a2c10e29b23f996",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default.while": {
+      "hash": "ec5433ec6499290d67f8565390dc6cdc0170481d67f57b41ed9205a47f64d242",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-default.with": {
+      "hash": "952ef1af9ac3552734139f7e2db70e13706ceea6c1a154f16ba9fc432c0e8e17",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-parameter-annotation.for": {
+      "hash": "7303bbc5c27a4e9956c80fd013155d39cd09c02b72f660ffeca3b62cb0a2f9e2",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-parameter-annotation.if": {
+      "hash": "0d0bd9dbbb5935631f16adfdb6ec570022e2bcece4c6aef19caf5c950d1e4a99",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-parameter-annotation.match": {
+      "hash": "d4663c3997d843ebd21b54d09ff9e7fc5231af297301be3a5512d4be99fdd2dd",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-parameter-annotation.none": {
+      "hash": "fd9f6a3d5e8b805da0cfb742fde8ce7cc8bbade8b89b471b9022f583dd1fb90c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-parameter-annotation.try": {
+      "hash": "18c71cfae8231c5e77172c1fce41a4b46809937a81200d49a2ca4f63a1dcc02f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-parameter-annotation.while": {
+      "hash": "409c9cbba5d76218d495b881e978cdb36df091ab8ca2b34ec1bc97281af4ff26",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-parameter-annotation.with": {
+      "hash": "23bd105dd744335c9cbde982e041131e18148db20371496940a0f82d80cce74f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-return-annotation.for": {
+      "hash": "da338b3a056bb2169bd0bc04bf7fc5974e4f8bccb962a8ccdcf03859f197899d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-return-annotation.if": {
+      "hash": "aaa5ca59dd956b1561ca6d7ff23e58b6472d9887409716d5ede1f2aaf8483e0c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-return-annotation.match": {
+      "hash": "9026a2063e577432affc93f0bca87b98e534634fc5e2e9094bf98956b729e7d1",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-return-annotation.none": {
+      "hash": "68d140b227d2496faa829f4613d46c1bac8cee5815c3cab00c086b0055c0290c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-return-annotation.try": {
+      "hash": "989b1465e38c43d80cf8d2f2143f1599c4ce74c3f6fb06f7972e08357a71a353",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-return-annotation.while": {
+      "hash": "e3631d32bc00c27e6884464974329580636f06db6308d8fdbf75fc475d853ac7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.method-return-annotation.with": {
+      "hash": "9e42e5946af4d71605ac0982a27e516861b08b1c13d0a993c53978184f269e11",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.module-class-body.for": {
+      "hash": "22c62e10bd9d3851c3ae6a6fcba7f7b4c9cc01d73178abf4504e938c6e2ed8f7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.module-class-body.if": {
+      "hash": "cf106d0825dc804b7a90bf80231d56c281bd7a4cd6326e4c93a3248b152a6d64",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.module-class-body.match": {
+      "hash": "930668f0ad5e704c47484e91119c27c05703fa69fd5c246c4fbf5d09facf9efc",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.module-class-body.none": {
+      "hash": "15c77d99aba5f5b599846817e81c09d4789d72f6192696ec609518c77e873cfe",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.module-class-body.try": {
+      "hash": "da6efc416c72b24fb3c7d8184eec1d102b1078155bcad4dc7616e7a381bfb939",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.module-class-body.while": {
+      "hash": "28fb78a7bdcad4f59f36b04c8fc355835792c176f21201b5208c59a0abfb67a4",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.module-class-body.with": {
+      "hash": "d8ffc6fc8244cb4ed93835ea42bdff05b0f2861ff30c42a7590631e8757be8d4",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.module-class-method-body.for": {
+      "hash": "70bcac8824378dbf3d3dd5ae2f066f118050d72213418bb8ed59a611b5d61922",
+      "outcome": {
+        "kind": "reached",
+        "tag": "base.attr"
+      }
+    },
+    "member-base-attr-write.module-class-method-body.if": {
+      "hash": "524b23aa91b75adf1ebb6b07622504469512f3703b5f71bad418235b6991ad52",
+      "outcome": {
+        "kind": "reached",
+        "tag": "base.attr"
+      }
+    },
+    "member-base-attr-write.module-class-method-body.match": {
+      "hash": "4e1e55668fb5e983483c1da96811d367f2f2fd07ccfe391a86e03776edf877a1",
+      "outcome": {
+        "kind": "reached",
+        "tag": "base.attr"
+      }
+    },
+    "member-base-attr-write.module-class-method-body.none": {
+      "hash": "a7cbfc0b45e4631e7bfcb0b4f43aab2d8d5a28b4a7289032f7fb7ea25a5eab3e",
+      "outcome": {
+        "kind": "reached",
+        "tag": "base.attr"
+      }
+    },
+    "member-base-attr-write.module-class-method-body.try": {
+      "hash": "345982530a64c886862f5a1ec7c6510099eb253cef94af71d2f2ca83889c94be",
+      "outcome": {
+        "kind": "reached",
+        "tag": "base.attr"
+      }
+    },
+    "member-base-attr-write.module-class-method-body.while": {
+      "hash": "f75023ded587abad9d68aecb0979e06475fd1715d39d12b35027bcce6c2fb334",
+      "outcome": {
+        "kind": "reached",
+        "tag": "base.attr"
+      }
+    },
+    "member-base-attr-write.module-class-method-body.with": {
+      "hash": "8e5cda12de306a3d3eee39164563040e43bae7a630ed23d88a6de1c7036dc152",
+      "outcome": {
+        "kind": "reached",
+        "tag": "base.attr"
+      }
+    },
+    "member-base-attr-write.module-class-method-default.for": {
+      "hash": "3866c768585c27f801ebb49e987b6c00270d4a7bceb5e9b5b294e2fa0bc3043b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.module-class-method-default.if": {
+      "hash": "3ec2d34dfc4e460eb0bad3aa2d9c0d81856cb70213f47de44b52f68dbbd2d517",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.module-class-method-default.match": {
+      "hash": "59f76e747577d4f6f0ce66dc98f20fc2eb961b65095947a7cf80089c49e5d25a",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.module-class-method-default.none": {
+      "hash": "d5cd5eb4dd3ec18938d2436a5256242d34f186a4c5d332c6750d235d06762e4f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.module-class-method-default.try": {
+      "hash": "7b2945d0c0fc0d2373a070afb31ed2dfc0291cc36db3b796b0659fe0b9853435",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.module-class-method-default.while": {
+      "hash": "9dbba2749bb6c149a898fd7ebef0c5bef7dee4762b475255bc4a2f1191de4967",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.module-class-method-default.with": {
+      "hash": "d3fcd9c43e5e95945eea058293219fd39a0102f3f709914b954bfa3953985e2d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.nested-class-header.for": {
+      "hash": "5180b1f1f3dc38188d6f1f7647e8d4d1ebc892af011ec72d65d65b30750db15f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.nested-class-header.if": {
+      "hash": "d331a029824052ab56f8d0a131b4cc584dca70c70797533fc6bba495d7841add",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.nested-class-header.match": {
+      "hash": "05bedb5a9cf00972cea81683ac45d6f250c9d3ac4b88a71adb5cc19c45f129b3",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.nested-class-header.none": {
+      "hash": "29f366f27cba9b09925205e7c848dd5bcfde174821d3b21bbce5908ee94a3ecb",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.nested-class-header.try": {
+      "hash": "bb1cff6f6b29cb8367d351d448772335ffd0b74beeaa2c6c762b3a229895187b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.nested-class-header.while": {
+      "hash": "7db74b52cd6d1eb2fba92a503653858fb13d80775d99c4926634ec6d866600e0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.nested-class-header.with": {
+      "hash": "093bd58e4b850f1fb6b90bcdde2823f6d214fad4a0e73278e8bdaed1283c490a",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.nested-class-keyword.for": {
+      "hash": "aa24a7e385b61ab58b489dae574af3cec7be42f7b33f599c3dcf07f23a25e27c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.nested-class-keyword.if": {
+      "hash": "e76005b900694a2303690189507b501063bcef7e9138b080eaa580031cbf2af6",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.nested-class-keyword.match": {
+      "hash": "2b95e7d0597a919ff0ae6209d90702b1fd56ae99d12f9ea4c5d55660ee55a896",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.nested-class-keyword.none": {
+      "hash": "13de2902a3c7258f5001dac14a33f381df023d524e816b966549e9f0d44b5c73",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.nested-class-keyword.try": {
+      "hash": "69c34bc0a3388439dbff836065768ea05b5086ce9c40ec5c5212c9a87f7ec845",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.nested-class-keyword.while": {
+      "hash": "2b11e639605363ed757a2c5778557dd520430a36321e75a3b4c16802074b6a52",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-base-attr-write.nested-class-keyword.with": {
+      "hash": "c2eca7d08c56243f773ad61f8fe4c3948328a809685fc536e6860198500a87be",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-comprehension-element.for": {
+      "hash": "a370c5d933a0a70335b0e3a7f76c227904fd075a41aadeb76954cf924c6bc8b7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-comprehension-element.if": {
+      "hash": "bf09007b39eaaac4b1ad5121e94a27204733a8f879496a2520fd879c0692a795",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-comprehension-element.match": {
+      "hash": "b0c1079f7c67103460e8e454366e16c16d55af759c41c5612dd2c6353309549f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-comprehension-element.none": {
+      "hash": "c27c01e802be8636e213db47d7ef606b3f136e1f7610295328f781efd13d90e6",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-comprehension-element.try": {
+      "hash": "9b8ee90dabc16564a5be9f092ac8d4dccc48fe73655c346504f904f38e582041",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-comprehension-element.while": {
+      "hash": "f71edfba97a78d6803e89cfdf0ad077e3222f83059ec2f3a1c8e80c9e24fe0e5",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-comprehension-element.with": {
+      "hash": "e88bbf19627b708517055a97011be31c9723d11da9ad428dc325996bcd49787d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-comprehension-first-iterable.for": {
+      "hash": "381fa73d2e94123b4f6680326aac3939179f663debb2efc8703884ca2ffe8315",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-comprehension-first-iterable.if": {
+      "hash": "5f1066e01c3329281a1c6b182c09521945063c23c696f0718c5fb263989e306f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-comprehension-first-iterable.match": {
+      "hash": "800986b9a35dac5828231c82d036ee22bca5afabf83a6b5a9924ac19bfa88e03",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-comprehension-first-iterable.none": {
+      "hash": "f625ac6d6a2519f00e300cd2f0f3fe0b7a3fbc5ef57619e82124411d59e97fcf",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-comprehension-first-iterable.try": {
+      "hash": "b8f42da6765cbaaba888e192120181e2ec44a35c55bfb9082a5d638f34a3a5d0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-comprehension-first-iterable.while": {
+      "hash": "bbb5bff75fed42edb35a960d42c9430487c83a5e63a0c2a67b36010503d3fc15",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-comprehension-first-iterable.with": {
+      "hash": "341b978522955cefd127c56d739f83dc117781b6ecadd7b90aaed9e1aa73f4b8",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-lambda-body.for": {
+      "hash": "481fe481f40a20c5bee22249354eccda1aed7526b9875181017eb2f2a0cdb2b2",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-lambda-body.if": {
+      "hash": "29fb2cdccb7839092a7a2891edc5d583052a5bfb2af1c265c4509055c521580f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-lambda-body.match": {
+      "hash": "35f5016623ddac1e10149209b3e20ace37fe813b86735f54baab37a60649db1c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-lambda-body.none": {
+      "hash": "42a4930e651eb7153a4e7dd5b79c59a0778f32823d30f5a705bba25a6a1daf9b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-lambda-body.try": {
+      "hash": "15f38daa2daaca939f041078e9b2b42a8336b3e7728f7a2acf122cb35e8d726d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-lambda-body.while": {
+      "hash": "ea579a88428a6868ceed415374be16b67363d56905dda0cd9bc029ddf9d19444",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-lambda-body.with": {
+      "hash": "9fda2e29823b4abe3ca1f30f1ccfd76af37cc19c7e4428983eebb853aab280f0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-type-alias-value.for": {
+      "hash": "edd62f38cb40bb883b9a7e9bed59a247a80d104077afdd5695ee789b505b7c70",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-type-alias-value.if": {
+      "hash": "9aa1cfc85b8a92e14c226ae6c2a56ac75ef8f0ae68c3b050c4e70fb287b04732",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-type-alias-value.match": {
+      "hash": "c44a6d1dc3948d7bd79c03f0e08443475d4186b1bd7440af49d2294e35824cf3",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-type-alias-value.none": {
+      "hash": "ca085d06a1e0468c7fa28753302c6136fd48f1f1f8fb05d77c6c353e61b108cc",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-type-alias-value.try": {
+      "hash": "d423375b2dbb7fd6b334386d1c5b04e8d78ef7a35b598598c70ac3773928e36a",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-type-alias-value.while": {
+      "hash": "0e006f800a49c0611442e0812e7301b8bfae553974f230f515390fe37e686011",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body-type-alias-value.with": {
+      "hash": "612dae469291f47d1cda6020373e847842e46f3354a3e4dfea9ba08cbf4c826e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body.for": {
+      "hash": "d46289e9823334f0deffccdd5463b56c13eda0dca17a9dc4e64a1364bf80a6c8",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body.if": {
+      "hash": "eb08327197264e1ed88cbec34b3e44ca5278a8fdd1117dbadd8ab6ec9fb1acb4",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body.match": {
+      "hash": "2dcebf03687e1aacf7025e5884c34fd5888ed8c06d45de6e01fc82b5da0562ff",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body.none": {
+      "hash": "1d505ef256eb5376bec7b17f5198af0095ddb543bf7731c9bb7d6e34d97993ca",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body.try": {
+      "hash": "cf780124b572a0920f3794559e578eb95359071de649d93978eba94a89110d5e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body.while": {
+      "hash": "c1c225e4d451573d4323a2637a9ca44a65753caa534b8551031dc294ab3b1a06",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.class-body.with": {
+      "hash": "8be8ac67cc84654609ae30ef98276da530ce9210b0dad3b72238d3605061e393",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.def-in-class-if.for": {
+      "hash": "a3da21038a9a7ab8b2bb4da45beca78b162cda137698c723510a3eefa390689f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.def-in-class-if.if": {
+      "hash": "f79c077946c78175eeaeeeaada53703fad6f703b7ea9231dfc81b6336a684886",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.def-in-class-if.match": {
+      "hash": "183177f05f3babcd0af6ae07d263eddb4a40d6569c3520852621dd5b13423f82",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.def-in-class-if.none": {
+      "hash": "df515609ed6eb33cb6dc37f65167deb722fbee0668912067a948c0295a922180",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.def-in-class-if.try": {
+      "hash": "f435f630007e52b4f70bd691d3379d72d12844ca94d85ce0fd6bcca11813288c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.def-in-class-if.while": {
+      "hash": "e5f3fab74242af538717f9d19ad0abe1665236e6a36b73c1e40674ac18a5f339",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.def-in-class-if.with": {
+      "hash": "f628cb4d6bab3e479c865989ee5c1a8c3615e9d8d20d9c40296473fce839f9e6",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-body.for": {
+      "hash": "af3fe6a320b684b3426f68ccae8472cc005573f6ac412c37bce5942f4d4f7b28",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.deco"
+      }
+    },
+    "member-self-decorated.method-body.if": {
+      "hash": "e105efe443ea3bd790ab3855c20e2755aefe01b33e6215c38d0bdfbc26108896",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.deco"
+      }
+    },
+    "member-self-decorated.method-body.match": {
+      "hash": "ba2a32f773ab08f328ae913a77827e041532e24b80bb953b5d709a921e47c55a",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.deco"
+      }
+    },
+    "member-self-decorated.method-body.none": {
+      "hash": "bd326639bac98653899da5546e59f932751cb4cc0beae0a37ce1202a113a3f92",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.deco"
+      }
+    },
+    "member-self-decorated.method-body.try": {
+      "hash": "8a45d3b0d18c6ff650874eb2607d4df766b5e40caac9af589b7c135a9389e78e",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.deco"
+      }
+    },
+    "member-self-decorated.method-body.while": {
+      "hash": "5a8e82d22256d263b1b09434ed2d23d0d22ef1554cbc5a8e2c17576627f81814",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.deco"
+      }
+    },
+    "member-self-decorated.method-body.with": {
+      "hash": "77e297cbee7e2b5f8f31ae65d567ff802f5d615768a299299e410234cae88565",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.deco"
+      }
+    },
+    "member-self-decorated.method-decorator.for": {
+      "hash": "810dc2d656307f2a7f994fa78f1e1e45eb688143526ae6cfae661f043524c564",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-decorator.if": {
+      "hash": "902a25fae1bc2b053c1ddc0422db71aa5769feb54c493ab89985083800a2e17f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-decorator.match": {
+      "hash": "e119c4f309d7ddc54c0270c90cf039986312765380b661b7e504446dc95e81d9",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-decorator.none": {
+      "hash": "fda8efa2631127cf23c2f9b2211aca629de6fc421ecf23efedd85e9d7ef9417a",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-decorator.try": {
+      "hash": "2dd8d1daf01516291f430bf7d55af5a3af26b9c15d84361d838bf17837d26bc2",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-decorator.while": {
+      "hash": "5e1e806c623d14524484061b24ea680a5463ced2b4f579599ed698ea47fbaee4",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-decorator.with": {
+      "hash": "7b93034ea68520f29b4bb04dc9a77129ad5bb2ce1db4d758652cf9168e3b195e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-comprehension-element.for": {
+      "hash": "9c9ae51c215e4090c95564d22c783958f02714b303af20d49e0ddd5d9134071f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-comprehension-element.if": {
+      "hash": "65b0c345f9cedd5b3dee468a4a2407340ab31f15fb4942fef933a56889add33c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-comprehension-element.match": {
+      "hash": "3c28f72d05854f5fc29593d600adf5e945eabcd3474acdd87950cc85dc502b02",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-comprehension-element.none": {
+      "hash": "29831ad329ed301f47b9c0e248b3a40966e120d49abe9a551989711fdbd58f26",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-comprehension-element.try": {
+      "hash": "8e8dc49fe40aa7819d7a11589c783e39f4692e304af00ec5eb29b3b2fc4049cb",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-comprehension-element.while": {
+      "hash": "8416b122a7794e5ec2de968a28b7f7da03e340ffe1857c3642e90893b04fcc92",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-comprehension-element.with": {
+      "hash": "cbc9b88132fcfee23fbeffb4c05391ed670409b4e45b1ac1d6bbf7d1cae516f7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-comprehension-first-iterable.for": {
+      "hash": "66c9a05916f852871f465828eded1d60afc6c317f530ceaa43ded60fd7d8a649",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-comprehension-first-iterable.if": {
+      "hash": "3012501a816bd0cca18916184f188fb2985b0f2d69e9984dc3054cba99cf63c0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-comprehension-first-iterable.match": {
+      "hash": "c52311eec95b30a77d8f0150b30e90dbfc972348d0033b2b0cf959d10a3cf49f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-comprehension-first-iterable.none": {
+      "hash": "76bde59ab3391e1415816e06ae6de49ca4ceedbf8f8c63a050834105897ee69b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-comprehension-first-iterable.try": {
+      "hash": "a16d0677d84c74773906359c04755921d5a70d9f633e60c9eab320155107fc0f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-comprehension-first-iterable.while": {
+      "hash": "9800aef177fe92b848d1582646bf024bb794c4a0c6e98cd4ed9dabba8698bd5b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-comprehension-first-iterable.with": {
+      "hash": "fa6b70664adc8ec81bfca1519a9173881e7fc2efd05d6a0239cfbcee0b0ca3cd",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-lambda-body.for": {
+      "hash": "891d3dad5ba6a0533f1aa78de60439f3d2c027d90d1c5dddad125d1ac3b5ba0d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-lambda-body.if": {
+      "hash": "a9aa739d7a4f52a1d4eb67fef1f7d0082a1e1c78090860a42a67fafa322316dc",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-lambda-body.match": {
+      "hash": "48b01ccb3f3f7845ddac6fda0b04004bc51b738a687951d811ebd1c1f86fed39",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-lambda-body.none": {
+      "hash": "9444edcbe0bf901a07a0d65d67b75e55ecb39542bfdaf279ab42ce826180fab3",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-lambda-body.try": {
+      "hash": "e905b2777a908363a6e92801c0637095f496c0a737cd95a70907342bc7ff3f8d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-lambda-body.while": {
+      "hash": "3b39324b797e4f4658af7f1daa6dcad4cdfe6f53dbbf7aba4f965bb32c44cf28",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default-lambda-body.with": {
+      "hash": "74571b926f008398f05e9970d555f1632ce7c47668f670f15678c32a1ff4035f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default.for": {
+      "hash": "77a18d7163db1da4336e921fe883ed584d561662605cb8dc355430482e1361c9",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default.if": {
+      "hash": "df515609ed6eb33cb6dc37f65167deb722fbee0668912067a948c0295a922180",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default.match": {
+      "hash": "3533baa2e53841ac8276ed9128342363ce6d3500af3600081fbd36df5941fa64",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default.none": {
+      "hash": "10686e67578c2cf68ce3e3ecb1fa16d4a92154e657434953544ef0238da6e2b8",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default.try": {
+      "hash": "ac527616b5ff31bcf8cc30585c800afb46d630304d1bb56015242723a7c44612",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default.while": {
+      "hash": "0fae7d6d9b80d30fc60375bc8c9c95cf2292bb363c368cf593cd694b46f05ed2",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-default.with": {
+      "hash": "7fb453dfc39a8a0b80d610a82d9ac0d3b9bf176b100961daaed9393397a49c2e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-parameter-annotation.for": {
+      "hash": "e9a9b8e4acce683cef9b37ad4f399ea22b7fe4fe020f2246da402ddf6e628564",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-parameter-annotation.if": {
+      "hash": "3110a19932a39a1d2df60dc5d6335162acf1ea0291a5075e72d90c77dc22368b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-parameter-annotation.match": {
+      "hash": "c8d1d278cf02b370b4bb448fb371527d02ace238ad4950a73ebdc66a7291a19c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-parameter-annotation.none": {
+      "hash": "b3e91bfb3b6f0a6f03b6f223d9b253bc55476be258e5158ed81709b229cbb76d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-parameter-annotation.try": {
+      "hash": "9e43bc6b231245edceca921dcab575dd446a182cbcbd3dd930bf4ff24adb691f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-parameter-annotation.while": {
+      "hash": "b16e9d5fb9896623b6ca915a8d0642151a23c6f3a78d84175770e5f550327d19",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-parameter-annotation.with": {
+      "hash": "b07758ff27731d72d3dc2210df9c4bb1b674ddb12242b6dea2537baaa6c49d47",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-return-annotation.for": {
+      "hash": "ed2a8dd850095e8cf042866b491373cefaad654ecd1c4ed2676e819363e0ba8a",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-return-annotation.if": {
+      "hash": "a79a5a9242f1c6e5e23a23f96a1fc590195b45b4ac910cdfa7af0c93160acdc1",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-return-annotation.match": {
+      "hash": "134f040b76a2ed49ed0b8809bed9f6fbd8e80542329b1425c19aebdd610429ce",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-return-annotation.none": {
+      "hash": "518b41269e3c7784e3fd5ed42815e647897963e31f4eacf75df3ee29cb1f3059",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-return-annotation.try": {
+      "hash": "7fb4afc18ba007625fc273419403f094aec8799a5135c29359b64d47982ed992",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-return-annotation.while": {
+      "hash": "cf51dc4b1684a8c27943190e65c6585527c361d52f515f703c3f861dd27516ae",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.method-return-annotation.with": {
+      "hash": "278c9747ee6bdf76f0eb42675b771ed1a0d2810a0931632a23dffe86c2f9892f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.module-class-body.for": {
+      "hash": "b9fb597f622ff8459a44e0864caa5c36db0c9f7fdaa553315244e6b0e1dde210",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.module-class-body.if": {
+      "hash": "a62e23a02a18a1e7c86fdda2e9ae16d1d4ef531274d21b5d66d57e079ad182a7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.module-class-body.match": {
+      "hash": "82deec0980b7b85262728214d043c237a4a9cd1296f307bc72a19ed3309e6ae7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.module-class-body.none": {
+      "hash": "ffe7448f903ac2b5e1103dbce8ef7c1376bed2d1aaa8d204809379ef9818d9de",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.module-class-body.try": {
+      "hash": "2ab453c7965de915abcb050eb06b1c4e9924436a6a76820a1812090aa3a6b655",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.module-class-body.while": {
+      "hash": "0cd43bd9840e539d6598400b38aa0ed3cb206a9c90d1dbc2b5fed98833fca2a7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.module-class-body.with": {
+      "hash": "7c31941137758af4191e9e9606353bfbb4e442bfc82e2e6fbfc3fb31d79f16e7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.module-class-method-body.for": {
+      "hash": "d9ca88c1e036e9ce37dbcc28881457ad1d97377045642aaa57381fc3f6217bef",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "member-self-decorated.module-class-method-body.if": {
+      "hash": "6a61e351816c457e15224f4493d8569e5929a91a58734cc3df88381afed23a68",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "member-self-decorated.module-class-method-body.match": {
+      "hash": "c4d5745eca69eac21c00a893c8e6561d1b66b8a9451d4a31b15ce48c5227a473",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "member-self-decorated.module-class-method-body.none": {
+      "hash": "12f5845910bce798d9838170e011a4167de9fefaa5dfd6fd0939f2e85d4b86f7",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "member-self-decorated.module-class-method-body.try": {
+      "hash": "5b846188e7f505f60b927c177f5e9cb8656cd5893a162c8f4c0c31b2e0b52ef7",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "member-self-decorated.module-class-method-body.while": {
+      "hash": "c9710e65f17c3fb282adb60dd7038d09cece67afbef991d53779955ab8d8e9ef",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "member-self-decorated.module-class-method-body.with": {
+      "hash": "7147208a7d48de46af47a93983ca8e2ea02353e9175fa1d12583097a087eca4e",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.deco"
+      }
+    },
+    "member-self-decorated.module-class-method-default.for": {
+      "hash": "357853d4f8c92fe05086dd26e10481e326b569b0a6ac3fa656029dec7f6de2cd",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.module-class-method-default.if": {
+      "hash": "dd5cf7439d820ced7c1cf7c871ec792eca010f0727d4d66ffbe59ea2ec58cd71",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.module-class-method-default.match": {
+      "hash": "1cab913652e32060e4f8ca93610b72b396948e417a378f5cba4f7ddd7d579b60",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.module-class-method-default.none": {
+      "hash": "4e6facdb6346f0ef58dac69ad929244d1583f719dc0c6fa188a4ebcf9dad73b2",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.module-class-method-default.try": {
+      "hash": "07ab4931b498592bae3a23d139bc80d1db22921133a87a0fba398753e29d3687",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.module-class-method-default.while": {
+      "hash": "e72bbd0646fbc8fd3373d579336dc5577dc27f56a1c1d5c9f94aa02070c1a829",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.module-class-method-default.with": {
+      "hash": "128ddd56ce5885469f9718b191e9a1e260176f64de6d600f6f03d8cd22fdaca6",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.nested-class-header.for": {
+      "hash": "aac2ea4242223effca0150b5e1fe156b6e7a511eedbdfe47dec39cff490b16ad",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.nested-class-header.if": {
+      "hash": "6373aee8b2cbbfea537d82e9c21590eb9beb84920eddc4d8d37ec839103ff465",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.nested-class-header.match": {
+      "hash": "bfccba142412ceb58ea4b09afdb849fac10cc76f9d38c48af63ab8468a6ab0c4",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.nested-class-header.none": {
+      "hash": "fd27af65b9f9f2cb9784c61a1bcc893528ba2d7c24a5ee3f9a79c0602bc93866",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.nested-class-header.try": {
+      "hash": "3c836a7358c090d635f2332fad8d77e63616c81e1db09e56f61d3fcc2fd9ec97",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.nested-class-header.while": {
+      "hash": "02a1084d5c09bf5b59fcd290ec55d5a33d079dd2bc87bd5bfb0bf75f7fccbaf4",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.nested-class-header.with": {
+      "hash": "15dcae941586da38fcd0639cd1d2b45efb7ccaaef229a7f41a6a938df8c26772",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.nested-class-keyword.for": {
+      "hash": "52112e44cd970a5cdc3a54d14a30f22ae0e50efd5d8c4b51a32e78fb5db4331e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.nested-class-keyword.if": {
+      "hash": "54827868e372a89fe0f22c70b119ead98c3ca85f6457beed5d127d4c023dc871",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.nested-class-keyword.match": {
+      "hash": "a1aeada6f17c6f3da6d3c3905a18fadf2aaebff37a2870aa5787bd2c76c8fccf",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.nested-class-keyword.none": {
+      "hash": "8d52202c6c56270f45b425caa6654b568c5c2c61c666a8bc5c44b0b5fe6109b7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.nested-class-keyword.try": {
+      "hash": "29c0f100615fd21db6e5e3bcddbda77ac0730934a34e0864c026ec49a0bb84ac",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.nested-class-keyword.while": {
+      "hash": "7a09f7dcfa6ebbee79d091ea664d8d5c908d27b392f348114a393796481ac183",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-decorated.nested-class-keyword.with": {
+      "hash": "5ffbb0ab1725ab1b6703727ed17a608f7816d7f8f57849b5523adb31e419c0dd",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-comprehension-element.for": {
+      "hash": "9ba87175140076167f4c7ca530bcfa4cac7a5527e2a4b22fda554baa00e033df",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-comprehension-element.if": {
+      "hash": "04421c556f4e80851960f878ddc4f8ccb0cd29571f1d9fb48444fb71b80b2d67",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-comprehension-element.match": {
+      "hash": "aba1897a5f4eaec528594216cbc26f7b4ada7a83da338b2871cec6ea9177ba52",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-comprehension-element.none": {
+      "hash": "5d8cf84c78fdc0a9d4d98ddda3a8449528585d15182e711c0f77a14ef4841d2b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-comprehension-element.try": {
+      "hash": "f50979bc0e2c6fcfe3508c24e6c68cb59ef3e8001bc96bbb9f1a165ac7c31c61",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-comprehension-element.while": {
+      "hash": "edd5a2a1f6127825c278419528c1e9970378adfa8048e4f109a8dd2eb6bff273",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-comprehension-element.with": {
+      "hash": "128c1eca46f394bfa3b860b8039aed3c1eeeee05297c9163fd62292ebda15c0b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-comprehension-first-iterable.for": {
+      "hash": "911b51c503196e52f7c23eccd9c957d186213a4756b6f67945ce33b4bb0433ef",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-comprehension-first-iterable.if": {
+      "hash": "4129328fd2944dab16f0d8b4e484b7e3329799faa235d0a238be6b04511475b1",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-comprehension-first-iterable.match": {
+      "hash": "27043900763124b2d49d1f1537ff1cffd555755d759224c2acf4180f4e5e447d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-comprehension-first-iterable.none": {
+      "hash": "f82a760ac6c8632da38e95935b54c15b99e3cfe9118dc20bab5f6ba874cec389",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-comprehension-first-iterable.try": {
+      "hash": "e9b21ef3bcf7646bb4f7a50c5335722c7ea7a243795f013f55371cf9d794c55c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-comprehension-first-iterable.while": {
+      "hash": "699eeedf2e10c50935175267408f9c70b58c1747481629ec8d606768d6fae812",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-comprehension-first-iterable.with": {
+      "hash": "1d11238d5525dc8b8233377b09f3906c1f1707366a739400998fb6042d50d7c9",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-lambda-body.for": {
+      "hash": "36ed9648ece96d7d4bcf499f8fd43f19dfb5439d0704a144771443638b4b2bab",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-lambda-body.if": {
+      "hash": "9be96a200f1600442418c793649d0f70b6395093696f0ffe1be5d1fd6408a6f9",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-lambda-body.match": {
+      "hash": "a5075c1a7e0014140fa5a6381aeeb68e67acfaac3c870e92bfb95540a534ff16",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-lambda-body.none": {
+      "hash": "ed92efad9754db8fcd50fdff55ec759293bc950730038d612b06b320ac967118",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-lambda-body.try": {
+      "hash": "e3b381fc5294981aa31d9b3b8c0b3a0f56155907982d55d1857d4e0dbcd2cff6",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-lambda-body.while": {
+      "hash": "88b688b43d224ea9cb9e1853cac4fc3afe2889b02c431c0fcc864d49074f2294",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-lambda-body.with": {
+      "hash": "2a25b6e38f7ad33b1deea02eef894849d87cf87360dab299a419d4efbcb9fb47",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-type-alias-value.for": {
+      "hash": "5ca4f7e05db0fa4208af54cf13c45ed7e5086a64acc0ec90091fd8177b9e919a",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-type-alias-value.if": {
+      "hash": "725a4682e620b03c5f8e8ebbb901d7baaf910328015e79a43edd4cdaa28cd26b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-type-alias-value.match": {
+      "hash": "0ede835670f78282a8866eeede6847073a97b65fbd7c922b88a401503c81c6b4",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-type-alias-value.none": {
+      "hash": "e8f480fd3dc48ec829ecb2c9acb572471e6b5a77924d51bbd777636f4f98bf16",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-type-alias-value.try": {
+      "hash": "dc1ea736f6a1a02d51dd5aecaa2e8e16097efd9d84753a81a80b723a73964808",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-type-alias-value.while": {
+      "hash": "3265f690faf18831e9b7b2157d3684699fd8fa988f4f31f991cf72f8325565c5",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body-type-alias-value.with": {
+      "hash": "0c29b1ac22b71c08525caa7d221a0e7f83398fcdf656ec2aa69aa04bf23bcc42",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body.for": {
+      "hash": "61d395b3734983ddee3e77cc21aa0139bf4df46e53ac1de39580757f4b737aa5",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body.if": {
+      "hash": "0e90972ba9e7c5fe635808f550b43590d1d62bd48edef383b185f7edfd633774",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body.match": {
+      "hash": "9ef5a7defe00d57eb6f3ec00ca910e20630415dc0edb4511abebc10e9c8f1ee2",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body.none": {
+      "hash": "8cb3c07fc5011f2a99ccd99e17f98cba6903a87c9ade7e7c5307da28307470df",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body.try": {
+      "hash": "60b557de5d7c1a074792475634d3117a47a232951eaf2a86bfe16aed2128531e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body.while": {
+      "hash": "937e0ad728300e5f9f02d38005c0f4f1043c21eb6b9720448ed43f5888109374",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.class-body.with": {
+      "hash": "073ee091198d17bab207b7b918e53eea7b4e536ad263ce358dd7b96217602854",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.def-in-class-if.for": {
+      "hash": "f499fde2e364678f439a7a0597631a1ac0038234ac7fed4738ea3cf8caf3e64f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.def-in-class-if.if": {
+      "hash": "60a851c3180de58d2dda0e135b77cd3aee3b7b5260134bd53cf291a839b01d55",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.def-in-class-if.match": {
+      "hash": "1c532d8ae0955cac8240422bf83666ec711b8082650f211ed417a492ac526ee0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.def-in-class-if.none": {
+      "hash": "172b47de6223364e35339333a094488a7d845fd040d93c3fc2f18be47552ca78",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.def-in-class-if.try": {
+      "hash": "93739225939aa0641c020b0668b9c556257ba80ce34a9eea974b1ace247588da",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.def-in-class-if.while": {
+      "hash": "872292b0b77c6fc7cabdd371d9e0ac688e61f87588542de311a3243c5ad687e0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.def-in-class-if.with": {
+      "hash": "46e5406321ef0388beb9dbbf79d54a29d45e8474ee1162837ad49a39b96243e9",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-body.for": {
+      "hash": "a806e57b262e1f2266c95d098f7c86b07731b430d633dd22ba2f22be9fa897da",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.f"
+      }
+    },
+    "member-self-plain.method-body.if": {
+      "hash": "759faddf13aeda15bcbde310e646f64c99d169c785b458ce9f7ee5800931e1fd",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.f"
+      }
+    },
+    "member-self-plain.method-body.match": {
+      "hash": "1ec6824c52576458dafd12c39d24873eb76b5dce0fbb39ba0690b6ef3cb1fc0d",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.f"
+      }
+    },
+    "member-self-plain.method-body.none": {
+      "hash": "823b2332ac2967ca0cbfedd533b668e7c46e3df132cb572c6be5f9d574504038",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.f"
+      }
+    },
+    "member-self-plain.method-body.try": {
+      "hash": "d39241d9a611628388894abfe886ad1cd08ba8c0517bf947076840392595b66d",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.f"
+      }
+    },
+    "member-self-plain.method-body.while": {
+      "hash": "4914e3cfdc2b81af4534dc1318941fb67e14b8827dfc4a7d7d40d7700aa4523d",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.f"
+      }
+    },
+    "member-self-plain.method-body.with": {
+      "hash": "58a88f02b5c569196711a8bca97126568e7331ef6e37e007d83a660aade0137c",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.f"
+      }
+    },
+    "member-self-plain.method-decorator.for": {
+      "hash": "0230f394a906c44b6ebf1988520c54a622e692250b418eb5587b9563a01728c8",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-decorator.if": {
+      "hash": "3d9962b560e59f752ce5ab23cf42a43a25c99763572c65f5fd64fc4ea089cc57",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-decorator.match": {
+      "hash": "1f9ea0b9a70d3329fdd99aff3e175935f3df4c296e697b34bd320b6599a96398",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-decorator.none": {
+      "hash": "d7fb6de6e3cbbf9bb82a9de01c7c26fc36b09fe1b9bc334762a4bd8cce32fe27",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-decorator.try": {
+      "hash": "e340c8c8f203dee28e6bce08bc43829499416af2328bdaaec7f63f51aab68897",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-decorator.while": {
+      "hash": "aa0a8c857a929da031c1fa774d60fe4053fc2074f12ee16e67e7717d27c04a9d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-decorator.with": {
+      "hash": "107e8e810defcf343bcf17b9f7b2f26fc523b53d2b2aa9a6e6cc4421ca3213db",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-comprehension-element.for": {
+      "hash": "0115e9ba5093eb0918d133289b850cb3e981065fd969f5bf23f359a3e498e835",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-comprehension-element.if": {
+      "hash": "494d98807730dd762bee819762cf3aef854d6ace788fbd1706ced2221cdb98b8",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-comprehension-element.match": {
+      "hash": "c7c4bc84c061bcb25d9074c4a2fafd728695578b6fa0878647ad0cbd9a5de0f7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-comprehension-element.none": {
+      "hash": "7cafc0e6d928cb434574120aba4fc87b97a8880f55ab5224479aed116fee0a7b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-comprehension-element.try": {
+      "hash": "701c5a80c79645f207541ff251e89f38b4255c6620a026dd252bd0196698b608",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-comprehension-element.while": {
+      "hash": "ec595bfc1b6a15d55dff407befb21093146ddb777a322e99bf86e1a39cdc6245",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-comprehension-element.with": {
+      "hash": "e5b891ff43bc13960976a0fb4bf36aa79af59bdb3ce93b55f76ff5cf641117d5",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-comprehension-first-iterable.for": {
+      "hash": "9a1901b80896208170ad98a7ddf3dbdee0d82106a30135f6669d4f64b5ced668",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-comprehension-first-iterable.if": {
+      "hash": "2b5f678f1ff0d96acc99b64e457384a415437407f57f38266dc117e1af971be0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-comprehension-first-iterable.match": {
+      "hash": "96eea14ffbd80659754231827dcc76dd3189a7965b3c788ad1cf6cf0293ef072",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-comprehension-first-iterable.none": {
+      "hash": "190fa4029f13a2cddd20d36c260ab157d145598e6919afb360120628e5756bba",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-comprehension-first-iterable.try": {
+      "hash": "f99e56a902738c24af65254c1c6b24851eca474336f1093e69f3a2fe78dd9fb5",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-comprehension-first-iterable.while": {
+      "hash": "03e7d0d176f853e8530f3c5d008b825dd7a5e207b3688b908d51d54371965485",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-comprehension-first-iterable.with": {
+      "hash": "bab4c10c87c94da5b2ba46d487753cc42c6ef4c052c4288b7ab747e7516df58e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-lambda-body.for": {
+      "hash": "0bef589ef1f82951946efe06bb3544c8da0d1c41ccf417ced441599e2bb7621e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-lambda-body.if": {
+      "hash": "b8659b2582dfcdf4be628acaffba81a478246fc7ee7b1a60cab6f0cd67addabb",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-lambda-body.match": {
+      "hash": "69d964b5706dd255015d2358615121200ba22bf3cfd5faa8b4fcc1978e8c434c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-lambda-body.none": {
+      "hash": "19da833c22972703e946256a7b0ae098ceeb244c401c95103e8e83636898e8c0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-lambda-body.try": {
+      "hash": "638f85dd26da0ca1d7fd34bdb18565aee2bdcfc347e05f8ca82b1b1a86ba7ca4",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-lambda-body.while": {
+      "hash": "53ce54dafade0dea2914734ecbe36376225cd60a829cd381a2f3824355bbe62a",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default-lambda-body.with": {
+      "hash": "1cccf7d058be8278fe40f36b0ed7986cd157463e1a5782e571c3a6b2ca3e533b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default.for": {
+      "hash": "5990952f0c29476785287a0fc805b3060ac501ed348d054d04c1130e2b3ff8e1",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default.if": {
+      "hash": "172b47de6223364e35339333a094488a7d845fd040d93c3fc2f18be47552ca78",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default.match": {
+      "hash": "0b30ab72c18d9ab0ffd0192441ab52e67f73a553420305b74d75c996b90f8fb0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default.none": {
+      "hash": "f9f89391c934a215627311cbe7c53790843e94b0435491e58aba5616021e33a3",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default.try": {
+      "hash": "2df7d1271acb99fd8b853d4fdb75f8ea21783122189759eeae2b2013fb02be18",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default.while": {
+      "hash": "16356aa243a536753cfe6139db5d37b0c685aa767419eb877a54f017d2123793",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-default.with": {
+      "hash": "8808bb018c2c0ca9170f109afbc2e71624128899dd3fce7df8c5a5d73c6766dc",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-parameter-annotation.for": {
+      "hash": "28e02e3ed1ff1c549fd58a3b6c9fe2797c3252f1fd0082d667de4cc48c2989fc",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-parameter-annotation.if": {
+      "hash": "ce5052bc92d9c0b75a095b0e5b64fad5855176d901001a5d87a5758b9eeb5f93",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-parameter-annotation.match": {
+      "hash": "05d8c6d1ad8d255b4dec6e2bacc337db1d458346c9175c57a6272fe5b58778a7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-parameter-annotation.none": {
+      "hash": "53be6b4696385381b6eaca9f3e3907f50c551b43aa1bd480ff734bfd2086a26f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-parameter-annotation.try": {
+      "hash": "077d10477bb8927c9eb864c92d49b248fd6ec081adc3c68fcb69cb7236c50349",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-parameter-annotation.while": {
+      "hash": "96b9600c5f9658679cd2f107bcbf480d399959e96ad55518850511b5b2919708",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-parameter-annotation.with": {
+      "hash": "6086ad04f64f3fea06b406ff68e38998ef1bcf2476980c7228da5499b6c5d0e1",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-return-annotation.for": {
+      "hash": "ba1328a4327cc8569cb96efccc66c21aa1e01755e7a880c638f1f4068eaeef62",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-return-annotation.if": {
+      "hash": "0b623c12cc38d88d97268d652c4677a985d3de1ac9faedb8db9c51643801892b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-return-annotation.match": {
+      "hash": "521b5b26d79a7f1faff0ee939a44f3ac49b7df2eb8ee650e3ecbe37f265860d6",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-return-annotation.none": {
+      "hash": "f96240fc40364d85f613d6835e8f512cd82a138cd194d528e3f164e27b7d2fa7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-return-annotation.try": {
+      "hash": "bb953f6f3851abc4dae33bdc88e36e98481ae0650339bf7912428337510d147f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-return-annotation.while": {
+      "hash": "4cd0abb18243f14b817f66cf0eac26f664ebd41d387323aeb14f5081962302b3",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.method-return-annotation.with": {
+      "hash": "45ebd4ae10db4d28b46d3c83baf38c79fcf603c8abfea656877a32b303d8e8af",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.module-class-body.for": {
+      "hash": "e3bef331d64c8f0781bf271b643d813370b53310a6acfb95a3c812dcef2baf99",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.module-class-body.if": {
+      "hash": "c082027951cdd8d7e615d5edb8a1d222736b6a32ffe006b1405859eb601788bc",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.module-class-body.match": {
+      "hash": "5edf30b6cc329c0ca9b19e160bd0aa2d9425fcbd95cdb2299aa217a45d24e7b2",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.module-class-body.none": {
+      "hash": "bf92b1c04ce9111f83a0b82e3fd1f70f6283f7b2ea24b82d6eb8c858ce5d2c31",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.module-class-body.try": {
+      "hash": "1189b994e0917c6f340cc0a6680dae2c7ec9dab15c4dce28d6c9f27a5ef3a141",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.module-class-body.while": {
+      "hash": "d9d481ff76e2d102fed1b7334257baecefffdcb1db5d243ff69c5c471f7fdeb7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.module-class-body.with": {
+      "hash": "bab2fa819f1e8c9bd6f3072131ab6a283ff48269875bebbea85386fab8c66327",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.module-class-method-body.for": {
+      "hash": "aea1eda1db846f6f3f52a772e9bd4a31a5b782c6c559a7abb94af903b99e789d",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.f"
+      }
+    },
+    "member-self-plain.module-class-method-body.if": {
+      "hash": "4f9c85a149e19a28054a7a825d83a2bbe2c35f59167d07dc0a1ea0973fb1468e",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.f"
+      }
+    },
+    "member-self-plain.module-class-method-body.match": {
+      "hash": "3c99bbab9c01d7797b16ba93a30e7fba2591eeb9a8b6760e60c74bd1dd19b21f",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.f"
+      }
+    },
+    "member-self-plain.module-class-method-body.none": {
+      "hash": "fab295897307978911466cf65501b8a678da550f29a8ccd65b28d77d03ee9484",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.f"
+      }
+    },
+    "member-self-plain.module-class-method-body.try": {
+      "hash": "ffb13a2f795852639d7398daa4964d32819c875eec62f12ff07acf2833c9b19a",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.f"
+      }
+    },
+    "member-self-plain.module-class-method-body.while": {
+      "hash": "f43a4dff9eaa4f5977b43c48cc6e7b7c62a9e23128f070bcc6eeb3e21a41af4e",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.f"
+      }
+    },
+    "member-self-plain.module-class-method-body.with": {
+      "hash": "f5283abb6b399c4cb9ecbcf6d815772e1d8700b588745f196895d6f07129df66",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.f"
+      }
+    },
+    "member-self-plain.module-class-method-default.for": {
+      "hash": "fffdbb545cf3a1feed30f13ef5dfb21e60fa226a3e4b4dbcc4a1e43ce9433267",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.module-class-method-default.if": {
+      "hash": "19a6cdc4c8f080e54fcb61d6ccd331e98d9d8d9e37c3160ad3d508736fe21186",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.module-class-method-default.match": {
+      "hash": "cee9b402da5d508a0daab058511f2538320b7517bcb6e8af9d714e7a88e9a272",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.module-class-method-default.none": {
+      "hash": "d766b33810574c32f2dde375ee999cfb290ae1021e7b6925d853c55dd7168471",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.module-class-method-default.try": {
+      "hash": "c976ccff9be78a3bec5d4bf9f678e984fdb082e9b8a9a4650bbf25d5d880598d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.module-class-method-default.while": {
+      "hash": "5ce31d8234dc93dddab1471067b3d041a49eddc9ed2e23f1f63770f2ae2d4e56",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.module-class-method-default.with": {
+      "hash": "80fe5222e5cc04ce2109f1168f3cd5cf044148187cabfcddec50b8a54a5e6e6a",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.nested-class-header.for": {
+      "hash": "130a5a13e845bd6a34c55fbe906c926dd0f5a1f44c8ae6a98cc0378da594efb0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.nested-class-header.if": {
+      "hash": "e5d8a8513459d46d72c9f38ed10a66eac643d27d8e95d3a1053b08c91aa61b44",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.nested-class-header.match": {
+      "hash": "4ca8ae0bef55c22df709cd8ecba1668824739cabe9d74bb377fea4eff9260183",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.nested-class-header.none": {
+      "hash": "75d8b482666304e5221b57c10a90479bc3d8f644636744ae5db51cda6d446878",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.nested-class-header.try": {
+      "hash": "126bf363e8c1e78ea88fe9390a1c96d2a23dbfb84dc22d03da42c1e46a196638",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.nested-class-header.while": {
+      "hash": "4d2f9473387a6311580f53bcd6f4b6d613b832d7e802170f6bcd523a27e6fb6f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.nested-class-header.with": {
+      "hash": "9ead58ddfbea2e9c942dd1979059ada9d7563764d9fbe4600c18f0b66a61b2a5",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.nested-class-keyword.for": {
+      "hash": "42193654a446aa287c9d47071a70a882e0c0aa840af0b3deaa9c9b34360b5854",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.nested-class-keyword.if": {
+      "hash": "ad298c07169af3d717ebc90e3ca8d6d10d454968ad3c314f28aed08b7b56762c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.nested-class-keyword.match": {
+      "hash": "2df20483267fefa4d02c8d16dd3adfc89c79c9d5a6b8329ae056ea98d6de476b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.nested-class-keyword.none": {
+      "hash": "4dbfbe98c0403861b4d72d1f440a00047473f08bc1cf471856b5d2010149d34f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.nested-class-keyword.try": {
+      "hash": "99dcb339f2033d9c4e54aa62862dfa82c960887eeb56d5929bd673b2e7594bec",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.nested-class-keyword.while": {
+      "hash": "bfaf9c5dcab05c7a202ccbe76d94abeb72dd3abdd05ef93f09740c9caf127a60",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-plain.nested-class-keyword.with": {
+      "hash": "d96eded7d30c4bdc1da51055d55f541eac50c000c6e47d0dfd243a77b5931a0d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-comprehension-element.for": {
+      "hash": "7ae694504e887c51ba6048afd1521f1e138ccbfbd7e182bf18cafd864544eef7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-comprehension-element.if": {
+      "hash": "4b933e90dbfed6509e547a288813c1613b837a51f2468a062d2618f18e863b72",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-comprehension-element.match": {
+      "hash": "ba4d67b919bd4a05f911dde40f2229e13459f94c6ae2f7ee345003dc7857d8fb",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-comprehension-element.none": {
+      "hash": "3f4840460b7a7fe3a09db2e1c10117e40384c94756ad1780d403d0ab0b7b7d1e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-comprehension-element.try": {
+      "hash": "2d3e6b56186af702474d27a325668f1fe5ba5d56bd0a3e889c7c6b502773d155",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-comprehension-element.while": {
+      "hash": "f0db3e2dbd8ed152a041c19d446e116bdfdb3933ba865c7ed8bc290715a11958",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-comprehension-element.with": {
+      "hash": "34e043e96ab4cf8241aefb5657792086c430b01027ddd39302a239aebb20f544",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-comprehension-first-iterable.for": {
+      "hash": "2e5b3affeaf4ffec207d9b379d6077ef18aedabd2a6e0c36ca4cfa3b167923be",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-comprehension-first-iterable.if": {
+      "hash": "d9e104295c9c6ef61567e499cab24f6456ba340aa15adfe46a990d7c79145c10",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-comprehension-first-iterable.match": {
+      "hash": "ebf3bec0ecc78d13a0b54caa41a0df31aae1233ff652f036e36612eb30373486",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-comprehension-first-iterable.none": {
+      "hash": "3ae60410356f724966a64ff50325f0ad507ef63349a49d76406127acfaa548a1",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-comprehension-first-iterable.try": {
+      "hash": "dc251d0312e11c0bc25ec574dabee18c39e8067ca6e0fec6e1b60ebf1da023be",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-comprehension-first-iterable.while": {
+      "hash": "32befccbe0153e13ed2fb9914541af310f8b986c7d313bf413e957317f7adb30",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-comprehension-first-iterable.with": {
+      "hash": "413847dfb1aec8b282bdafe758b9b9774a0b875fba4ff3c2984b556870d95372",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-lambda-body.for": {
+      "hash": "bcd383670ce1b8f76647180796f50230ad3fe161376ee172b16082fc3546d838",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-lambda-body.if": {
+      "hash": "74d4c301fe086a75c218d8b474a7176c8a398ad5d81e07ba682d7e7e041b9455",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-lambda-body.match": {
+      "hash": "132bcff8c9ef45cde74129f06c1bd268e418b1b7447456df261ea7ccb223cd68",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-lambda-body.none": {
+      "hash": "746d5310e4384dd9e3628471532fa1d46b44013d27318c821f5f29f5f5b2965e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-lambda-body.try": {
+      "hash": "ea03f5b3548716425eb9b8602fb14246e9774954d85e70046a74f29a962049f6",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-lambda-body.while": {
+      "hash": "ac39a53185562b481dfa791f93a1f96b5c1d16cde0dafbb35756e6b3911c99c2",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-lambda-body.with": {
+      "hash": "e096fa516df5377dc6438b03d9d688731e70703972b674e451ed1f3c5aceb936",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-type-alias-value.for": {
+      "hash": "0596f27b68d9bbfa4c39c9c54fd4a4fb94808f56331dcc0ac2503aa1d8897d29",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-type-alias-value.if": {
+      "hash": "f86f2f57f24810b723d4a412d0e09ed2250e0746f33f878118aa9434886892e0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-type-alias-value.match": {
+      "hash": "94e991139823767884c059d043e055005ef1d7fd4daa9b7994695080e66a1041",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-type-alias-value.none": {
+      "hash": "92ad3390726f320d7f153717ee93d1e36bd66a030c6195075a4bde0e350e55a9",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-type-alias-value.try": {
+      "hash": "ee8af98bc5c51a4859241630a992ae9da3737b036408642e9ad861331d499217",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-type-alias-value.while": {
+      "hash": "548b435b0bfd002462e5f10175363c55f45e7d2334ad92ebf2d0ddcdd14b0afa",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body-type-alias-value.with": {
+      "hash": "e6d897b918da1ad0e804fbd213be5a885513199d43fdde4b7b8e062a2556eadd",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body.for": {
+      "hash": "5b424ad3fb8cd039a5574b2ac7dbcc9a53b1bcd1cf56a3c577035e6fbe3dc46d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body.if": {
+      "hash": "99918aa96a72bc9483e8186ce28d59bec8da59d6ca3559f09faa6dc117a04b11",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body.match": {
+      "hash": "92b680524a13274a2d67e6fff40378d7cb6ad5c2b37f557831ec6f71bd2e68cc",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body.none": {
+      "hash": "8a9b4dfba3a38cda18b2ee20b801a57553b184c655f1fa23cb4eef72f0c21b4d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body.try": {
+      "hash": "b2c55cd868f547ec240fe1343674009d7c4867fd4bdb3b3878b5df9b16ac2122",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body.while": {
+      "hash": "61e7891bb0c5692ce36fdf565fd7ccee7ee7df8da7b4dea7ee689275ae3afadf",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.class-body.with": {
+      "hash": "6769271f4d7d0b901bdc833f3cf554c85d16bd55b0253280052b202f0a96a5a8",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.def-in-class-if.for": {
+      "hash": "7d79fceaf96be17b1828847bde5caa282e9eebe258d16114ec485e6360a7056e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.def-in-class-if.if": {
+      "hash": "ecebf3f0ed5ab6483a48897ea0ab16295dece49ec9f38625315805d5298b5f57",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.def-in-class-if.match": {
+      "hash": "427be03710c4fe0474b6a6fc1965a5b71d7906b3dea2a6824d4d8da552aaafd7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.def-in-class-if.none": {
+      "hash": "2d3e83c5e87a5f7b8c86965f389968c437a0159ea2c4d886332cb51cacbadbbf",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.def-in-class-if.try": {
+      "hash": "1bf1fc05a6f33efa357a67fd2a6ef729002bfeb3cd93a62977d37477dcb6c93f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.def-in-class-if.while": {
+      "hash": "3ce11c08ccc702e77be5883c677c6d68e0deea88eb85a4bb66638fd5626ea3ec",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.def-in-class-if.with": {
+      "hash": "b90fa5852d7757f6fb0b8b31b4e42ba784fb8ecb6e0da1bf0617da8968a0f391",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-body.for": {
+      "hash": "5f8fc8ad884a5bb7b3e54631b42529ac9be8ca2bb72038f4541c3b2e3f5acffd",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.attr"
+      }
+    },
+    "member-self-rebound.method-body.if": {
+      "hash": "93c416df4cf376e6818dd48bc838eb3a278a8dd567605296ccad2cfe1f7f5ad0",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.attr"
+      }
+    },
+    "member-self-rebound.method-body.match": {
+      "hash": "b2b54c6e019a4a30f6af3f228ef0d794d4dbeae494766464ccbfd451c425211a",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.attr"
+      }
+    },
+    "member-self-rebound.method-body.none": {
+      "hash": "db5999383191f90f411b8178421d13cfa4a4d1ea7c1c8798a48fae3fcce8fe50",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.attr"
+      }
+    },
+    "member-self-rebound.method-body.try": {
+      "hash": "f7ebaec532c16260f95cd284fc434445f1dab22e3fd3c4dcb63e21d87d09d206",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.attr"
+      }
+    },
+    "member-self-rebound.method-body.while": {
+      "hash": "f625dbad3bce0d733102e5c97ce845ac94314ba997d21d9d72c95957936b5d9b",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.attr"
+      }
+    },
+    "member-self-rebound.method-body.with": {
+      "hash": "ed9cc73af6479dc1f3a908faa860bce7eab31da52f2420a60bcd95977f5cea9d",
+      "outcome": {
+        "kind": "reached",
+        "tag": "run.K.attr"
+      }
+    },
+    "member-self-rebound.method-decorator.for": {
+      "hash": "d973bd7159326aaeaef0afcbbb675968f0607d985c8f4ce98cd212ee5eb7d3d7",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-decorator.if": {
+      "hash": "115db69a1eeac27050a1e19ee7fb9cd5a1fa0b9cbcb284b6028cc469e29b4883",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-decorator.match": {
+      "hash": "09b13cf37addc0c0405a0ab779c50158a7990ac252ea7146d4f31320c4cdbaff",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-decorator.none": {
+      "hash": "5397ce501bdb28d3039c751f80c840c9e3d68fb8ef2e351e2e6bbc0442ba9de0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-decorator.try": {
+      "hash": "06c2b84f54aef5005a2d4ed57b79f14c58fa94450773aed19d4383f76131536a",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-decorator.while": {
+      "hash": "778202e6ffacca5d3d9e5b78087a6ec44a19693a7487f53a84e7e52b8b21520b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-decorator.with": {
+      "hash": "fdb06dc23b6d4f8c25c499a674edd42682482a2e2558069b1d27021de1b00100",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-comprehension-element.for": {
+      "hash": "83bd8960de17c4a0477946b156c7740b2e80f581cbfcb00455e6771182570231",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-comprehension-element.if": {
+      "hash": "d61cd74500f4ed0f18feb497c314e3ccaa5a8678dfc0ff2486424b2c8f159432",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-comprehension-element.match": {
+      "hash": "d95e39f7412ce5f5a12fd49aed7c3258eb487edfae1ebbb09354a3c0c0ce0542",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-comprehension-element.none": {
+      "hash": "bc8ab886f2bb28da77a4574fb4cff586ce7724a4c8a8c8a7c402bac25b71071f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-comprehension-element.try": {
+      "hash": "0d660b11f3542615022f8d998c338ddc050adf93b0a1379687726bf5a4cc5409",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-comprehension-element.while": {
+      "hash": "7f07e72bd67ddf506290087600e9e297a5c8e77234d294a3e48f90087e1e67db",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-comprehension-element.with": {
+      "hash": "a69eeb8a225ad91f4298a9223053ae29e3609b71e9edc12714c578d99d788885",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-comprehension-first-iterable.for": {
+      "hash": "686778dee2208f50a134c4e9a5101cdd3bd1faff9b081041e8d19698c6d9c262",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-comprehension-first-iterable.if": {
+      "hash": "0ca03dcd6738f62c90c87a0001a8b8813ccf28cf7af36f817ab2b24c0d634ba4",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-comprehension-first-iterable.match": {
+      "hash": "b8c42b56bb03d6c8dd0df327bb683ea166e1fe83f095e1c620f813d5c56bc79d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-comprehension-first-iterable.none": {
+      "hash": "cdbbe70c0990d59165851cac57952a15d24fee7ef4a462bd2a391c92ced5786c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-comprehension-first-iterable.try": {
+      "hash": "58b774a95b0230297537f855548ae2368d6bace2004da3c0fd5869c9f270ddc3",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-comprehension-first-iterable.while": {
+      "hash": "8dd979694e222afa616223b7e26d48a4c91d3f77e3c41e7fd5ed45d212b7e0eb",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-comprehension-first-iterable.with": {
+      "hash": "e27c29c3358f4d02ad355b8f01ac259517ba78eeb1f49c4a6b266aa8a22c3e4b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-lambda-body.for": {
+      "hash": "54e9f3b4c4fa24d52a348e0b1d64b5b466279ec6ae8a9bd960dca0e733e2a3d2",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-lambda-body.if": {
+      "hash": "6ae4c259c05e47ff3a0a9059feec4510a63c931f15dd1d036a0d5b6e50c7fd7b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-lambda-body.match": {
+      "hash": "f29fed1a7b7c6395e4a7df95225bac26443d5538dd0b1d7df791e854ffd39833",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-lambda-body.none": {
+      "hash": "a692e55d2156d9f49c20b504c82dea3056f0a8d5763b447fbf43a024c7a776af",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-lambda-body.try": {
+      "hash": "7606176111a8bf12b9c733249cf9cd52cf40b99799d7ae07388241ac3ff7c2ec",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-lambda-body.while": {
+      "hash": "c862b806af5f4c074da822a10b6d015da57472638618395f416bd7da59ad393f",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default-lambda-body.with": {
+      "hash": "11b087708e313b6a9a74b246bbb8d9684850ff919e3fb7dbd7002b26bd19645e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default.for": {
+      "hash": "3373532209570780902dd5fcd57d17ded53745df7cc28b1ca62ceb9858a866ec",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default.if": {
+      "hash": "2d3e83c5e87a5f7b8c86965f389968c437a0159ea2c4d886332cb51cacbadbbf",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default.match": {
+      "hash": "b492a3257ec0b2d5060c4db730a40e0794aa4765907d5c9b13a1286632b724cb",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default.none": {
+      "hash": "e1726e1963024e23c389df8c19b8d2bdef3708dae2b35dbc58fb4a006e64e526",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default.try": {
+      "hash": "3937652fe7017ba3a17e6cd1ed6032028e099d68f32d8a692acacb63a68e2ae2",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default.while": {
+      "hash": "d20bddf190cbb7b73910245ee0f01dab4acb17adaaf20349b548631f484c10f3",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-default.with": {
+      "hash": "b7a9967eb11176b5475eb5171aa4026afa033e411c757a3d6934f6af7ef7f050",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-parameter-annotation.for": {
+      "hash": "9e33b90eb37b1fceda1f4da7d622dc983140ab2eb48ff73bd8028c649f4a60d9",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-parameter-annotation.if": {
+      "hash": "db36901f4515c7d960103f6103d1bf5cc9c7ccbbf3dcc8ae59e75b07848164ef",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-parameter-annotation.match": {
+      "hash": "ddb1e2a3f466921019adc401c1578e1cc19238cfea72b4c4383828f91653b306",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-parameter-annotation.none": {
+      "hash": "6de6584336c3b0f8ec0deb0fcf494566855ce1d129ccdd2ef4714bfdc5007e49",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-parameter-annotation.try": {
+      "hash": "b4a58c5d0a27216cdfaca6ac68b1d077e53189c96c7720a7d16079f46a28e05a",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-parameter-annotation.while": {
+      "hash": "5e95209424929bc2ceae49bdebe6ce2514c213142b909ac0f1fbdb984482559e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-parameter-annotation.with": {
+      "hash": "be934fab590c89b95115a0cc98fb30deef61360a8dd0a1cadb21a9b1203a1024",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-return-annotation.for": {
+      "hash": "a128ac27109c47320f838941edf42a7ebce5ab3f240d95e97ed7a63ce07c28da",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-return-annotation.if": {
+      "hash": "7adb1446bcb35381bd95c6c2a4e5586c95d0c203487199417a656d99f0e87bb8",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-return-annotation.match": {
+      "hash": "51598ee5babb50f9e922cc1d3e05498129882197e806b2dc2771cb95f3f703f6",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-return-annotation.none": {
+      "hash": "22442f34c80c69e7d1cde404ab17d85001be748f741a749cbaca27a582b71470",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-return-annotation.try": {
+      "hash": "94bc7cae9697df3cf90346ce62a77fe8f90dcd6f5ef2e1337e5e103bdae2ab8b",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-return-annotation.while": {
+      "hash": "2fa1ead6bda717c8ef892eeba9bee62c35f4c7b4ba9a6aa656d84db7652d4aad",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.method-return-annotation.with": {
+      "hash": "905f338d5e4c77ccf2cf335225452bc9594f819a5d4135b85033eaef5c4e88a0",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.module-class-body.for": {
+      "hash": "3a25a6205b62a574f8aa5a6bb19332255d391fac586152680b62922184eacf61",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.module-class-body.if": {
+      "hash": "7002c3ad63bedf50d704efdd1bf70fa8c5097251b54d3795174c94cc1fbaa75c",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.module-class-body.match": {
+      "hash": "5cfc60841dfc020d46639dbb90541dee28946a5ee6dd72d3777461d82bdcef57",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.module-class-body.none": {
+      "hash": "bc005e18802efca6933e7fb71c60d44db8d0b4785fed11bba9e4525ce2c7046d",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.module-class-body.try": {
+      "hash": "08363fc6a7595c742b1813f410dcf0aead10752a3406d3bf1a2dec48044e4216",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.module-class-body.while": {
+      "hash": "ebec293bc23436e771d020df7f7b46272cecd87809c07c938af7c96aad7a7daf",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.module-class-body.with": {
+      "hash": "8fba39bfffbbc9c229f31a11f962bf1d0d68be0176dbde47a51641fe01c22792",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.module-class-method-body.for": {
+      "hash": "674077873238b6e8d1fb8ce53e2f26e0c8acaec3c051b2927273f7282bfc0310",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.attr"
+      }
+    },
+    "member-self-rebound.module-class-method-body.if": {
+      "hash": "3abbea0acfe51e7422e737c24a537480506871fa504e4c31342fa373c66da836",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.attr"
+      }
+    },
+    "member-self-rebound.module-class-method-body.match": {
+      "hash": "a2920cf9ce54b8f106814c80adc0be56d0656d52cf447b093e5d886773c509ed",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.attr"
+      }
+    },
+    "member-self-rebound.module-class-method-body.none": {
+      "hash": "2dc7b56eed722dbdf2140de7c78c466dd8305f8c6fa3dd803ca06503308facb0",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.attr"
+      }
+    },
+    "member-self-rebound.module-class-method-body.try": {
+      "hash": "da7209608d37043b149fdc082c6b7486d33d3fa6e8f474a9d66098d6a76cb139",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.attr"
+      }
+    },
+    "member-self-rebound.module-class-method-body.while": {
+      "hash": "91b3d1455922eb74aee1f3a903abfcbd2c8c800a4ca2bdfa6399a021d2fd57a6",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.attr"
+      }
+    },
+    "member-self-rebound.module-class-method-body.with": {
+      "hash": "aac8f2b0b0e5087fa4573540f3dcfecd23482b62a16cb78646012acd15ddfd5e",
+      "outcome": {
+        "kind": "reached",
+        "tag": "K.attr"
+      }
+    },
+    "member-self-rebound.module-class-method-default.for": {
+      "hash": "36c7fb7e0b351c31a01ad350d19427b1f61cc7ded353cd3b7f5ca62aae8478b2",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.module-class-method-default.if": {
+      "hash": "a4fa95c45aa3cff58149247f7dd1457a93c3b906051228337d62692b6b65fac5",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.module-class-method-default.match": {
+      "hash": "29ac34be5fa2b027315c4370198670661596c36fead6d8a66e8c9e482dc4fc30",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.module-class-method-default.none": {
+      "hash": "e1e006e4166fff940ddfd2f90c0a7bed35f44e658c884a9c927d021b696594db",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.module-class-method-default.try": {
+      "hash": "70038318d276cc5c207f71c507eedb6151dcc5c4dbaaac14d46786e4c7e3a2b6",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.module-class-method-default.while": {
+      "hash": "34c3338a394cbc7529796857722acd00d06bae6719a23d8bc84c74aafcb63d17",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.module-class-method-default.with": {
+      "hash": "632a7947c5077578b45054e6ff772e4ca8f3632c1f393dca919c3d7532d4aa56",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.nested-class-header.for": {
+      "hash": "f97013ea20e72fd19770846e7e61f5f2a44b4118ff2c3bd7208c59d63f834514",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.nested-class-header.if": {
+      "hash": "bc3efd7f5d6c6ab310831cdc9c77f2105032654b6711111e64d50bac20e6dc3e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.nested-class-header.match": {
+      "hash": "a7b5bd6886a36c7ec0fb6880a0920afd53824d79844a479ddadb4d92e94f1236",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.nested-class-header.none": {
+      "hash": "8c33e7a6b2725f4c8605702b291b8d4323564a9850d08458e18f89f78799a097",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.nested-class-header.try": {
+      "hash": "c4a17195116dc0e3478f426445df9a13b8599f0de684bf06caffc2e069270fec",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.nested-class-header.while": {
+      "hash": "20d163f2ebb94835addc90749416d622ca0f3aa3827491e5077efc517086bdf4",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.nested-class-header.with": {
+      "hash": "ed002645dabf60e9acb4855ba6c8d0fd0c4c64425d22cd1e541de160c39cb7f4",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.nested-class-keyword.for": {
+      "hash": "324b26cf63e89d64aaafcdcf371e608ce75442cff3bd7c813346e55035c71cfa",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.nested-class-keyword.if": {
+      "hash": "f43cb26f11a5c13fb0576c6c9ebc3b51fba6c3721ab2169dc6c74e0fe7863026",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.nested-class-keyword.match": {
+      "hash": "c07294e37d515318908cad2c212d1b9a44e523d05f78a857e32c4cc82299360e",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.nested-class-keyword.none": {
+      "hash": "5ee042c9c7d3bf1700abb6c2f7e17a146609c493032460601584885f1e3b9362",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.nested-class-keyword.try": {
+      "hash": "6f6478c1b4ea01c7288f36b15ee2d1c8dedfc476ee4aebc1706b488ba88a62cb",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.nested-class-keyword.while": {
+      "hash": "6dec707799dba1c3728d46ce13c84b0d1223a792d68d9fd63a7337d907255af5",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
+    "member-self-rebound.nested-class-keyword.with": {
+      "hash": "60ee95c2b86cfc629a7a1890c60f6c6262bf983c262ae3e8865dc1f65975a549",
+      "outcome": {
+        "kind": "error",
+        "type": "NameError"
+      }
+    },
     "module-def-after-call.class-base-comprehension-element.for": {
       "hash": "c0fe150d9acdd26fec0d49c690c2d3e625a41ccf908c7f3890a6df0b0807d8e4",
       "outcome": {

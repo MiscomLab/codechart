@@ -266,6 +266,8 @@ interface ClassPlan {
   post?: readonly string[];
   wrap?: Wrap;
   typeParam?: boolean;
+  /** A base class the position's `class K` inherits: the member-call site sees inherited attributes and methods. */
+  base?: string;
 }
 
 /** Lines of one class-body binding, tagged with the core path of the class it sits in (`run.K` or `K`). */
@@ -287,6 +289,9 @@ const classSite = (shape: 'class' | 'def', placement: ClassSitePlacement) => (ta
   if (placement === 'loop-rebind') return { pre: binding, wrap: (body) => `for _i in range(2):\n${indent(body)}\n    f = mk('K.loop')` };
   return { pre: binding, wrap: (body) => `while True:\n${indent(body)}\n    del f\n    break` };
 };
+
+/** A class body's plain method f, logging the core path of the class the member site sits in. */
+const memberMethod = (tag: string): string[] => ['def f(self):', `    LOG.append('${tag}.f')`, '    return object'];
 
 /** A run-local `def`/`class` binding that logs its core path; the flow constructs place it where it may never run. */
 const runDef = (tag: string): string[] => ['def f():', `    LOG.append('${tag}')`, '    return object'];
@@ -336,6 +341,8 @@ interface Construct {
   classSiteOnly?: boolean;
   /** The site's expression becomes a lambda with a parameter `f`, called with a marker. */
   lambdaParam?: boolean;
+  /** The site calls `self.f()`: a member site for the class body the position defines. */
+  thisCall?: boolean;
   /** CPython rejects the program at compile time; generated once and excluded from the sweep. */
   syntax?: boolean;
   /** Replaces the prelude's module `f` line, so the module binding itself is decorated. */
@@ -465,6 +472,26 @@ const CONSTRUCTS: readonly Construct[] = [
   },
   { name: 'module-def-after', module: true, preludeF: '# f is defined after the module code that calls it', post: [MODULE_F] },
   { name: 'module-def-after-call', run: true, preludeF: '# f is defined after run() is called', afterCall: [MODULE_F] },
+  // Member sites: `self.f()` in every class-body position. `memberMethod` is the class body's plain method f, tagged
+  // with the core path of the class; the decorated, rebound and inherited-attribute variants shadow it at run time.
+  { name: 'member-self-plain', run: true, module: true, thisCall: true, classPlan: (tag) => ({ pre: memberMethod(tag) }) },
+  {
+    name: 'member-self-decorated',
+    run: true,
+    module: true,
+    thisCall: true,
+    classPlan: (tag) => ({ pre: [`@(lambda fn: mk('${tag}.deco'))`, ...memberMethod(tag)] }),
+  },
+  { name: 'member-self-rebound', run: true, module: true, thisCall: true, classPlan: (tag) => ({ pre: memberMethod(tag), post: [`f = mk('${tag}.attr')`] }) },
+  // A base class's __init__ writes self.f: the subclass's plain method is not what self.f reaches.
+  {
+    name: 'member-base-attr-write',
+    run: true,
+    module: true,
+    thisCall: true,
+    outer: ['class Base:', '    def __init__(self):', "        self.f = mk('base.attr')"],
+    classPlan: (tag) => ({ base: 'Base', pre: memberMethod(tag) }),
+  },
 ];
 
 interface Wrapper {
@@ -497,7 +524,7 @@ function applies(construct: Construct, position: Position): boolean {
 
 /** The one call site: a sentinel tuple whose second element is the call, so an error is told from a site never reached. */
 function siteOf(construct: Construct): string {
-  const call = construct.lambdaParam ? "(lambda f: f())(mk('param'))" : 'f()';
+  const call = construct.thisCall ? 'self.f()' : construct.lambdaParam ? "(lambda f: f())(mk('param'))" : 'f()';
   return `(LOG.append('${SITE_TAG}'), ${call})[1]`;
 }
 
@@ -507,7 +534,7 @@ function textOf(construct: Construct, position: Position, wrapper: Wrapper): str
   const plan = construct.classPlan?.(tag);
   const classPre = [...(construct.classBinding === 'before' ? ["f = mk('K.body')"] : []), ...(plan?.pre ?? [])];
   const classPost = [...(construct.classBinding === 'after' ? ["f = mk('K.body')"] : []), ...(plan?.post ?? [])];
-  const classHead = plan?.typeParam ? 'class K[f]:' : 'class K:';
+  const classHead = plan?.base ? `class K(${plan.base}):` : plan?.typeParam ? 'class K[f]:' : 'class K:';
   const code = position.build({ site: siteOf(construct), wrap: wrapper.apply, classPre, classPost, classHead, classWrap: plan?.wrap });
   const positioned = construct.wrap ? construct.wrap(code) : code;
   const body = joined([...(construct.pre ?? []), positioned, ...(construct.post ?? [])]);
