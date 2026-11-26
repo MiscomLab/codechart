@@ -310,3 +310,45 @@ describe('15. class and named function expression bindings shadow the top-level 
     nameOnly(repo, 'f', { kind: 'ClassExpression', parentKind: 'VariableDeclaration' }, 'f.m');
   });
 });
+
+describe('gate 2: functions as bodies, parameters re-declared, catch blocks and written declarations', () => {
+  it.each([
+    ['a curried arrow', 'export function next() {}\nexport const run = (store) => (next) => (action) => next(action);\n', 'next', 'ArrowFunction'],
+    ['an arrow returning a function expression', 'export function f() {}\nexport const run = () => function g(f) { f(); };\n', 'f', 'FunctionExpression'],
+  ])('a parameter of a function that is %s’s body shadows the top-level function', async (_form, text, name, parentKind) => {
+    const repo = await link({ 'a.ts': text });
+    nameOnly(repo, name, { kind: 'Parameter', parentKind });
+  });
+
+  it('an outer name called from a curried arrow still resolves', async () => {
+    const repo = await link({ 'a.ts': 'export function f() {}\nexport const run = (a) => (b) => f(b);\n' });
+    resolved(repo, 'f', 'a.ts::f::function', { kind: 'FunctionDeclaration', parentKind: 'SourceFile' });
+  });
+
+  it('a parameter re-declared by a var in the body stays the parameter', async () => {
+    // A `var` of a parameter's name is the same binding (ECMA-262 FunctionDeclarationInstantiation): the call reaches
+    // whatever was passed until the assignment runs.
+    const repo = await link({ 'a.ts': 'function f() {}\nfunction run(f) { f(); var f = () => {}; }\n' });
+    nameOnly(repo, 'f', { kind: 'Parameter' }, 'run');
+  });
+
+  it.each([
+    ['a .ts script', 'a.ts'],
+    ['a .js script', 'a.js'],
+  ])('in %s, a function declared in a catch block is hoisted to the function (Annex B)', async (_form, path) => {
+    const repo = await link({ [path]: 'function f() {}\nfunction run() { try {} catch (e) { function f() { return 1; } } f(); }\n' });
+    nameOnly(repo, 'f', { kind: 'FunctionDeclaration', parentKind: 'Block' }, 'run', path);
+  });
+
+  it('in a module, a function declared in a catch block stays in it', async () => {
+    const repo = await link({ 'a.ts': 'export {};\nfunction f() {}\nfunction run() { try {} catch (e) { function f() { return 1; } } f(); }\n' });
+    resolved(repo, 'f', 'a.ts::f::function', { kind: 'FunctionDeclaration', parentKind: 'SourceFile' }, 'run');
+  });
+
+  it('a function declaration written elsewhere stays name-only', async () => {
+    const repo = await link({ 'a.ts': 'export function f() {}\nexport function run() { f = () => {}; f(); }\n' });
+    // TS reports the declaration; after the write the call reaches whatever was assigned (ECMA-262 assignment semantics).
+    nameOnly(repo, 'f', { kind: 'FunctionDeclaration', parentKind: 'SourceFile' }, 'run');
+    expect(repo.tree['a.ts']).toMatch(/\{ f = \(\) =>/);
+  });
+});

@@ -108,6 +108,11 @@ describe('PEP 695 type parameters and type aliases bind names', () => {
     nameOnly(files, 'a.py', 'f');
   });
 
+  it('a class nested in a generic class sees its type parameters', async () => {
+    // symtable: `f` in `Inner.m` is free, bound by `K`'s type parameter scope (PEP 695 annotation scope).
+    nameOnly(await at('class K[f]:\n    class Inner:\n        def m(self):\n            f()\n'), 'a.py', 'f');
+  });
+
   it('a class type parameter does not leak to module functions', async () => {
     const files = await at('class K[f]:\n    pass\n\n\ndef run():\n    f()\n');
     resolved(files, 'a.py', 'f', 'a.py::f::function');
