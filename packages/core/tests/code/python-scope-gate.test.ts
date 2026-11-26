@@ -64,3 +64,12 @@ describe('gate: only a parameter’s default value is outside its function’s t
     expect(call).not.toHaveProperty('to');
   });
 });
+
+describe('a nested def’s defaults run in the enclosing scope', () => {
+  it('a default does not see a def its own body defines', async () => {
+    // python3 -I: `run()` returns "module-f": the default `f()` runs in `run`, where only the module `f` is bound.
+    const parsed = (await Promise.all([parseCode('a.py', 'def f():\n    pass\n\n\ndef run():\n    def inner(x=f()):\n        def f():\n            pass\n')])).filter((p): p is ParsedFile => !!p);
+    const [file] = linkCode(parsed, createResolver(['a.py'], () => undefined));
+    expect(file!.calls.filter((c) => c.name === 'f').map((c) => c.to)).toEqual(['a.py::f::function']);
+  });
+});
