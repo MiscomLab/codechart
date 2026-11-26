@@ -80,8 +80,8 @@ type Wrap = (statement: string) => string;
 const inBlock = (head: string, body: string, width = 4): string => `${head}\n${indent(body, width)}`;
 
 /** A class body with the construct's class-scope bindings around the statement holding the site. */
-const classWith = (head: string, pre: readonly string[], statement: string, post: readonly string[], driver: string): string =>
-  joined([`${head}\n${indent(joined([...pre, statement, ...post]))}`, driver]);
+const classWith = (head: string, pre: readonly string[], statement: string, post: readonly string[], driver: string, classWrap?: Wrap): string =>
+  joined([`${head}\n${indent(joined([...pre, classWrap ? classWrap(statement) : statement, ...post]))}`, driver]);
 
 interface Position {
   name: string;
@@ -89,7 +89,16 @@ interface Position {
   module?: boolean;
   /** The position has a class body a class-scope binding construct can be inserted into. */
   classBody?: boolean;
-  build: (ctx: { site: string; wrap: Wrap; classPre: readonly string[]; classPost: readonly string[] }) => string;
+  /** One of the class-body sites the gate's class/def and flow constructs are applied to. */
+  classCandidates?: boolean;
+  build: (ctx: {
+    site: string;
+    wrap: Wrap;
+    classPre: readonly string[];
+    classPost: readonly string[];
+    classHead: string;
+    classWrap?: Wrap;
+  }) => string;
 }
 
 const POSITIONS: readonly Position[] = [
@@ -113,65 +122,168 @@ const POSITIONS: readonly Position[] = [
     build: ({ site, wrap }) => joined([wrap(`def inner() -> ${site}:\n    pass`), 'annotationlib.get_annotations(inner, format=annotationlib.Format.VALUE)']),
   },
   { name: 'nested-def-decorator', build: ({ site, wrap }) => joined([wrap(`@deco_of(${site})\ndef inner():\n    pass`), 'inner()']) },
-  { name: 'class-body', classBody: true, build: ({ site, wrap, classPre, classPost }) => classWith('class K:', classPre, wrap(`x = ${site}`), classPost, 'K') },
+  { name: 'class-body', classBody: true, classCandidates: true, build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, wrap(`x = ${site}`), classPost, 'K', classWrap) },
+  {
+    name: 'class-body-lambda-body',
+    classBody: true,
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, wrap(`x = (lambda: ${site})()`), classPost, 'K', classWrap),
+  },
+  {
+    name: 'class-body-comprehension-element',
+    classBody: true,
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, wrap(`x = [${site} for _x in [0]]`), classPost, 'K', classWrap),
+  },
+  {
+    name: 'class-body-comprehension-first-iterable',
+    classBody: true,
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, wrap(`x = [0 for _x in ${site}]`), classPost, 'K', classWrap),
+  },
   { name: 'class-base', build: ({ site, wrap }) => joined([wrap(`class K(base_of(${site})):\n    pass`), 'K']) },
+  {
+    name: 'class-base-lambda-body',
+    build: ({ site, wrap }) => joined([wrap(`class K(base_of((lambda: ${site})())):\n    pass`), 'K']),
+  },
+  {
+    name: 'class-base-comprehension-element',
+    build: ({ site, wrap }) => joined([wrap(`class K(base_of([${site} for _x in [0]])):\n    pass`), 'K']),
+  },
+  {
+    name: 'class-base-comprehension-first-iterable',
+    build: ({ site, wrap }) => joined([wrap(`class K(base_of([0 for _x in ${site}])):\n    pass`), 'K']),
+  },
   { name: 'class-keyword', build: ({ site, wrap }) => joined([wrap(`class K(metaclass=meta_of(${site})):\n    pass`), 'K']) },
   {
     name: 'method-default',
     classBody: true,
-    build: ({ site, wrap, classPre, classPost }) => classWith('class K:', classPre, wrap(`def m(self, a=${site}):\n    pass`), classPost, 'K().m()'),
+    classCandidates: true,
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, wrap(`def m(self, a=${site}):\n    pass`), classPost, 'K().m()', classWrap),
+  },
+  {
+    name: 'method-default-lambda-body',
+    classBody: true,
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, wrap(`def m(self, a=(lambda: ${site})()):\n    pass`), classPost, 'K().m()', classWrap),
+  },
+  {
+    name: 'method-default-comprehension-element',
+    classBody: true,
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, wrap(`def m(self, a=[${site} for _x in [0]]):\n    pass`), classPost, 'K().m()', classWrap),
+  },
+  {
+    name: 'method-default-comprehension-first-iterable',
+    classBody: true,
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, wrap(`def m(self, a=[0 for _x in ${site}]):\n    pass`), classPost, 'K().m()', classWrap),
   },
   {
     name: 'method-parameter-annotation',
     classBody: true,
-    build: ({ site, wrap, classPre, classPost }) =>
-      joined([classWith('class K:', classPre, wrap(`def m(self, a: ${site}):\n    pass`), classPost, ''), 'annotationlib.get_annotations(K.m, format=annotationlib.Format.VALUE)']),
+    classCandidates: true,
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) =>
+      joined([classWith(classHead, classPre, wrap(`def m(self, a: ${site}):\n    pass`), classPost, '', classWrap), 'annotationlib.get_annotations(K.m, format=annotationlib.Format.VALUE)']),
   },
   {
     name: 'method-return-annotation',
     classBody: true,
-    build: ({ site, wrap, classPre, classPost }) =>
-      joined([classWith('class K:', classPre, wrap(`def m(self) -> ${site}:\n    pass`), classPost, ''), 'annotationlib.get_annotations(K.m, format=annotationlib.Format.VALUE)']),
+    classCandidates: true,
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) =>
+      joined([classWith(classHead, classPre, wrap(`def m(self) -> ${site}:\n    pass`), classPost, '', classWrap), 'annotationlib.get_annotations(K.m, format=annotationlib.Format.VALUE)']),
   },
-  { name: 'method-body', classBody: true, build: ({ site, wrap, classPre, classPost }) => classWith('class K:', classPre, `def m(self):\n${indent(wrap(site))}`, classPost, 'K().m()') },
+  {
+    name: 'method-body',
+    classBody: true,
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, `def m(self):\n${indent(wrap(site))}`, classPost, 'K().m()', classWrap),
+  },
   {
     name: 'method-decorator',
     classBody: true,
-    build: ({ site, wrap, classPre, classPost }) => classWith('class K:', classPre, wrap(`@deco_of(${site})\ndef m(self):\n    pass`), classPost, 'K().m()'),
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, wrap(`@deco_of(${site})\ndef m(self):\n    pass`), classPost, 'K().m()', classWrap),
   },
   {
     name: 'nested-class-header',
     classBody: true,
-    build: ({ site, wrap, classPre, classPost }) => classWith('class K:', classPre, wrap(`class Inner(base_of(${site})):\n    pass`), classPost, 'K.Inner'),
+    classCandidates: true,
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, wrap(`class Inner(base_of(${site})):\n    pass`), classPost, 'K.Inner', classWrap),
+  },
+  {
+    name: 'nested-class-keyword',
+    classBody: true,
+    classCandidates: true,
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, wrap(`class Inner(metaclass=meta_of(${site})):\n    pass`), classPost, 'K.Inner', classWrap),
   },
   {
     name: 'def-in-class-if',
     classBody: true,
-    build: ({ site, wrap, classPre, classPost }) =>
-      classWith('class K:', classPre, `if True:\n${indent(wrap(`def m(self, a=${site}):\n    pass`))}`, classPost, 'K().m()'),
+    classCandidates: true,
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) =>
+      classWith(classHead, classPre, `if True:\n${indent(wrap(`def m(self, a=${site}):\n    pass`))}`, classPost, 'K().m()', classWrap),
   },
-  { name: 'module-class-body', module: true, classBody: true, build: ({ site, wrap, classPre, classPost }) => classWith('class K:', classPre, wrap(`x = ${site}`), classPost, 'K') },
+  { name: 'module-class-body', module: true, classBody: true, build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, wrap(`x = ${site}`), classPost, 'K', classWrap) },
   { name: 'module-class-base', module: true, build: ({ site, wrap }) => joined([wrap(`class K(base_of(${site})):\n    pass`), 'K']) },
   {
     name: 'module-class-method-default',
     module: true,
     classBody: true,
-    build: ({ site, wrap, classPre, classPost }) => classWith('class K:', classPre, wrap(`def m(self, a=${site}):\n    pass`), classPost, 'K().m()'),
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, wrap(`def m(self, a=${site}):\n    pass`), classPost, 'K().m()', classWrap),
   },
-  { name: 'module-class-method-body', module: true, classBody: true, build: ({ site, wrap, classPre, classPost }) => classWith('class K:', classPre, `def m(self):\n${indent(wrap(site))}`, classPost, 'K().m()') },
+  {
+    name: 'module-class-method-body',
+    module: true,
+    classBody: true,
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, `def m(self):\n${indent(wrap(site))}`, classPost, 'K().m()', classWrap),
+  },
   // A type alias's value is evaluated lazily: its annotation scope sees the enclosing scope (and, in a class body,
   // the class namespace); a lambda or comprehension inside it has its own nested scope.
   { name: 'type-alias-value', build: ({ site, wrap }) => joined([wrap(`type A = ${site}`), 'A.__value__']) },
   {
+    name: 'type-alias-value-lambda-body',
+    build: ({ site, wrap }) => joined([wrap(`type A = (lambda: ${site})()`), 'A.__value__']),
+  },
+  {
+    name: 'type-alias-value-comprehension-element',
+    build: ({ site, wrap }) => joined([wrap(`type A = [${site} for _x in [0]]`), 'A.__value__']),
+  },
+  {
+    name: 'type-alias-value-comprehension-first-iterable',
+    build: ({ site, wrap }) => joined([wrap(`type A = [0 for _x in ${site}]`), 'A.__value__']),
+  },
+  {
     name: 'class-body-type-alias-value',
     classBody: true,
-    build: ({ site, wrap, classPre, classPost }) => classWith('class K:', classPre, wrap(`type A = ${site}`), classPost, 'K.A.__value__'),
+    classCandidates: true,
+    build: ({ site, wrap, classPre, classPost, classHead, classWrap }) => classWith(classHead, classPre, wrap(`type A = ${site}`), classPost, 'K.A.__value__', classWrap),
   },
   // A PEP 695 type-parameter bound is evaluated lazily, in the definition's annotation scope: the enclosing function
   // for a nested def, and the class body (through __classdict__) for a method.
   { name: 'type-param-bound', build: ({ site, wrap }) => joined([wrap(`def inner[T: ${site}]():\n    pass`), 'inner.__type_params__[0].__bound__']) },
   { name: 'class-type-param-bound', build: ({ site, wrap }) => joined([wrap(`class Inner[T: ${site}]:\n    pass`), 'Inner.__type_params__[0].__bound__']) },
 ];
+
+/** Extra lines and wrapping for a position's class body, or a `class K[f]:` header. */
+interface ClassPlan {
+  pre?: readonly string[];
+  post?: readonly string[];
+  wrap?: Wrap;
+  typeParam?: boolean;
+}
+
+/** Lines of one class-body binding, tagged with the core path of the class it sits in (`run.K` or `K`). */
+const classBodyBinding = (shape: 'class' | 'def', tag: string): string[] =>
+  shape === 'class' ? ['class f:', `    def __init__(self): LOG.append('${tag}.f')`] : ['def f():', `    LOG.append('${tag}.f')`, '    return object'];
+
+const shifted = (lines: readonly string[]): string[] => indent(lines.join('\n')).split('\n');
+
+type ClassSitePlacement = 'before' | 'after' | 'if-false' | 'try-raised' | 'rebind-after' | 'loop-rebind' | 'while-del';
+
+/** The gate's placements of a class-body binding around the site: reached order, dead branches, and later loops. */
+const classSite = (shape: 'class' | 'def', placement: ClassSitePlacement) => (tag: string): ClassPlan => {
+  const binding = classBodyBinding(shape, tag);
+  if (placement === 'before') return { pre: binding };
+  if (placement === 'after') return { post: binding };
+  if (placement === 'if-false') return { pre: ['if False:', ...shifted(binding)] };
+  if (placement === 'try-raised') return { pre: ['try:', '    raise ValueError', ...shifted(binding), 'except ValueError:', '    pass'] };
+  if (placement === 'rebind-after') return { pre: binding, post: ["f = mk('K.rebind')"] };
+  if (placement === 'loop-rebind') return { pre: binding, wrap: (body) => `for _i in range(2):\n${indent(body)}\n    f = mk('K.loop')` };
+  return { pre: binding, wrap: (body) => `while True:\n${indent(body)}\n    del f\n    break` };
+};
 
 interface Construct {
   name: string;
@@ -193,6 +305,10 @@ interface Construct {
   typeParams?: string;
   /** Inserted into the position's class body, before or after the statement holding the site. */
   classBinding?: 'before' | 'after';
+  /** A class-body plan; the tag is the core path of the class the position defines (`run.K` or `K`). */
+  classPlan?: (tag: string) => ClassPlan;
+  /** The class plan is only the gate's named class-body sites, not every class body. */
+  classSiteOnly?: boolean;
   /** The site's expression becomes a lambda with a parameter `f`, called with a marker. */
   lambdaParam?: boolean;
   /** CPython rejects the program at compile time; generated once and excluded from the sweep. */
@@ -247,6 +363,30 @@ const CONSTRUCTS: readonly Construct[] = [
   { name: 'class-body-after', run: true, module: true, classBinding: 'after' },
   // The lambda wraps the site wherever it sits, so a lazy PEP 649 annotation sees its parameter shadow the name.
   { name: 'lambda-param', run: true, module: true, lambdaParam: true },
+  // The gates: a class-body `class f`/`def f` a class-body call can resolve to, in the branches and loops that decide
+  // whether it exists at the call and whether a later iteration reaches something else.
+  ...(['class', 'def'] as const).flatMap((shape) =>
+    (['before', 'after', 'if-false', 'try-raised', 'rebind-after', 'loop-rebind', 'while-del'] as const).map((placement) => ({
+      name: `classbody-${shape}-${placement}`,
+      run: true,
+      classSiteOnly: true,
+      classPlan: classSite(shape, placement),
+    })),
+  ),
+  // Function-scope flow: a dead assignment still makes the name local; a loop rebinds or deletes it after the site.
+  { name: 'flow-if-false', run: true, pre: ['if False:', "    f = mk('run.if-false')"] },
+  { name: 'flow-try-raised', run: true, pre: ['try:', '    raise ValueError', "    f = mk('run.try-raised')", 'except ValueError:', '    pass'] },
+  { name: 'flow-loop-rebind', run: true, pre: ["f = mk('run.first')"], wrap: (body) => `for _i in range(2):\n${indent(body)}\n    f = mk('run.loop')` },
+  { name: 'flow-loop-del', run: true, pre: ["f = mk('run.first')", '_i = 0'], wrap: (body) => `while _i < 2:\n${indent(joined([body, 'del f', '_i += 1']))}` },
+  // The reader's remaining binding constructs.
+  { name: 'except-star-target', run: true, module: true, pre: ['try:', "    raise ExceptionGroup('e', [ValueError()])", 'except* ValueError as f:', '    pass'] },
+  { name: 'match-star-sequence', run: true, wrap: (body) => inBlock('match (0,):\n    case [*f]:', body, 8) },
+  { name: 'match-mapping-rest', run: true, wrap: (body) => inBlock("match {'k': 0}:\n    case {**f}:", body, 8) },
+  { name: 'walrus-comprehension', run: true, pre: ["[(f := mk('walrus-comp')) for _x in [0]]"] },
+  { name: 'annotation-only', run: true, pre: ['f: int'] },
+  { name: 'class-type-params', run: true, module: true, classPlan: () => ({ typeParam: true }) },
+  { name: 'class-global', run: true, module: true, classPlan: () => ({ pre: ['global f'] }) },
+  { name: 'class-nonlocal', run: true, nest: 'nonlocal', classPlan: () => ({ pre: ['nonlocal f'] }) },
 ];
 
 interface Wrapper {
@@ -271,6 +411,8 @@ function applies(construct: Construct, position: Position): boolean {
     if (construct.modulePositions) return construct.modulePositions.includes(position.name);
     if (!construct.module) return false;
   } else if (!construct.run) return false;
+  if (construct.classPlan && !position.classBody) return false;
+  if (construct.classSiteOnly && !position.classCandidates) return false;
   // A class-body binding needs a class body to sit in; a class header has none.
   return !construct.classBinding || position.classBody === true;
 }
@@ -282,9 +424,12 @@ function siteOf(construct: Construct): string {
 }
 
 function textOf(construct: Construct, position: Position, wrapper: Wrapper): string {
-  const classPre = construct.classBinding === 'before' ? ["f = mk('K.body')"] : [];
-  const classPost = construct.classBinding === 'after' ? ["f = mk('K.body')"] : [];
-  const code = position.build({ site: siteOf(construct), wrap: wrapper.apply, classPre, classPost });
+  const tag = position.module ? 'K' : 'run.K';
+  const plan = construct.classPlan?.(tag);
+  const classPre = [...(construct.classBinding === 'before' ? ["f = mk('K.body')"] : []), ...(plan?.pre ?? [])];
+  const classPost = [...(construct.classBinding === 'after' ? ["f = mk('K.body')"] : []), ...(plan?.post ?? [])];
+  const classHead = plan?.typeParam ? 'class K[f]:' : 'class K:';
+  const code = position.build({ site: siteOf(construct), wrap: wrapper.apply, classPre, classPost, classHead, classWrap: plan?.wrap });
   const positioned = construct.wrap ? construct.wrap(code) : code;
   const body = joined([...(construct.pre ?? []), positioned, ...(construct.post ?? [])]);
   if (position.module) return `${joined([PRELUDE, ...(construct.outer ?? []), body])}\n`;

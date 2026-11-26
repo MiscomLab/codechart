@@ -7,8 +7,9 @@ import { type CheckResult, type Fixture, checkAll, describeDisagreement } from '
  * COD-59: the generated Python sweep, checked against CPython itself.
  *
  * `generate.ts` expands every binding construct over every call position and control-flow wrapper. `record.py` ran the
- * same texts with `python3 -I` (CPython 3.14) and recorded, for each one, what the single call to `f` reached or which
- * error it raised; `outcomes.json` is that committed fixture, so CI needs no Python.
+ * same texts with `python3 -I` (CPython 3.14) and recorded, for each one, what each execution of the single call to `f`
+ * reached, whether the executions varied, or which error it raised; `outcomes.json` is that committed fixture, so CI
+ * needs no Python.
  *
  * Every program's hash is asserted against the fixture first: a changed generator must be re-recorded, never silently
  * re-judged. Then the soundness rule: a call core resolves to the program's module `f` must have reached `module`, a
@@ -36,7 +37,7 @@ beforeAll(async () => {
     .join(', ');
   console.info(
     `python sweep: ${result.python.split(' ')[0]}; ${result.total} programs (${result.syntaxIds.length} syntax-excluded, ${result.nonSyntax} run); ` +
-      `core resolved ${result.resolved}, name-only ${result.nameOnly}; not-run ${result.notRun.length}; disagreements ${result.disagreements.length}`,
+      `core resolved ${result.resolved}, name-only ${result.nameOnly}; not-run ${result.notRun.length}; varies ${result.varies.length}; disagreements ${result.disagreements.length}`,
   );
   console.info(`precision cost (name-only although CPython reached a symbol core has): ${result.precisionTotal}${precision ? ` (${precision})` : ''}`);
 }, 120_000);

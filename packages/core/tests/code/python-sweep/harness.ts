@@ -12,12 +12,14 @@ import type { Program } from './generate.js';
  * The comparison is the truth rule of the sweep: core `to` the program's module `f` is sound only if CPython reached
  * the module function (`module`), `b.py::f::function` only if it reached `b.f`, and any other symbol only if it reached
  * the callable at that symbol's path. A name-only call is always sound; when CPython reached a symbol core already has,
- * it is counted as precision core gave up. Nothing here reimplements Python's rules.
+ * it is counted as precision core gave up. A site that ran more than once and reached different things (`varies`) has
+ * no single target, so a resolved call there is a disagreement too. Nothing here reimplements Python's rules.
  */
 
 export type Outcome =
   | { kind: 'reached'; tag: string }
   | { kind: 'error'; type: string }
+  | { kind: 'varies' }
   | { kind: 'not-run' }
   | { kind: 'syntax' };
 
@@ -53,6 +55,8 @@ export interface CheckResult {
   nameOnly: number;
   /** Programs whose site never ran: a harness bug. */
   notRun: string[];
+  /** Programs whose site ran more than once and reached different things: a single resolved target cannot be sound. */
+  varies: string[];
   /** Site errors outside TypeError/UnboundLocalError/NameError, and core targets that are not symbols: harness bugs. */
   harnessErrors: string[];
   /** Non-syntax programs without exactly one `f` call in core's output. */
@@ -96,9 +100,8 @@ function expectedTag(call: CallRef, path: string, files: Files): { tag?: string;
 function hasSymbolForTag(tag: string, path: string, files: Files): boolean {
   if (tag === 'module') return (files.get(path)?.symbols ?? []).some((symbol) => symbol.id === `${path}::f::function`);
   if (tag === 'b.f') return (files.get('b.py')?.symbols ?? []).some((symbol) => symbol.id === 'b.py::f::function');
-  return (files.get(path)?.symbols ?? []).some(
-    (symbol) => (symbol.kind === 'function' || symbol.kind === 'class') && symbol.path.join('.') === tag,
-  );
+  const callableKinds = new Set(['function', 'method', 'class']);
+  return (files.get(path)?.symbols ?? []).some((symbol) => callableKinds.has(symbol.kind) && symbol.path.join('.') === tag);
 }
 
 /** Links every program with one shared `b.py` and judges each recorded outcome against the call core resolved. */
@@ -123,6 +126,7 @@ export async function checkAll(programs: readonly Program[], fixture: Fixture): 
     resolved: 0,
     nameOnly: 0,
     notRun: [],
+    varies: [],
     harnessErrors: [],
     callsMissing: [],
     disagreements: [],
@@ -158,6 +162,7 @@ export async function checkAll(programs: readonly Program[], fixture: Fixture): 
     }
     const call = calls[0]!;
     if (outcome.kind === 'not-run') result.notRun.push(program.id);
+    if (outcome.kind === 'varies') result.varies.push(program.id);
     if (outcome.kind === 'error' && !SITE_ERRORS.has(outcome.type)) result.harnessErrors.push(`${program.id}: site error ${outcome.type}`);
     if (!call.to) {
       result.nameOnly++;

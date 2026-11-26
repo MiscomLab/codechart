@@ -9,6 +9,7 @@ recorder reads the log the program's bindings append to and reports what the one
 
     reached <tag>  the call ran and a binding logged <tag>
     error <type>   the call itself raised TypeError, UnboundLocalError or NameError
+    varies         the site ran more than once (a loop) and logged different tags or raised on a later run
     not-run        the site was never evaluated (a harness bug; the test asserts there are none)
     syntax         CPython rejects the program (excluded from the sweep)
 
@@ -32,6 +33,22 @@ __all__ = ['f']
 """
 
 
+def site_events(a_log):
+    """Split the program's log at each site sentinel: one list of tags per execution of the site."""
+    events = []
+    current = None
+    before = []
+    for entry in a_log:
+        if entry == SITE_TAG:
+            current = []
+            events.append(current)
+        elif current is None:
+            before.append(entry)
+        else:
+            current.append(entry)
+    return events, before
+
+
 def run_program(b, program_id, text):
     """Compile and execute one program; return its outcome. Raises when the harness itself cannot explain the run."""
     b.LOG.clear()
@@ -46,19 +63,29 @@ def run_program(b, program_id, text):
     except BaseException as exc:  # noqa: BLE001 - the program's failure is the observation
         error = exc
     a_log = namespace.get('LOG')
-    log = list(a_log if isinstance(a_log, list) else []) + list(b.LOG)
-    tags = [tag for tag in log if tag != SITE_TAG]
-    if len(tags) > 1:
-        raise RuntimeError('%s: the site logged more than once: %r' % (program_id, tags))
-    if tags:
-        return {'kind': 'reached', 'tag': tags[0]}
-    if error is not None:
-        if SITE_TAG not in log:
-            return {'kind': 'not-run'}
-        return {'kind': 'error', 'type': type(error).__name__}
-    if SITE_TAG in log:
-        raise RuntimeError('%s: the site ran and returned without logging or raising' % program_id)
-    return {'kind': 'not-run'}
+    events, before = site_events(a_log if isinstance(a_log, list) else [])
+    if before:
+        raise RuntimeError('%s: a binding logged %r before the site' % (program_id, before))
+    # `b.py` logs into its own list; it never shares a site execution with the program's log, so its tags fill the
+    # executions that logged nothing of their own, in order.
+    b_tags = list(b.LOG)
+    for event in events:
+        if not event and b_tags:
+            event.append(b_tags.pop(0))
+    if b_tags:
+        raise RuntimeError('%s: b.py logged %r outside the site' % (program_id, b_tags))
+    if any(len(event) > 1 for event in events):
+        raise RuntimeError('%s: one site execution logged twice: %r' % (program_id, events))
+    if not events:
+        return {'kind': 'not-run'}
+    tags = [event[0] if event else None for event in events]
+    # An error at the last site execution: the first execution's error is `error`, a later one means the site varied.
+    if error is not None and tags[-1] is None:
+        return {'kind': 'varies'} if len(events) > 1 else {'kind': 'error', 'type': type(error).__name__}
+    # An error after the last execution is the construct's, not the site's; the site's executions decide.
+    if any(tag is None for tag in tags):
+        raise RuntimeError('%s: a site execution returned without logging or raising' % program_id)
+    return {'kind': 'reached', 'tag': tags[0]} if len(set(tags)) == 1 else {'kind': 'varies'}
 
 
 def main():

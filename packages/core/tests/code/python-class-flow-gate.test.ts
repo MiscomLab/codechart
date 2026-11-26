@@ -50,3 +50,33 @@ describe('gate: a comprehension’s later iterable skips the class body', () => 
     await sound('def f(): return "MOD"\nclass K:\n    class f: pass\n    x = [v for _ in [0] for v in [f()]]\n', MODULE_OR_NONE);
   });
 });
+
+describe('python sweep causes: class-body flow and lazy positions', () => {
+  const calls = async (text: string) => {
+    const files = await linkFiles({ 'a.py': `def f():\n    pass\n\n\n${text}` });
+    return files.get('a.py')!.calls.filter((c) => c.name === 'f').map((c) => c.to);
+  };
+
+  it('a class-body def in a try that raised is not the callee', async () => {
+    // CPython: the call reaches the module f; the def never ran.
+    expect(await calls('class K:\n    try:\n        raise ValueError\n        def f():\n            pass\n    except ValueError:\n        pass\n    x = f()\n')).toEqual(['a.py::f::function']);
+  });
+
+  it('a lazy annotation sees the final class body, so a later rebinding makes the class def unprovable', async () => {
+    // CPython 3.14 annotationlib VALUE: the annotation calls the later `f = lambda: 'rebind'`, not the class `f`.
+    expect(await calls("class K:\n    class f:\n        pass\n    def m(self, a: f()):\n        pass\n    f = lambda: 'rebind'\n")).toEqual([undefined]);
+  });
+
+  it('a class def rebound in a loop is not the callee of every iteration', async () => {
+    // CPython: iteration 1 reaches the class f, iteration 2 the rebound value.
+    expect(await calls('class K:\n    class f:\n        pass\n    for _i in range(2):\n        x = f()\n        f = 1\n')).toEqual([undefined]);
+  });
+
+  it.each([
+    ['a type alias value', 'def run():\n    type A = (lambda f: f())(g)\n'],
+    ['a type parameter bound', 'def run[T: (lambda f: f())(g)]():\n    pass\n'],
+  ])('a lambda in %s binds its own parameter', async (_form, text) => {
+    // CPython: `A.__value__` / the bound evaluates the lambda's argument, not the module f.
+    expect(await calls(`def g():\n    pass\n\n\n${text}`)).toEqual([undefined]);
+  });
+});
