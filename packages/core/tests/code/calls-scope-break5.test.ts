@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseCode, type ParsedFile } from '../../src/code/parse.js';
 import { linkCode } from '../../src/code/resolve/link.js';
 import { createResolver } from '../../src/code/resolve/resolver.js';
+import { type LinkedFiles as Files, type Tree, linkFiles as link, results } from './scope-helpers.js';
 
 /**
  * COD-59 second-reader pass, round 5: the deferred/eager split, class headers, class-body order and the headers of
@@ -18,24 +19,7 @@ import { createResolver } from '../../src/code/resolve/resolver.js';
  *    first comprehension iterables, plain defaults/annotations) see it.
  */
 
-type Tree = Record<string, string>;
-type Files = Map<string, ParsedFile>;
-
 const MODULE = 'class Base:\n    pass\n\n\ndef f():\n    return Base\n\n\ndef g():\n    return Base\n\n\ndef deco(fn):\n    return fn\n\n\n';
-
-async function link(tree: Tree): Promise<Files> {
-  const parsed = (await Promise.all(Object.entries(tree).map(([path, text]) => parseCode(path, text)))).filter((f): f is ParsedFile => !!f);
-  const linked = linkCode(parsed, createResolver(Object.keys(tree), (path) => tree[path]));
-  return new Map(linked.map((f) => [f.file.path, f]));
-}
-
-const fileOf = (files: Files, path = 'a.py'): ParsedFile => files.get(path)!;
-
-/** Every call `name` in the file's source order, as its resolved target or undefined for name-only. */
-const results = (files: Files, name: string, path = 'a.py'): (string | undefined)[] =>
-  fileOf(files, path)
-    .calls.filter((c) => c.name === name)
-    .map((c) => c.to);
 
 const at = (body: string): Promise<Files> => link({ 'a.py': MODULE + body });
 

@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCode, type ParsedFile } from '../../src/code/parse.js';
-import { linkCode } from '../../src/code/resolve/link.js';
-import { createResolver } from '../../src/code/resolve/resolver.js';
+import { type LinkedFiles as Files, linkFiles as link } from './scope-helpers.js';
 
 /**
  * COD-59 Python scenarios. Expected values follow Python's own scoping as the compiler's symbol table implements it:
@@ -12,23 +10,17 @@ import { createResolver } from '../../src/code/resolve/resolver.js';
 
 const MODULE = 'def f():\n    pass\n\n\n';
 
-async function link(tree: Record<string, string>): Promise<Map<string, ParsedFile>> {
-  const parsed = (await Promise.all(Object.entries(tree).map(([path, text]) => parseCode(path, text)))).filter((f): f is ParsedFile => !!f);
-  const linked = linkCode(parsed, createResolver(Object.keys(tree), (path) => tree[path]));
-  return new Map(linked.map((f) => [f.file.path, f]));
-}
-
 /** Parses a module with `def f` and the body under test. */
 const at = (body: string) => link({ 'a.py': MODULE + body });
 
-function nameOnly(files: Map<string, ParsedFile>, path: string, name: string): void {
+function nameOnly(files: Files, path: string, name: string): void {
   const calls = files.get(path)!.calls.filter((c) => c.name === name);
   expect(calls).toHaveLength(1);
   expect(calls[0]).toMatchObject({ name, evidence: 'name-only' });
   expect(calls[0]).not.toHaveProperty('to');
 }
 
-function resolved(files: Map<string, ParsedFile>, path: string, name: string, to: string): void {
+function resolved(files: Files, path: string, name: string, to: string): void {
   const calls = files.get(path)!.calls.filter((c) => c.name === name);
   expect(calls).toHaveLength(1);
   expect(calls[0]).toMatchObject({ name, to, evidence: 'resolved' });

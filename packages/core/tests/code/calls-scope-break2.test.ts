@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseCode, type ParsedFile } from '../../src/code/parse.js';
 import { linkCode } from '../../src/code/resolve/link.js';
 import { createResolver } from '../../src/code/resolve/resolver.js';
+import { type LinkedFiles as Files, type Tree, fileOfFiles as fileOf, linkFiles as link, results } from './scope-helpers.js';
 
 /**
  * COD-59 second-reader pass, round 2: the PEP 695 fix (commit 3129911) and the shared state of the whole branch.
@@ -13,24 +14,7 @@ import { createResolver } from '../../src/code/resolve/resolver.js';
  * that reaches the module function appends to the call log. The oracle harness is in the scratch dir, not the repo.
  */
 
-type Tree = Record<string, string>;
-type Files = Map<string, ParsedFile>;
-
 const MODULE = 'def f():\n    return object\n\n\ndef g():\n    return object\n\n\n';
-
-async function link(tree: Tree): Promise<Files> {
-  const parsed = (await Promise.all(Object.entries(tree).map(([path, text]) => parseCode(path, text)))).filter((f): f is ParsedFile => !!f);
-  const linked = linkCode(parsed, createResolver(Object.keys(tree), (path) => tree[path]));
-  return new Map(linked.map((f) => [f.file.path, f]));
-}
-
-const fileOf = (files: Files, path = 'a.py'): ParsedFile => files.get(path)!;
-
-/** Every call `name` in the file's source order, as its resolved target or undefined for name-only. */
-const results = (files: Files, name: string, path = 'a.py'): (string | undefined)[] =>
-  fileOf(files, path)
-    .calls.filter((c) => c.name === name)
-    .map((c) => c.to);
 
 /** Parses one Python module with the `f`/`g` prelude and links it alone. */
 const at = (body: string): Promise<Files> => link({ 'a.py': MODULE + body });

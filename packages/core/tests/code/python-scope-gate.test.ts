@@ -3,19 +3,12 @@ import type { CallRef } from '../../src/code/model.js';
 import { parseCode, type ParsedFile } from '../../src/code/parse.js';
 import { linkCode } from '../../src/code/resolve/link.js';
 import { createResolver } from '../../src/code/resolve/resolver.js';
+import { linkFiles as link } from './scope-helpers.js';
 
 /**
  * COD-59 QA gate: PEP 695 lines no other test pins (surviving mutants). Expectations from CPython 3.14.7, run with
  * `python3 -I`: `symtable` for where `f` is bound, and the runtime for what a module exports.
  */
-
-type Tree = Record<string, string>;
-
-async function link(tree: Tree): Promise<Map<string, ParsedFile>> {
-  const parsed = (await Promise.all(Object.entries(tree).map(([path, text]) => parseCode(path, text)))).filter((f): f is ParsedFile => !!f);
-  const linked = linkCode(parsed, createResolver(Object.keys(tree), (path) => tree[path]));
-  return new Map(linked.map((f) => [f.file.path, f]));
-}
 
 const fCalls = (files: Map<string, ParsedFile>, path: string): CallRef[] => files.get(path)!.calls.filter((c) => c.name === 'f');
 

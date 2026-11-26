@@ -4,6 +4,7 @@ import { parseCode, type ParsedFile } from '../../src/code/parse.js';
 import { linkCode } from '../../src/code/resolve/link.js';
 import { createResolver } from '../../src/code/resolve/resolver.js';
 import { tsCallAt, type TsDeclaration } from './ts-oracle.js';
+import { type Repo, type Tree, type TsExpect, callOf, expectTs, fileOf, link } from './scope-helpers.js';
 
 /**
  * COD-59 second-reader pass (Gate 2, steps 6–7): constructs the new JS scope reader and the Python PEP 695 code do not
@@ -15,44 +16,11 @@ import { tsCallAt, type TsDeclaration } from './ts-oracle.js';
  * parameters, so the callee is the type parameter (a `typing.TypeVar`, not callable), never the module `f`.
  */
 
-type Tree = Record<string, string>;
-
-interface Repo {
-  tree: Tree;
-  files: Map<string, ParsedFile>;
-}
-
-async function link(tree: Tree): Promise<Repo> {
-  const parsed = (await Promise.all(Object.entries(tree).map(([path, text]) => parseCode(path, text)))).filter((f): f is ParsedFile => !!f);
-  const linked = linkCode(parsed, createResolver(Object.keys(tree), (path) => tree[path]));
-  return { tree, files: new Map(linked.map((f) => [f.file.path, f])) };
-}
-
-const fileOf = (repo: Repo, path = 'a.ts'): ParsedFile => repo.files.get(path)!;
-
-function callOf(repo: Repo, name: string, caller?: string, path = 'a.ts'): CallRef {
-  const calls = fileOf(repo, path).calls.filter((c) => c.name === name && (!caller || c.from.startsWith(`${path}::${caller}::`)));
-  expect(calls.length, `calls named ${name}${caller ? ` from ${caller}` : ''}`).toBe(1);
-  return calls[0]!;
-}
-
-interface TsExpect {
-  kind: string;
-  parentKind?: string;
-  file?: string;
-}
-
 const tsOf = (repo: Repo, call: CallRef): TsDeclaration | undefined => {
   const path = call.from.slice(0, call.from.indexOf('::'));
   const lookup = tsCallAt(repo.tree, path, call.range.start.line, call.range.start.column, call.name);
   return lookup.found ? lookup.declaration : undefined;
 };
-
-function expectTs(actual: TsDeclaration | undefined, expected: TsExpect): TsDeclaration {
-  expect(actual).toBeDefined();
-  expect(actual).toMatchObject(expected);
-  return actual!;
-}
 
 /** A call core leaves name-only, with the checker's declaration for its callee as the oracle. */
 function nameOnly(repo: Repo, name: string, ts: TsExpect, caller?: string, path = 'a.ts'): CallRef {

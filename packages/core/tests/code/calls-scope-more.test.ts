@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CallRef } from '../../src/code/model.js';
-import { parseCode, type ParsedFile } from '../../src/code/parse.js';
-import { linkCode } from '../../src/code/resolve/link.js';
-import { createResolver } from '../../src/code/resolve/resolver.js';
-import { tsDeclarationAt, tsDeclarationOfIdentifier, type TsDeclaration } from './ts-oracle.js';
+import { callOf, expectTs, fileOf, link, nameOnly, receiverOnly, resolved, tsOf, unbound } from './scope-helpers.js';
 
 /**
  * COD-59, plan scenarios 16–30: imports and namespace members are shadowed by local bindings; names that bind no
@@ -13,84 +9,6 @@ import { tsDeclarationAt, tsDeclarationOfIdentifier, type TsDeclaration } from '
  * As in `calls-scope.test.ts`, the TypeScript checker is the oracle: each case asserts the declaration it gives the
  * callee (or the receiver of a member call) next to core's outcome.
  */
-
-type Tree = Record<string, string>;
-
-interface Repo {
-  tree: Tree;
-  files: Map<string, ParsedFile>;
-}
-
-async function link(tree: Tree): Promise<Repo> {
-  const parsed = (await Promise.all(Object.entries(tree).map(([path, text]) => parseCode(path, text)))).filter((f): f is ParsedFile => !!f);
-  const linked = linkCode(parsed, createResolver(Object.keys(tree), (path) => tree[path]));
-  return { tree, files: new Map(linked.map((f) => [f.file.path, f])) };
-}
-
-const fileOf = (repo: Repo, path = 'a.ts'): ParsedFile => repo.files.get(path)!;
-
-function callOf(repo: Repo, name: string, caller?: string, path = 'a.ts'): CallRef {
-  const calls = fileOf(repo, path).calls.filter((c) => c.name === name && (!caller || c.from.startsWith(`${path}::${caller}::`)));
-  expect(calls.length, `calls named ${name}${caller ? ` from ${caller}` : ''}`).toBe(1);
-  return calls[0]!;
-}
-
-interface TsExpect {
-  kind: string;
-  parentKind?: string;
-  file?: string;
-  line?: number;
-  name?: string;
-}
-
-const tsOf = (repo: Repo, call: CallRef): TsDeclaration | undefined => {
-  const path = call.from.slice(0, call.from.indexOf('::'));
-  return tsDeclarationAt(repo.tree, path, call.range.start.line, call.range.start.column, call.name);
-};
-
-function expectTs(actual: TsDeclaration | undefined, expected: TsExpect): TsDeclaration {
-  expect(actual).toBeDefined();
-  expect(actual).toMatchObject(expected);
-  return actual!;
-}
-
-function unbound(repo: Repo, name: string, caller?: string): CallRef {
-  const call = callOf(repo, name, caller);
-  expect(tsOf(repo, call)).toBeUndefined();
-  expect(call).toMatchObject({ name, evidence: 'name-only' });
-  expect(call).not.toHaveProperty('to');
-  return call;
-}
-
-function nameOnly(repo: Repo, name: string, ts: TsExpect, caller?: string, path = 'a.ts'): CallRef {
-  const call = callOf(repo, name, caller, path);
-  expectTs(tsOf(repo, call), ts);
-  expect(call).toMatchObject({ name, evidence: 'name-only' });
-  expect(call).not.toHaveProperty('to');
-  return call;
-}
-
-function resolved(repo: Repo, name: string, to: string, ts: TsExpect, caller?: string): CallRef {
-  const call = callOf(repo, name, caller);
-  const found = expectTs(tsOf(repo, call), ts);
-  const target = fileOf(repo, to.slice(0, to.indexOf('::'))).symbols.find((symbol) => symbol.id === to);
-  expect(target, `symbol ${to}`).toBeDefined();
-  expect(found).toMatchObject({ file: target!.file });
-  expect(found.line).toBeGreaterThanOrEqual(target!.range.start.line);
-  expect(found.line).toBeLessThanOrEqual(target!.range.end.line);
-  expect(call).toMatchObject({ name, to, evidence: 'resolved' });
-  return call;
-}
-
-/** A member call whose receiver a local binding shadows: the checker sees the receiver as that binding. */
-function receiverOnly(repo: Repo, name: string, receiver: string, ts: TsExpect, caller?: string): CallRef {
-  const call = callOf(repo, name, caller);
-  const path = call.from.slice(0, call.from.indexOf('::'));
-  expectTs(tsDeclarationOfIdentifier(repo.tree, path, call.range.start.line, call.range.start.column, receiver), { ...ts, name: receiver });
-  expect(call).toMatchObject({ name, via: 'member', receiver, evidence: 'name-only' });
-  expect(call).not.toHaveProperty('to');
-  return call;
-}
 
 describe('16. imports are shadowed only where a local binding wins', () => {
   const named = { 'b.ts': 'export function f() {}\n' };

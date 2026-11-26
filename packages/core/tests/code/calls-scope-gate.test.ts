@@ -1,23 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { CallRef } from '../../src/code/model.js';
-import { parseCode, type ParsedFile } from '../../src/code/parse.js';
-import { linkCode } from '../../src/code/resolve/link.js';
-import { createResolver } from '../../src/code/resolve/resolver.js';
+import type { ParsedFile } from '../../src/code/parse.js';
 import { tsDeclarationAt } from './ts-oracle.js';
+import { type Tree, linkFiles as link } from './scope-helpers.js';
 
 /**
  * COD-59 QA gate: lines of the scope builder no other test reaches (surviving mutants), each checked against the
  * TypeScript checker. A write is any assignment target ECMA-262 binds (AssignmentPattern, AssignmentProperty, TS `!`),
  * and the plan makes a written binding prove no target.
  */
-
-type Tree = Record<string, string>;
-
-async function link(tree: Tree): Promise<Map<string, ParsedFile>> {
-  const parsed = (await Promise.all(Object.entries(tree).map(([path, text]) => parseCode(path, text)))).filter((f): f is ParsedFile => !!f);
-  const linked = linkCode(parsed, createResolver(Object.keys(tree), (path) => tree[path]));
-  return new Map(linked.map((f) => [f.file.path, f]));
-}
 
 function callFrom(files: Map<string, ParsedFile>, caller: string): CallRef {
   const calls = files.get('a.ts')!.calls.filter((c) => c.name === 'f' && c.from.startsWith(`a.ts::${caller}::`));

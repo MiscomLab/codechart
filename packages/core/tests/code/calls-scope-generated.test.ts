@@ -1,9 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { CallRef, CodeSymbol } from '../../src/code/model.js';
-import { parseCode, type ParsedFile } from '../../src/code/parse.js';
-import { linkCode } from '../../src/code/resolve/link.js';
-import { createResolver } from '../../src/code/resolve/resolver.js';
 import { tsCallAt, type TsDeclaration } from './ts-oracle.js';
+import { type Repo, type Tree, link } from './scope-helpers.js';
 
 /**
  * COD-59: every value-binding construct of the TypeScript and JavaScript grammars, expanded over every place a call can
@@ -22,8 +20,6 @@ import { tsCallAt, type TsDeclaration } from './ts-oracle.js';
  * The checker reports the declaration a written binding still points at, not what a reassignment leaves in it, so
  * writes are covered by the explicit tests in `calls-scope.test.ts`, not by this oracle.
  */
-
-type Tree = Record<string, string>;
 
 const DEFAULT_HEADER = 'function f() {}\n';
 /** Every import template shares one `b.ts`; `g` is there for template 76's alias. */
@@ -217,18 +213,6 @@ function withSite(template: Template, body: string, wrapper: string): string {
   const marker = template.site === 'statement' ? '@' : '%';
   if (body.split(marker).length !== 2) throw new Error(`template ${template.id}: expected exactly one ${marker} in ${JSON.stringify(body)}`);
   return `${template.header ?? DEFAULT_HEADER}${body.replace(marker, wrapper)}\n`;
-}
-
-interface Repo {
-  tree: Tree;
-  files: Map<string, ParsedFile>;
-}
-
-/** Parses and links the whole generated tree in one pass, as `calls.test.ts` does. */
-async function link(tree: Tree): Promise<Repo> {
-  const parsed = (await Promise.all(Object.entries(tree).map(([path, text]) => parseCode(path, text)))).filter((f): f is ParsedFile => !!f);
-  const linked = linkCode(parsed, createResolver(Object.keys(tree), (path) => tree[path]));
-  return { tree, files: new Map(linked.map((f) => [f.file.path, f])) };
 }
 
 interface Harness {

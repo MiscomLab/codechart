@@ -1,21 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { CallRef } from '../../src/code/model.js';
-import { parseCode, type ParsedFile } from '../../src/code/parse.js';
-import { linkCode } from '../../src/code/resolve/link.js';
-import { createResolver } from '../../src/code/resolve/resolver.js';
+import { linkFiles as link } from './scope-helpers.js';
 
 /**
  * COD-59 QA gate: calls in a Python definition's header that still resolve to a function the name does not reach.
  * Expectations from CPython 3.14.7 (`python3 -I`): `symtable` for where `f` is bound, and running the code.
  */
-
-type Tree = Record<string, string>;
-
-async function link(tree: Tree): Promise<Map<string, ParsedFile>> {
-  const parsed = (await Promise.all(Object.entries(tree).map(([path, text]) => parseCode(path, text)))).filter((f): f is ParsedFile => !!f);
-  const linked = linkCode(parsed, createResolver(Object.keys(tree), (path) => tree[path]));
-  return new Map(linked.map((f) => [f.file.path, f]));
-}
 
 const fCall = async (text: string): Promise<CallRef> => {
   const calls = (await link({ 'a.py': text })).get('a.py')!.calls.filter((c) => c.name === 'f');

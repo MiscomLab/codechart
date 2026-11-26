@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CallRef } from '../../src/code/model.js';
-import { parseCode, type ParsedFile } from '../../src/code/parse.js';
-import { linkCode } from '../../src/code/resolve/link.js';
-import { createResolver } from '../../src/code/resolve/resolver.js';
-import { tsDeclarationAt, type TsDeclaration } from './ts-oracle.js';
+import { fileOf, link, nameOnly, resolved } from './scope-helpers.js';
 
 /**
  * COD-59, plan scenarios 1–15: a call to a name that a parameter or local declaration binds never resolves to a
@@ -12,69 +8,6 @@ import { tsDeclarationAt, type TsDeclaration } from './ts-oracle.js';
  * The TypeScript compiler API is the oracle for what the callee name means at its call site: every case asserts the
  * checker's declaration as well as core's outcome, so a core expectation cannot be derived from core's own rules.
  */
-
-type Tree = Record<string, string>;
-
-interface Repo {
-  tree: Tree;
-  files: Map<string, ParsedFile>;
-}
-
-/** Parses and links an in-memory repo, exactly as `calls.test.ts` does. */
-async function link(tree: Tree): Promise<Repo> {
-  const parsed = (await Promise.all(Object.entries(tree).map(([path, text]) => parseCode(path, text)))).filter((f): f is ParsedFile => !!f);
-  const linked = linkCode(parsed, createResolver(Object.keys(tree), (path) => tree[path]));
-  return { tree, files: new Map(linked.map((f) => [f.file.path, f])) };
-}
-
-const fileOf = (repo: Repo, path = 'a.ts'): ParsedFile => repo.files.get(path)!;
-
-/** The one call named `name`, optionally made from the symbol `caller` (`run`, `run.inner`, `K.m`…). */
-function callOf(repo: Repo, name: string, caller?: string, path = 'a.ts'): CallRef {
-  const calls = fileOf(repo, path).calls.filter((c) => c.name === name && (!caller || c.from.startsWith(`${path}::${caller}::`)));
-  expect(calls.length, `calls named ${name}${caller ? ` from ${caller}` : ''}`).toBe(1);
-  return calls[0]!;
-}
-
-interface TsExpect {
-  kind: string;
-  parentKind?: string;
-  file?: string;
-}
-
-/** The checker's declaration for the call's callee (aliases followed). */
-const tsOf = (repo: Repo, call: CallRef): TsDeclaration | undefined => {
-  const path = call.from.slice(0, call.from.indexOf('::'));
-  return tsDeclarationAt(repo.tree, path, call.range.start.line, call.range.start.column, call.name);
-};
-
-function expectTs(actual: TsDeclaration | undefined, expected: TsExpect): TsDeclaration {
-  expect(actual).toBeDefined();
-  expect(actual).toMatchObject(expected);
-  return actual!;
-}
-
-/** The call is name-only, and the checker binds its name as the plan says (a parameter, a binding element…). */
-function nameOnly(repo: Repo, name: string, ts: TsExpect, caller?: string, path = 'a.ts'): CallRef {
-  const call = callOf(repo, name, caller, path);
-  expectTs(tsOf(repo, call), ts);
-  expect(call).toMatchObject({ name, evidence: 'name-only' });
-  expect(call).not.toHaveProperty('to');
-  return call;
-}
-
-/** The call resolves to `to`, and the checker's declaration is that symbol's own name. */
-function resolved(repo: Repo, name: string, to: string, ts: TsExpect, caller?: string, path = 'a.ts'): CallRef {
-  const call = callOf(repo, name, caller, path);
-  const found = expectTs(tsOf(repo, call), ts);
-  const target = fileOf(repo, to.slice(0, to.indexOf('::'))).symbols.find((symbol) => symbol.id === to);
-  expect(target, `symbol ${to}`).toBeDefined();
-  expect(found).toMatchObject({ file: target!.file });
-  expect(found.line).toBeGreaterThanOrEqual(target!.range.start.line);
-  expect(found.line).toBeLessThanOrEqual(target!.range.end.line);
-  expect(call).toMatchObject({ name, to, evidence: 'resolved' });
-  return call;
-}
 
 describe('a parameter or local binding shadows a same-named top-level function', () => {
   it('1. a parameter shadows the top-level function', async () => {
