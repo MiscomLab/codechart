@@ -1,38 +1,15 @@
 import type { Node } from 'web-tree-sitter';
 import { importNames, isUsing, parameterNames, patternNames, pointOf, startsWithUseStrict, strictFile, writeTargets } from './js-scope-decl.js';
+import { meaningIn, NONE_MEANING, OTHER_MEANING } from './js-scope-mean.js';
 import type { Binding, Scope, ScopeKind } from './js-scope-model.js';
 import type { JsMeaning } from './js-scope.js';
 import type { Import } from './model.js';
 
 const OTHER: Binding = { kind: 'other' };
 const IMPORT: Binding = { kind: 'import' };
-const OTHER_MEANING: JsMeaning = { kind: 'other' };
-const IMPORT_MEANING: JsMeaning = { kind: 'import' };
-const NONE_MEANING: JsMeaning = { kind: 'none' };
 const FUNCTION_VALUES = new Set(['arrow_function', 'generator_function', 'function_expression']);
 const FUNCTION_NAMES = new Set(['generator_function', 'function_expression']);
 const NESTED_BLOCKS = new Set(['statement_block', 'switch_body']);
-
-const meaningOf = (binding: Binding): JsMeaning =>
-  binding.kind === 'def' ? (binding.written ? OTHER_MEANING : { kind: 'def', start: binding.start! }) : binding.kind === 'import' ? IMPORT_MEANING : OTHER_MEANING;
-
-/**
- * Whether entries are one TS overload group: signatures followed by at most one implementation, as `symbols.ts` merges
- * them into one symbol starting at the first signature.
- */
-function isOverloadGroup(entries: readonly Binding[]): boolean {
-  if (!entries.every((entry) => entry.kind === 'def' && entry.func)) return false;
-  if (!entries.slice(0, -1).every((entry) => entry.signature)) return false;
-  return entries[entries.length - 1]!.signature || !entries.some((entry) => !entry.signature && entry !== entries[entries.length - 1]);
-}
-
-/** The first scope that declares `name` decides; a scope binding it more than once proves no single value. */
-function meaningIn(scope: Scope, name: string): JsMeaning | undefined {
-  const entries = scope.decls.get(name);
-  if (!entries) return undefined;
-  if (entries.length === 1) return meaningOf(entries[0]!);
-  return isOverloadGroup(entries) ? { kind: 'def', start: entries[0]!.start! } : OTHER_MEANING;
-}
 
 type Handler = (node: Node, scope: Scope, strict: boolean) => void;
 
@@ -86,7 +63,7 @@ export class Scopes {
     for (let scope = this.nearestScope(target); scope; scope = scope.parent) {
       const entries = scope.decls.get(target.text);
       if (!entries) continue;
-      for (const entry of entries) if (entry.mutable) entry.written = true;
+      for (const entry of entries) entry.written = true;
       return;
     }
   }
@@ -162,11 +139,19 @@ export class Scopes {
     this.walkFunction(node, scope, strict);
   }
 
+  /** Whether a body declaration redeclares a parameter: the two are one binding, which proves nothing. */
+  private isParameterBinding(scope: Scope, name: string): boolean {
+    return scope.kind === 'function' && scope.parent?.kind === 'params' && !!scope.parent.decls.get(name)?.length;
+  }
+
   /** A function declaration binds here; in sloppy code a block-level one also weakly binds the enclosing function. */
   private declareFunction(node: Node, scope: Scope, strict: boolean): void {
     const name = node.childForFieldName('name');
     if (!name) return;
-    this.add(scope, name.text, { kind: 'def', start: pointOf(node), func: true, signature: node.type === 'function_signature' });
+    const binding: Binding = this.isParameterBinding(scope, name.text)
+      ? OTHER
+      : { kind: 'def', start: pointOf(node), func: true, signature: node.type === 'function_signature' };
+    this.add(scope, name.text, binding);
     if (strict || scope.kind !== 'block' || scope.namespace || !NESTED_BLOCKS.has(scope.node.type)) return;
     const owner = this.varScope(scope);
     if (owner !== scope) this.add(owner, name.text, OTHER);
@@ -185,7 +170,11 @@ export class Scopes {
     const body = node.childForFieldName('body');
     if (!body) return;
     const bodyStrict = strict || startsWithUseStrict(body);
-    this.children(body, this.make('function', body, params, bodyStrict), bodyStrict);
+    const inner = this.make('function', body, params, bodyStrict);
+    // An expression body may itself be a function or class: it must go through its own handler, not have its children
+    // walked as if it were a plain expression. A block body's declarations live in the function scope itself.
+    if (body.type === 'statement_block') this.children(body, inner, bodyStrict);
+    else this.walk(body, inner, bodyStrict);
   }
 
   private nameScope(node: Node, parent: Scope, name: string, strict: boolean, binding: Binding): Scope {
@@ -265,10 +254,10 @@ export class Scopes {
     const value = node.childForFieldName('value');
     if (name.type !== 'identifier') {
       for (const bound of patternNames(name)) this.add(target, bound, OTHER);
-    } else if (!value || !FUNCTION_VALUES.has(value.type)) {
+    } else if (this.isParameterBinding(target, name.text) || !value || !FUNCTION_VALUES.has(value.type)) {
       this.add(target, name.text, OTHER);
     } else {
-      this.add(target, name.text, { kind: 'def', start: pointOf(node), func: true, mutable: kind !== 'const' });
+      this.add(target, name.text, { kind: 'def', start: pointOf(node), func: true });
     }
     // The initializer runs in this scope: its own functions, classes and bindings are read where they sit.
     if (value) this.walk(value, scope, strict);
@@ -278,7 +267,8 @@ export class Scopes {
     const inner = this.make('block', node, scope, strict);
     for (const name of patternNames(node.childForFieldName('parameter'))) this.add(inner, name, OTHER);
     const body = node.childForFieldName('body');
-    if (body) this.children(body, inner, strict);
+    // The body is an ordinary nested block: a function declared in it is one for Annex B too.
+    if (body) this.walk(body, inner, strict);
   }
 
   /** The head of a `for` is a block scope; `let`/`const` bind there, `var` in the enclosing function. */

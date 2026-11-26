@@ -78,8 +78,8 @@ interface Scope {
   outer: readonly string[];
   globals: ReadonlySet<string>;
   nonlocals: ReadonlySet<string>;
-  /** In a class body: its type parameters, which its methods also see (PEP 695). */
-  classTypeParams?: readonly string[];
+  /** PEP 695 type parameters in scope here: this body's own and every enclosing generic definition's. */
+  typeParams?: readonly string[];
 }
 
 type Bind = (name: string, kind: PyBinding['kind'], extra?: Partial<PyBinding>) => void;
@@ -130,25 +130,23 @@ function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   const own = w.scopeOf(def);
   const fn = def.type === 'function_definition';
   const typeParams = typeParameterNames(def);
+  const inherited = at.typeParams ?? [];
   const body = def.childForFieldName('body');
   const from = body ? { line: body.startPosition.row + 1, column: body.startPosition.column } : undefined;
-  // A definition's own type parameters are not in scope for its parameter defaults; a class's are in its whole body.
+  // Enclosing type parameters are live throughout nested definitions; a definition's own are not live in its defaults.
+  for (const typeParam of inherited) w.out.push({ scope: own, name: typeParam, kind: 'other' });
   for (const typeParam of typeParams) w.out.push({ scope: own, name: typeParam, kind: 'other', ...(from && { from }) });
-  if (fn) {
-    for (const typeParam of at.classTypeParams ?? []) w.out.push({ scope: own, name: typeParam, kind: 'other' });
-    for (const p of parameterNames(def.childForFieldName('parameters'))) w.out.push({ scope: own, name: p, kind: 'other' });
-  }
+  if (fn) for (const p of parameterNames(def.childForFieldName('parameters'))) w.out.push({ scope: own, name: p, kind: 'other' });
   if (!body) return;
   const outer = at.isFunction ? [at.scope, ...at.outer] : at.outer;
-  const inner: Scope = {
+  walk(w, body, {
     scope: own,
     isFunction: fn,
     outer,
     globals: new Set(declared(body, 'global_statement')),
     nonlocals: new Set(declared(body, 'nonlocal_statement')),
-  };
-  if (!fn) inner.classTypeParams = typeParams;
-  walk(w, body, inner);
+    typeParams: [...inherited, ...typeParams],
+  });
 }
 
 function identifiers(node: Node): string[] {

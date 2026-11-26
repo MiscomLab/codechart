@@ -8,8 +8,6 @@ export interface Binding {
   /** A function declaration or a variable declarator holding a function: candidates for TS overload merging. */
   func?: boolean;
   signature?: boolean;
-  /** A `let`/`var` function value, which only proves a definition while no write reaches this binding. */
-  mutable?: boolean;
   /** A write in this binding's own scope chain reached it. */
   written?: boolean;
 }
