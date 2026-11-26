@@ -34,6 +34,9 @@ function addTargets(node: Node | null | undefined, out: Node[]): void {
   }
   if (node.type === 'assignment_pattern' || node.type === 'object_assignment_pattern') return addTargets(node.childForFieldName('left'), out);
   if (node.type === 'pair_pattern') return addTargets(node.childForFieldName('value'), out);
+  // A cast on the left still writes the binding under it; only the expression child counts, never the type.
+  if (node.type === 'as_expression' || node.type === 'satisfies_expression') return addTargets(node.namedChildren[0], out);
+  if (node.type === 'type_assertion') return addTargets(node.namedChildren.find((child) => child?.type !== 'type_arguments'), out);
   if (WRITE_PATTERNS.has(node.type)) for (const child of node.namedChildren) addTargets(child, out);
 }
 

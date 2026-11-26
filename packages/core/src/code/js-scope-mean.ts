@@ -13,9 +13,7 @@ const meaningOf = (binding: Binding): JsMeaning =>
  * them into one symbol starting at the first signature.
  */
 function isOverloadGroup(entries: readonly Binding[]): boolean {
-  if (!entries.every((entry) => entry.kind === 'def' && entry.func)) return false;
-  if (!entries.slice(0, -1).every((entry) => entry.signature)) return false;
-  return entries[entries.length - 1]!.signature || !entries.some((entry) => !entry.signature && entry !== entries[entries.length - 1]);
+  return entries.every((entry) => entry.kind === 'def' && entry.func) && entries.slice(0, -1).every((entry) => entry.signature);
 }
 
 /** The first scope that declares `name` decides; a written binding, or one bound more than once, proves no single value. */
