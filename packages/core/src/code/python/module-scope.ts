@@ -23,7 +23,7 @@ export interface PyBinding {
   within?: CodeRange[];
   /** A type alias's own type parameter: local to the alias value, never an export. */
   alias?: boolean;
-  /** A class-body binding made inside an `if`, `try`, loop, `with` or `match` of that body: it may never have run. */
+  /** A class- or function-body binding made inside an `if`, `try`, loop, `with` or `match`, or after a jump: it may never have run. */
   conditional?: boolean;
   /** Where the binding is written; a class body's binding is only visible to later calls in its headers and body. */
   start?: CodeRange['start'];
@@ -76,11 +76,11 @@ interface Scope {
   typeParams?: readonly string[];
   /** Inside a compound statement of this body: a binding made here may or may not have run. */
   conditional?: boolean;
-  /** After a `raise`, `break` or `continue` in the same block: nothing here runs, so a class body binds nothing here. */
+  /** After a `raise`, `break`, `continue` or `return` in the same block: nothing here runs, so a class body binds nothing here. */
   dead?: boolean;
 }
 
-const JUMPS = new Set(['raise_statement', 'break_statement', 'continue_statement']);
+const JUMPS = new Set(['raise_statement', 'break_statement', 'continue_statement', 'return_statement']);
 const COMPOUND = new Set(['if_statement', 'try_statement', 'for_statement', 'while_statement', 'with_statement', 'match_statement']);
 
 type Bind = (name: string, kind: PyBinding['kind'], extra?: Partial<PyBinding>) => void;
@@ -89,10 +89,12 @@ function binder(w: Walker, at: Scope): Bind {
   return (name, kind, extra = {}) => {
     // Only a class body looks names up by running: in a function a name assigned anywhere is local, run or not.
     if (at.dead && !at.isFunction && at.scope) return;
+    // In a function, a binding that may not have run still makes the name local but proves no target.
+    const unsure = !!at.scope && (at.conditional || at.dead);
     if (at.globals.has(name)) w.out.push({ scope: '', name, kind, ...extra });
     // `nonlocal f` writes an enclosing function's f; which one is not tracked, so every enclosing scope loses its proof.
     else if (at.nonlocals.has(name)) for (const outer of at.outer) w.out.push({ scope: outer, name, kind: 'other' });
-    else w.out.push({ scope: at.scope, name, kind, ...(at.conditional && !at.isFunction && at.scope && { conditional: true }), ...extra });
+    else w.out.push({ scope: at.scope, name, kind, ...(unsure && { conditional: true }), ...extra });
   };
 }
 
@@ -178,10 +180,13 @@ function bindTypeParameters(w: Walker, own: string, inherited: readonly string[]
   }
 }
 
+/** A decorator's return value is what a decorated definition's name binds, so it proves no target. */
+const definitionKind = (def: Node): PyBinding['kind'] => (def.parent?.type === 'decorated_definition' ? 'other' : 'def');
+
 /** A `def` or `class` binds its name here; its parameters and body bind in its own scope. */
 function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
   const name = def.childForFieldName('name')?.text;
-  if (name) bind(name, 'def', { start: nodeRange(def).start });
+  if (name) bind(name, definitionKind(def), { start: nodeRange(def).start });
   const own = w.scopeOf(def);
   const fn = def.type === 'function_definition';
   const typeParams = typeParameterNames(def.childForFieldName('type_parameters'));

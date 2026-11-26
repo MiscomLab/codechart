@@ -66,11 +66,12 @@ function headerChain(parsed: ParsedFile, caller: CodeSymbol, deferred: boolean):
 }
 
 /**
- * A class body runs as ordinary code: a binding is provable only if it is the one unconditional binding of the name, and
- * an earlier call cannot reach a later one. Otherwise the name may or may not exist at runtime: undefined, name-only.
+ * A class or function body runs as ordinary code: a binding is provable only if it is the one unconditional binding of
+ * the name and starts before the call, whichever scope the call sits in. Otherwise the name may or may not exist at
+ * runtime: undefined, name-only. The module scope is exempt: its functions run after it has defined everything.
  */
 function classBindings(parsed: ParsedFile, scope: string, scoped: PyBinding[], at: CallRef['range']['start'] | undefined): PyBinding[] | undefined {
-  if (!parsed.symbols.some((s) => s.id === scope && s.kind === 'class')) return scoped;
+  if (!scope || !parsed.symbols.some((s) => s.id === scope)) return scoped;
   if (scoped.length !== 1 || scoped[0]!.conditional) return undefined;
   const ordered = at ? scoped.filter((b) => !b.start || before(b.start, at)) : scoped;
   return ordered.length ? ordered : undefined;
@@ -81,11 +82,11 @@ function meaning(parsed: ParsedFile, name: string, chain: readonly string[], at:
   for (let i = 0; i < chain.length; i++) {
     // A star import can rebind any name of its scope, at a point the parse does not order.
     if (bindings.some((b) => b.scope === chain[i] && b.name === '*')) return undefined;
-    const scoped = bindings.filter((b) => b.scope === chain[i] && b.name === name);
+    const scoped = bindings.filter((b) => b.scope === chain[i] && b.name === name && visible(b, at));
     if (!scoped.length) continue;
     const ordered = classBindings(parsed, chain[i]!, scoped, at);
     if (!ordered) return undefined;
-    const found = ordered.filter((b) => visible(b, at));
+    const found = ordered;
     if (!found.length) continue;
     // `import a.b` and `import a.c` both bind the package `a`; the dotted path decides which module a call reaches.
     if (found.every((b) => b.dotted)) return { kind: 'dotted', imports: found.map((b) => parsed.imports[b.import!]!) };
@@ -126,6 +127,9 @@ function defIn(parsed: ParsedFile, scope: string, name: string): CodeSymbol | un
 /** The top-level function or class a proven export binding points at. */
 function topLevel(files: Files, found: Found, kinds: readonly string[] = ['function', 'class']): CodeSymbol | undefined {
   if (typeof found !== 'object' || found.binding === '*') return undefined;
+  // A decorated definition binds the decorator's result, not the definition.
+  const bound = files.get(found.file)?.bindings?.find((b) => b.scope === '' && b.name === found.binding && !b.alias);
+  if (bound && bound.kind !== 'def') return undefined;
   const symbols = (files.get(found.file)?.symbols ?? []).filter((s) => s.path.length === 1 && s.path[0] === found.binding && kinds.includes(s.kind));
   return symbols.length === 1 ? symbols[0] : undefined;
 }
