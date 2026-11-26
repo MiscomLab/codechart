@@ -15,8 +15,12 @@ import { tsCallAt, type TsDeclaration } from './ts-oracle.js';
  * seconds.
  *
  * The oracle is the checker's declaration for the callee (aliases followed). A call core resolves must have a TS
- * declaration in the target symbol's file, with the symbol's name, on a line inside the symbol's range. The report at
- * the end counts name-only calls whose TS declaration is a function symbol core already has: precision core gave up.
+ * declaration in the target symbol's file, with the symbol's name, and its name position (line and column) inside the
+ * symbol's range. The report at the end counts name-only calls whose TS declaration is a function symbol core already
+ * has: precision core gave up.
+ *
+ * The checker reports the declaration a written binding still points at, not what a reassignment leaves in it, so
+ * writes are covered by the explicit tests in `calls-scope.test.ts`, not by this oracle.
  */
 
 type Tree = Record<string, string>;
@@ -257,9 +261,17 @@ function describeCase(c: GeneratedCase, call: CallRef, target: CodeSymbol | unde
   ].join('\n');
 }
 
-/** Whether the checker's declaration is the core symbol: same file, same name, its name line inside the symbol's range. */
+/** Whether a declaration's name position lies inside a core symbol's range, column included so a one-line file cannot pass. */
+function withinRange(declaration: TsDeclaration, range: CodeSymbol['range']): boolean {
+  const { start, end } = range;
+  const afterStart = declaration.line > start.line || (declaration.line === start.line && declaration.column >= start.column);
+  const beforeEnd = declaration.line < end.line || (declaration.line === end.line && declaration.column <= end.column);
+  return afterStart && beforeEnd;
+}
+
+/** Whether the checker's declaration is the core symbol: same file, same name, its name position inside the symbol's range. */
 function isTarget(declaration: TsDeclaration, target: CodeSymbol, name: string): boolean {
-  return declaration.file === target.file && declaration.name === name && declaration.line >= target.range.start.line && declaration.line <= target.range.end.line;
+  return declaration.file === target.file && declaration.name === name && withinRange(declaration, target.range);
 }
 
 const FUNCTION_DECLARATIONS = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunction']);

@@ -12,6 +12,8 @@ export interface TsDeclaration {
   file: string;
   /** 1-based line of the declaration's name, where the name is written. */
   line: number;
+  /** 0-based column of the declaration's name, where the name is written. */
+  column: number;
   parentKind: string;
   name: string;
 }
@@ -111,6 +113,7 @@ function describeDeclaration(declaration: ts.Declaration): TsDeclaration {
     kind: ts.SyntaxKind[declaration.kind] ?? String(declaration.kind),
     file: normalize(sourceFile.fileName).startsWith(ROOT) ? normalize(sourceFile.fileName).slice(ROOT.length) : sourceFile.fileName,
     line: position.line + 1,
+    column: position.character,
     parentKind,
     name: name ? name.getText(sourceFile) : '',
   };
