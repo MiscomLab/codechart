@@ -37,6 +37,35 @@ describe('round 3: a module object that escapes as a value can be rebound anywhe
     expect(await targets({ 'a.py': PY_A, ...rest }, 'a.py')).toEqual([undefined]);
   });
 
+  const PY_F = 'def f(): return 1\ndef run(): return f()\n';
+  it.each([
+    // Gate findings on ba2c271. CPython 3.14: `import b, <module>; <module>.run()` -> 2 for every row.
+    ['a dotted module passed as a value', 'pkg/a.py', { 'pkg/__init__.py': '', 'h.py': PY_PATCH, 'b.py': 'import pkg.a, h\nh.patch(pkg.a)\n' }],
+    ['a dotted module bound to another name', 'pkg/a.py', { 'pkg/__init__.py': '', 'b.py': 'import pkg.a\nm = pkg.a\nm.f = lambda: 2\n' }],
+    ['setattr on a dotted module', 'pkg/a.py', { 'pkg/__init__.py': '', 'b.py': 'import pkg.a\nsetattr(pkg.a, "f", lambda: 2)\n' }],
+    ['import_module through an aliased importlib', 'a.py', { 'h.py': PY_PATCH, 'b.py': 'import importlib as il, h\nh.patch(il.import_module("a"))\n' }],
+    ['import_module imported by name', 'a.py', { 'h.py': PY_PATCH, 'b.py': 'from importlib import import_module\nimport h\nh.patch(import_module("a"))\n' }],
+    ['a write on an import_module result', 'a.py', { 'b.py': 'import importlib\nimportlib.import_module("a").f = lambda: 2\n' }],
+    ['a write through sys.modules', 'a.py', { 'b.py': 'import a, sys\nsys.modules["a"].f = lambda: 2\n' }],
+    ['an import core cannot resolve (sys.path) passed as a value', 'src/a.py', { 'h.py': PY_PATCH, 'b.py': 'import sys\nsys.path.insert(0, "src")\nimport a, h\nh.patch(a)\n' }],
+    ['the module __setattr__', 'a.py', { 'b.py': 'import a\na.__setattr__("f", lambda: 2)\n' }],
+    ['the module __dict__.update', 'a.py', { 'b.py': 'import a\na.__dict__.update(f=lambda: 2)\n' }],
+    ['the module __dict__ bound to another name', 'a.py', { 'b.py': 'import a\nd = a.__dict__\nd["f"] = lambda: 2\n' }],
+    ['a module name that is rebound later', 'a.py', { 'h.py': PY_PATCH, 'b.py': 'import a\nimport h\nm = a\nh.patch(m)\na = 0\n' }],
+    ['a module imported twice', 'a.py', { 'h.py': PY_PATCH, 'b.py': 'import a\nimport a\nimport h\nh.patch(a)\n' }],
+    ['a module imported in try with an except fallback', 'a.py', { 'h.py': PY_PATCH, 'b.py': 'import h\ntry:\n    import a\nexcept ImportError:\n    a = None\nh.patch(a)\n' }],
+    ['a module in a for iterable', 'a.py', { 'h.py': PY_PATCH, 'b.py': 'import a\nimport h\nfor m in [a]:\n    h.patch(m)\n' }],
+  ])('PY-E %s', async (_form, path, rest) => {
+    expect(await targets({ [path]: PY_F, ...rest }, path)).toEqual([undefined]);
+  });
+
+  it('PY-E precision: an unresolved import used as a value only reaches modules of that name', async () => {
+    // Precision: sound refinement, COD-59 round 3
+    // CPython 3.14: `import b, z; z.run()` -> 1; the escaping module is src/a.py, never z.
+    const tree = { 'src/a.py': PY_F, 'z.py': PY_F, 'h.py': PY_PATCH, 'b.py': 'import sys\nsys.path.insert(0, "src")\nimport a, h\nh.patch(a)\n' };
+    expect(await targets(tree, 'z.py')).toEqual(['z.py::f::function']);
+  });
+
   it('PY-E precision: reading an attribute of the module does not let it escape', async () => {
     // Precision: sound refinement, COD-59 round 3
     // CPython 3.14: `import a; a.run()` -> 1; b.py only reads a.run.__name__.
@@ -109,6 +138,21 @@ describe('round 3: a live index re-resolves when another file starts rebinding t
     await index.update(['b.py']);
     expect(callTo(index, 'a.py')).toBeUndefined();
     expect(callTo(index, 'pkg/__init__.py')).toBeUndefined();
+  });
+
+  it('b.py starts importing a module below the submodule pkg.sub', async () => {
+    // CPython 3.14: with b.py = `x = 1`, pkg.run() -> 1; after `import pkg.sub.mod`, pkg.run() raises TypeError.
+    const index = await open({
+      'pkg/__init__.py': 'def sub(): return 1\ndef run(): return sub()\n',
+      'pkg/sub/__init__.py': 'x = 1\n',
+      'pkg/sub/mod.py': 'y = 1\n',
+      'b.py': 'x = 1\n',
+    });
+    const subTo = (): string | undefined => index.file('pkg/__init__.py')?.calls.find((c) => c.name === 'sub')?.to;
+    expect(subTo()).toBe('pkg/__init__.py::sub::function');
+    writeFileSync(join(repo, 'b.py'), 'import pkg.sub.mod\n');
+    await index.update(['b.py']);
+    expect(subTo()).toBeUndefined();
   });
 });
 
