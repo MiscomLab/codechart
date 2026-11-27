@@ -227,3 +227,74 @@ describe('gate 2 round 3', () => {
     await expectArrow(tree, ext, { caller: 'K.c', target: `${file}::K.f::method` });
   });
 });
+
+describe('gate 2 round 4', () => {
+  // `\u{…}` takes any number of leading zeros (node: "\u{0000066}" is "f"); the source text keeps the escape.
+  const ZF = '\\u{0000066}';
+  const ZY = '\\u{0000079}';
+
+  it.each(ALL)('U1 a quoted method alone is K.f (%s)', async (ext) => {
+    const file = `a.${ext}`;
+    const tree = { [file]: `class K {\n  '${ZF}'() { return 1; }\n  m() { return this.f(); }\n}\n` };
+    const repo = await link(tree);
+    expect(repo.files.get(file)?.symbols.some((s) => s.id === `${file}::K.f::method`), 'symbol K.f').toBe(true);
+    await expectArrow(tree, ext, { declLine: 2, target: `${file}::K.f::method` });
+  });
+
+  const dup = (key: string) => `class K {\n  f() {}\n  ${key}() {}\n  m() { this.f(); }\n}\n`;
+  const dupRows: Row[] = [
+    ['U2 a quoted \\u{0000066} next to f()', one(dup(`'${ZF}'`)), ALL, () => ({ declLines: [2, 3] })],
+    ['U2 a template [`\\u{0000066}`] next to f()', one(dup(`[\`${ZF}\`]`)), ALL, () => ({ declLines: [2, 3] })],
+  ];
+  it.each(expand(dupRows))('name-only, tsc lists 2: %s', async (_label, tree, ext, spec) => {
+    await expectNameOnly(tree, ext, spec);
+  });
+
+  it.each(ALL)('U3 ids under a field named with a zero-padded escape (%s)', async (ext) => {
+    const file = `a.${ext}`;
+    const tree = { [file]: `class K {\n  '${ZY}' = class {\n    f() {}\n    b() { this.f(); }\n  };\n  f() {}\n  c() { this.f(); }\n}\n` };
+    const repo = await link(tree);
+    const ids = new Set((repo.files.get(file)?.symbols ?? []).map((s) => s.id));
+    for (const id of ['K.y.f', 'K.y.b', 'K.f', 'K.c']) expect(ids.has(`${file}::${id}::method`), `symbol ${id}`).toBe(true);
+    await expectArrow(tree, ext, { caller: 'K.y.b', target: `${file}::K.y.f::method` });
+    await expectArrow(tree, ext, { caller: 'K.c', target: `${file}::K.f::method` });
+  });
+
+  // tsc JS inference counts the write as a declaration (lines 2 and 5 in .js/.mjs); TS lists one.
+  const write = 'class K {\n  f() {}\n  m() { this.f(); }\n}\n';
+  it.each(expand([['U4 K.prototype[`\\u{0000066}`] = …', one(`${write}K.prototype[\`${ZF}\`] = () => 1;\n`), ALL, (ext: string) => (ext === 'ts' ? {} : { declLines: [2, 5] })]]))(
+    'name-only: %s',
+    async (_label, tree, ext, spec) => {
+      await expectNameOnly(tree, ext, spec);
+    },
+  );
+
+  it.each(expand([['U5 Object.defineProperty(K.prototype, `\\u{0000066}`, …)', one(`${write}Object.defineProperty(K.prototype, \`${ZF}\`, { value: () => 1 });\n`), ALL, (ext: string) => (ext === 'ts' ? {} : { declLines: [2, 5] })]]))(
+    'name-only: %s',
+    async (_label, tree, ext, spec) => {
+      await expectNameOnly(tree, ext, spec);
+    },
+  );
+
+  // '\u{10FFFF}' is the largest valid code point: a real member name, not the unknown-key sentinel.
+  it.each(ALL)('U6 a member named by \\u{10FFFF} is a member, so this.f() is K.f (%s)', async (ext) => {
+    const tree = { [`a.${ext}`]: "class K {\n  f() {}\n  '\\u{10FFFF}'() {}\n  m() { this.f(); }\n}\n" };
+    await expectArrow(tree, ext, { declLine: 2, target: `a.${ext}::K.f::method` });
+  });
+
+  // A member literally named `*` is a real name.
+  const star = (key: string) => `class K {\n  f() {}\n  ${key}() {}\n  m() { this.f(); }\n}\n`;
+  const starRows: Row[] = [
+    ["U7 ['*']() {}", one(star("['*']")), ALL, () => ({ declLine: 2 })],
+    ['U7 [`\\x2a`]() {}', one(star('[`\\x2a`]')), ALL, () => ({ declLine: 2 })],
+    ["U7 '*'() {}", one(star("'*'")), ALL, () => ({ declLine: 2 })],
+  ];
+  it.each(expand(starRows))('arrow: %s', async (_label, tree, ext) => {
+    await expectArrow(tree, ext, { declLine: 2, target: `a.${ext}::K.f::method` });
+  });
+
+  // Pin: a key core cannot prove still vetoes (tsc: the computed member is another name, 1 declaration).
+  it.each(ALL)('an unknown key [k] with let k = "f" stays name-only (%s)', async (ext) => {
+    await expectNameOnly({ [`a.${ext}`]: "let k = 'f';\nclass K {\n  f() {}\n  [k]() {}\n  m() { this.f(); }\n}\n" }, ext, { declLine: 3 });
+  });
+});
