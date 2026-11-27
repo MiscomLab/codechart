@@ -1,13 +1,20 @@
-import type { CallRef, CodeSymbol } from '../model.js';
+import type { JsMeaning } from '../js-scope.js';
+import type { CallRef, ClassInfo, CodeRange, CodeSymbol } from '../model.js';
 import type { ParsedFile } from '../parse.js';
+import { dispatchOf } from './dispatch.js';
 import { pythonCallTarget } from './python-calls.js';
 import type { Found, Tracer } from './trace.js';
 
 type Files = ReadonlyMap<string, ParsedFile>;
 type FoundTarget = CodeSymbol | undefined;
-type SameFile = { kind: 'found'; symbol: CodeSymbol } | { kind: 'ambiguous' } | { kind: 'none' };
 
-const isPrefix = (prefix: readonly string[], path: readonly string[]) => prefix.every((part, i) => path[i] === part);
+const OTHER: JsMeaning = { kind: 'other' };
+
+const before = (a: { line: number; column: number }, b: { line: number; column: number }): boolean => a.line < b.line || (a.line === b.line && a.column < b.column);
+
+/** Whether a point is inside a range; the end position is past its last character. */
+const inside = (at: { line: number; column: number }, range: { start: { line: number; column: number }; end: { line: number; column: number } }): boolean =>
+  !before(at, range.start) && before(at, range.end);
 
 /** Per-file symbol lookup by leaf name and id, built once per link pass. */
 class SymbolLookup {
@@ -45,14 +52,12 @@ class SymbolLookup {
   }
 }
 
-/** A bare call to a function defined in the same file: the nearest visible definition, or ambiguous. */
-function sameFileTarget(file: string, call: CallRef, from: CodeSymbol, lookup: SymbolLookup): SameFile {
-  const candidates = lookup.byName(file, call.name).filter((s) => s.kind === 'function');
-  const visible = candidates.filter((s) => s.path.length === 1 || isPrefix(s.path.slice(0, -1), from.path));
-  if (!visible.length) return { kind: 'none' };
-  const depth = Math.max(...visible.map((s) => s.path.length));
-  const nearest = visible.filter((s) => s.path.length === depth);
-  return nearest.length === 1 ? { kind: 'found', symbol: nearest[0]! } : { kind: 'ambiguous' };
+/** The one function symbol of this file whose leaf name matches and whose range starts where the binding starts. */
+function definedTarget(file: string, name: string, start: { line: number; column: number }, lookup: SymbolLookup): FoundTarget {
+  const matches = lookup
+    .byName(file, name)
+    .filter((s) => s.kind === 'function' && s.range.start.line === start.line && s.range.start.column === start.column);
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 /** The top-level function a proven export binding points at; anything else proves no call target. */
@@ -76,21 +81,34 @@ function importedTarget(call: CallRef, parsed: ParsedFile, trace: Tracer, lookup
   return unique.size === 1 ? [...unique.values()][0] : undefined;
 }
 
-/** The class whose method holds this call; a class body call (constructor, field initializer) belongs to the class. */
-function classOwner(file: string, from: CodeSymbol, lookup: SymbolLookup): CodeSymbol | undefined {
-  if (from.kind === 'class') return from;
-  const classes = lookup.all(file).filter((s) => s.kind === 'class' && isPrefix(s.path, from.path) && from.path.length === s.path.length + 1);
-  return classes.sort((a, b) => b.path.length - a.path.length)[0];
+/**
+ * Whether a `this.name()` in `call` reaches a callable member of the enclosing class: an instance method in an
+ * instance context, a `static` one where `this` is the constructor. A getter, an abstract member or a signature has no
+ * body, and a computed member whose key is no proven string or symbol may be the name, so none of those proves a
+ * target. A name declared twice on the same side is no single target.
+ */
+function callableThrough(info: ClassInfo, fromStatic: boolean, call: CallRef): boolean {
+  if ((fromStatic ? info.unknownStatic : info.unknownInstance) || info.nonCallable?.includes(call.name)) return false;
+  const total = info.members.filter((member) => member === call.name).length;
+  const statics = info.statics?.filter((member) => member === call.name).length ?? 0;
+  return (fromStatic ? statics : total - statics) === 1;
 }
 
-/** `this.name()` to the one method that name in the enclosing class. */
-function thisTarget(file: string, call: CallRef, from: CodeSymbol, lookup: SymbolLookup): FoundTarget {
-  const owner = classOwner(file, from, lookup);
-  if (!owner) return undefined;
-  const methods = lookup
-    .byName(file, call.name)
-    .filter((s) => s.kind === 'method' && s.path.length === owner.path.length + 1 && isPrefix(owner.path, s.path));
-  return methods.length === 1 ? methods[0] : undefined;
+/**
+ * `this.name()` to the one method of that name in the class whose `this` it is (COD-59 compiler line: what the
+ * TypeScript checker resolves), unless a rebind the source states keeps it name-only: the class or a resolved base
+ * writes the member through `this`, a prototype write anywhere in the repo names it (an instance call), a write on a
+ * constructor or another object names it (a static call), or the member is declared twice or under a computed key.
+ */
+function thisTarget(files: Files, call: CallRef, from: CodeSymbol, owner: CodeRange['start'] | undefined, lookup: SymbolLookup): FoundTarget {
+  const info = owner && files.get(from.file)?.classes?.find((c) => c.range && c.range.start.line === owner.line && c.range.start.column === owner.column);
+  const dispatch = dispatchOf(files);
+  if (!info || info.writes.includes(call.name) || dispatch.jsBaseWrites(info, call.name)) return undefined;
+  const fromStatic = info.staticRanges?.some((range) => inside(call.range.start, range)) ?? false;
+  if (!callableThrough(info, fromStatic, call)) return undefined;
+  if (fromStatic ? dispatch.js.staticWritten(call.name) : dispatch.js.instanceWritten(call.name)) return undefined;
+  const methods = (info.methods ?? []).filter((m) => m.name === call.name && !!m.static === fromStatic);
+  return methods.length === 1 ? lookup.byId(from.file, methods[0]!.id) : undefined;
 }
 
 /** `ns.name()` where `ns` is a resolved `import * as ns`. */
@@ -112,18 +130,18 @@ function withTarget(call: CallRef, target: FoundTarget): CallRef {
   return nameOnly;
 }
 
-function resolveCall(parsed: ParsedFile, files: Files, call: CallRef, trace: Tracer, lookup: SymbolLookup): CallRef {
+function resolveCall(parsed: ParsedFile, files: Files, call: CallRef, index: number, trace: Tracer, lookup: SymbolLookup): CallRef {
   const from = lookup.byId(parsed.file.path, call.from);
   if (!from || !call.via) return withTarget(call, undefined);
   if (parsed.file.lang === 'python') return withTarget(call, pythonCallTarget(parsed, files, call, from, trace));
+  const scope = parsed.scopes?.[index];
+  const meaning = scope?.callee ?? OTHER;
   if (call.via === 'bare') {
-    const same = sameFileTarget(parsed.file.path, call, from, lookup);
-    if (same.kind === 'found') return withTarget(call, same.symbol);
-    if (same.kind === 'ambiguous') return withTarget(call, undefined);
-    return withTarget(call, importedTarget(call, parsed, trace, lookup));
+    if (meaning.kind === 'def') return withTarget(call, definedTarget(parsed.file.path, call.name, meaning.start, lookup));
+    return withTarget(call, meaning.kind === 'import' ? importedTarget(call, parsed, trace, lookup) : undefined);
   }
-  if (call.via === 'this') return withTarget(call, thisTarget(parsed.file.path, call, from, lookup));
-  return withTarget(call, namespaceTarget(call, parsed, trace, lookup));
+  if (call.via === 'this') return withTarget(call, thisTarget(files, call, from, scope?.owner, lookup));
+  return withTarget(call, scope?.receiver?.kind === 'import' ? namespaceTarget(call, parsed, trace, lookup) : undefined);
 }
 
 /** Resolves calls in `paths`; every other file keeps its current calls. */
@@ -135,7 +153,7 @@ export function resolveCalls(files: Files, paths: ReadonlySet<string>, trace: Tr
     if (!parsed) continue;
     out.set(
       path,
-      parsed.calls.map((call) => resolveCall(parsed, files, call, trace, lookup)),
+      parsed.calls.map((call, index) => resolveCall(parsed, files, call, index, trace, lookup)),
     );
   }
   return out;

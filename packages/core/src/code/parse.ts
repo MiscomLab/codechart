@@ -6,11 +6,16 @@ import { Lines } from './entities/text.js';
 import { loadEntityGrammar, loadGrammar } from './grammars.js';
 import { entityGrammarOf, grammarOf, langOf, type EntityGrammar, type PatternGrammar } from './languages.js';
 import { extractImports, type ExportName, type ImportSpec, type ModuleExports } from './imports.js';
-import type { CallRef, CodeEntity, CodeRef, CodeSymbol, FileInfo, CodeRange, Import, PatternMatch } from './model.js';
+import type { JsCallScope, JsScopeReader } from './js-scope.js';
+import { jsScopes } from './js-scope.js';
+import { javascriptClasses } from './js-classes.js';
+import { javascriptMemberWrites, javascriptProtoBinds, type MemberWrite, type ProtoBind } from './js-protos.js';
+import type { CallRef, ClassInfo, CodeEntity, CodeRef, CodeSymbol, FileInfo, CodeRange, Import, PatternMatch } from './model.js';
 import { matchPatterns } from './pattern-run.js';
 import type { PatternLimit, PatternSets } from './patterns.js';
 import { extractPythonImports } from './python/imports.js';
-import type { PyBinding } from './python/module-scope.js';
+import type { ModuleEscape } from './python/module-escapes.js';
+import type { PyBinding, PyDefinition } from './python/module-scope.js';
 import { extractSymbols } from './symbols.js';
 import type { Node } from 'web-tree-sitter';
 import { errorNodes, nodeRange } from './tree.js';
@@ -28,12 +33,35 @@ export interface ParsedFile {
   exports: ModuleExports;
   /** Calls by `from` symbol; `name-only` until the link pass proves a target. */
   calls: CallRef[];
+  /** JS/TS only: what each call's callee and identifier receiver mean at its site, one per call, in the same order. */
+  scopes?: JsCallScope[];
   /** Tables, workflow jobs and steps, compose services and npm scripts (Code model #3); empty for languages with imports. */
   entities: CodeEntity[];
   /** Files this one runs, sources, loads or imports without an import statement; `unknown` until the link pass. */
   refs: CodeRef[];
   /** Python only: every name each scope binds, which decides what a called name means where it is called. */
   bindings?: PyBinding[];
+  /** Python only: each definition's scope id and body start, so header calls (defaults, annotations) skip its own scope. */
+  defs?: PyDefinition[];
+  /** Python only: ranges evaluated in a nested scope that skips an intervening class body (lambda bodies, comprehensions). */
+  deferred?: CodeRange[];
+  /** Python only: lambda bodies, which run when the lambda is called, not where it is written. */
+  lambdas?: CodeRange[];
+  /** Every attribute name written anywhere in the file (`x.f = …`, `del x.f`, `x.f += …`), Python only. */
+  attrWrites?: string[];
+  /**
+   * Attribute writes on a module the file imported: the local module name and the attribute they rebind, Python only.
+   * `import` names the file's import the receiver is bound by (an escaping module value), `dotted` an `import a.b`.
+   */
+  moduleWrites?: ModuleEscape[];
+  /** Attribute or member names read as values that could run with another receiver (`*` for any), either language. */
+  escapes?: string[];
+  /** Every named member write of the file whose receiver is not `this` (`x.f =`, `x['f'] =`, `x.f++`), JS/TS only. */
+  memberWrites?: MemberWrite[];
+  /** The names the file binds, assigns, exports or keys to a prototype expression or another name, JS/TS only. */
+  protoBinds?: ProtoBind[];
+  /** The classes the file defines and what they extend, declare and write, so a call knows what can override a method. */
+  classes?: ClassInfo[];
   /** The file edits `sys.path`, so its absolute Python imports have no provable target. Absent for other files. */
   sysPathEdited?: boolean;
   /** The `@entity` captures of the `patterns` it was parsed with, every set's; absent when it was parsed without. */
@@ -227,6 +255,11 @@ function unlinked(imp: Import): Import {
   return copy;
 }
 
+/** JS/TS only: the classes, the member writes and the prototype bindings, all read from the same tree and scopes. */
+function javascriptIndex(root: Node, symbols: readonly CodeSymbol[], imports: readonly Import[], scopes: JsScopeReader): Required<Pick<ParsedFile, 'classes' | 'memberWrites' | 'protoBinds'>> {
+  return { classes: javascriptClasses(root, symbols, imports, scopes), memberWrites: javascriptMemberWrites(root, scopes), protoBinds: javascriptProtoBinds(root, scopes) };
+}
+
 /**
  * Parses one file in isolation. `path` is repo-relative with `/`; `lastGood` is the file's previous parse, whose
  * symbols, entities, imports, exports, references and pattern matches stand in for what a syntax error hides.
@@ -245,19 +278,26 @@ export async function parseCode(path: string, text: string, lastGood?: LastGood,
     const errors = tree.rootNode.hasError ? errorNodes(tree.rootNode) : [];
     const extracted = extractSymbols(path, tree, tags, grammar);
     const good = keepLastGoodSymbols(extracted, Array.isArray(lastGood) ? lastGood : previous?.symbols);
-    const python = grammar === 'python' ? extractPythonImports(path, tree, query, extracted.symbols) : undefined;
+    const python = grammar === 'python' ? extractPythonImports(path, tree, query, extracted.symbols, text) : undefined;
     const stated = python ?? extractImports(path, tree, query);
+    const imports = keepLastGoodImports(stated.imports, stated.hidden, extracted.errors, previous, text).map(unlinked);
+    const exports = keepLastGoodExports(stated.exports, extracted.errors, previous, text);
+    const scopes = python ? undefined : jsScopes(tree.rootNode, path, imports);
+    const js = scopes && javascriptIndex(tree.rootNode, good.symbols, imports, scopes);
+    const calls = extractCalls(path, tree, tags, good, { errors, imports, ...(scopes && { scopes }), ...(python && { grammar: 'python' as const }) });
     return {
       file,
       ...good,
       parseErrors: extracted.errors,
-      imports: keepLastGoodImports(stated.imports, stated.hidden, extracted.errors, previous, text).map(unlinked),
-      exports: keepLastGoodExports(stated.exports, extracted.errors, previous, text),
-      calls: extractCalls(tree, tags, good, errors, python ? 'python' : undefined),
+      imports,
+      exports,
+      calls: calls.calls,
+      ...(calls.scopes && { scopes: calls.scopes }),
       entities: [],
       refs: [],
-      ...(python && { bindings: python.bindings }),
+      ...(python && { bindings: python.bindings, defs: python.defs, deferred: python.deferred, lambdas: python.lambdas, attrWrites: python.attrWrites, moduleWrites: python.moduleWrites, escapes: python.escapes, classes: python.classes }),
       ...(python?.sysPathEdited && { sysPathEdited: true }),
+      ...js,
       ...patternsIn(opts, grammar, tree.rootNode, errors, previous),
     };
   } finally {

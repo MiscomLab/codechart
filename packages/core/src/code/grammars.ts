@@ -8,6 +8,9 @@ import type { EntityGrammar, Grammar, PatternGrammar } from './languages.js';
 import { PYTHON_IMPORTS_QUERY } from './python/imports.js';
 
 /** Definitions the upstream `tags.scm` files leave out. */
+const QUOTED_METHOD = `
+(class_body (method_definition name: (string) @name) @definition.method)
+`;
 const EXTRA_JS = `
 (field_definition
   property: [(property_identifier) (private_property_identifier)] @name
@@ -59,9 +62,9 @@ function tagsSource(grammar: Grammar): string {
   // Python's tags.scm reads `def` in a class body as a function; `extractSymbols` turns those into methods.
   if (grammar === 'python') return readFileSync(assetPath('python-tags.scm'), 'utf8');
   const js = readFileSync(assetPath('javascript-tags.scm'), 'utf8');
-  if (grammar === 'javascript') return js + EXTRA_JS;
+  if (grammar === 'javascript') return js + EXTRA_JS + QUOTED_METHOD;
   // TypeScript's tags.scm only adds to JavaScript's.
-  return js + readFileSync(assetPath('typescript-tags.scm'), 'utf8') + EXTRA_TS;
+  return js + readFileSync(assetPath('typescript-tags.scm'), 'utf8') + EXTRA_TS + QUOTED_METHOD;
 }
 
 /** One loaded grammar: a parser set to it, its definitions query and its imports query. */

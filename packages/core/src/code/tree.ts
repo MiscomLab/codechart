@@ -1,8 +1,8 @@
 import type { Node } from 'web-tree-sitter';
 import type { CodeRange } from './model.js';
 
-/** A tree-sitter node's span, with 1-based lines and 0-based columns. */
-export const nodeRange = (node: Node): CodeRange => ({
+/** A tree-sitter node's span (or a mirror's), with 1-based lines and 0-based columns. */
+export const nodeRange = (node: Pick<Node, 'startPosition' | 'endPosition'>): CodeRange => ({
   start: { line: node.startPosition.row + 1, column: node.startPosition.column },
   end: { line: node.endPosition.row + 1, column: node.endPosition.column },
 });

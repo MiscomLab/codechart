@@ -49,12 +49,38 @@ export function nameUsers(index: ReverseIndex, names: Iterable<string>): Set<str
   return files;
 }
 
-/** The definition and export names a file contributes to the name index. */
+/**
+ * Every component of each Python import's module path after the first: importing `pkg.sub.mod` rebinds `pkg.sub` and
+ * `pkg.sub.mod` on their packages, so files binding `sub` or `mod` must relink. A relative spec names the components
+ * below the importing package, so all of them count; an anchored `importlib` name is absolute.
+ */
+function importedNames(parsed: ParsedFile): string[] {
+  if (parsed.file.lang !== 'python') return [];
+  return parsed.imports.flatMap((imp) => {
+    const spec = imp.anchored ?? imp.spec;
+    const parts = spec.replace(/^\.+/, '').split('.').filter(Boolean);
+    return parts.slice(spec.startsWith('.') && !imp.anchored ? 0 : 1);
+  });
+}
+
+/**
+ * The definition, export and member names a file contributes to the name index: a class's members and the members its
+ * code writes decide what a member call elsewhere reaches, like the class's own symbols. A Python import's last module
+ * name reaches the callers a submodule import can shadow; a JS/TS file that binds a prototype name (`*proto`) can turn
+ * a plain write elsewhere into a prototype write, so it reaches every file.
+ */
 export function namesOf(parsed: ParsedFile | undefined): Set<string> {
   const names = new Set<string>();
   if (!parsed) return names;
   for (const symbol of parsed.symbols) names.add(symbol.path[symbol.path.length - 1]!);
   for (const exported of parsed.exports.names) names.add(exported.name);
+  for (const info of parsed.classes ?? []) for (const name of [...info.members, ...info.writes]) names.add(name);
+  for (const name of parsed.attrWrites ?? []) names.add(name);
+  for (const write of parsed.memberWrites ?? []) names.add(write.name);
+  if (parsed.protoBinds?.length) names.add('*proto');
+  for (const write of parsed.moduleWrites ?? []) names.add(write.name);
+  for (const name of parsed.escapes ?? []) names.add(name);
+  for (const name of importedNames(parsed)) names.add(name);
   return names;
 }
 

@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto';
 import { relative, resolve, sep } from 'node:path';
-import { isDeepStrictEqual } from 'node:util';
 import { parseCode, type ParsedFile } from './parse.js';
 import type { PatternSets } from './patterns.js';
 import { listCodeFiles, parseFiles, readCodeFile } from './repo.js';
 import { buildReverse, importerClosure, nameUsers, namesOf, Probes, type ReverseIndex } from './reverse.js';
 import { linkResolved, resolveImports } from './resolve/link.js';
 import { pythonProbeKeys } from './resolve/python.js';
+import { packageInits, sameImports, sameLinks, surface } from './surface.js';
 import { createResolver, type Resolver } from './resolve/resolver.js';
 
 export interface CodeIndexOptions {
@@ -97,24 +97,6 @@ function repoPaths(root: string, paths: readonly string[]): Set<string> {
   }
   return out;
 }
-
-/** The parts of an import that resolution decides; `definedIn` and line ranges do not count as a new resolution. */
-const importShape = (imp: ParsedFile['imports'][number]) =>
-  [imp.kind, imp.spec, imp.status, imp.resolved ?? '', imp.packageFolder ?? '', imp.typeOnly ?? false, (imp.names ?? []).map((n) => [n.imported, n.local, n.typeOnly ?? false])] as const;
-
-const sameImports = (a: readonly ParsedFile['imports'][number][], b: readonly ParsedFile['imports'][number][]): boolean =>
-  isDeepStrictEqual(a.map(importShape), b.map(importShape));
-
-const sameLinks = (a: ParsedFile | undefined, b: ParsedFile | undefined): boolean =>
-  !!a && !!b && isDeepStrictEqual(a.imports, b.imports) && isDeepStrictEqual(a.calls, b.calls) && isDeepStrictEqual(a.refs, b.refs);
-
-/** What other files can observe: the symbol identities, export bindings and whether the export list is complete. */
-const surface = (parsed: ParsedFile): string =>
-  JSON.stringify([
-    parsed.symbols.map((s) => [s.id, s.kind]),
-    parsed.exports.names.map((n) => [n.name, n.local ?? '']),
-    parsed.exports.complete,
-  ]);
 
 class Index implements CodeIndex {
   private byPath: Map<string, ParsedFile>;
@@ -275,11 +257,19 @@ class Index implements CodeIndex {
   /** Changed files, the files whose imports changed, their importers, and files using a name that changed. */
   private affected(before: Map<string, ParsedFile>, next: Map<string, ParsedFile>, changed: ReadonlySet<string>, importChanged: ReadonlySet<string>): Set<string> {
     const seeds = new Set(importChanged);
+    const beforeKeys = new Set(before.keys());
+    const nextKeys = new Set(next.keys());
     for (const path of changed) {
       const old = before.get(path);
       const now = next.get(path);
       // A body or line edit changes no symbol identity and no export: importers cannot see it.
-      if (!old || !now || surface(old) !== surface(now)) seeds.add(path);
+      if (!old || !now || surface(old, beforeKeys) !== surface(now, nextKeys)) seeds.add(path);
+      // A module appearing under a package changes what `from pkg import name` finds, though the package file did not edit.
+      for (const init of packageInits(path)) {
+        const start = before.get(init);
+        const now = next.get(init);
+        if (start && now && surface(start, beforeKeys) !== surface(now, nextKeys)) seeds.add(init);
+      }
     }
     const affected = importerClosure(this.reverse, seeds);
     for (const path of changed) if (next.has(path)) affected.add(path);
@@ -288,6 +278,9 @@ class Index implements CodeIndex {
       for (const name of namesOf(before.get(path))) names.add(name);
       for (const name of namesOf(next.get(path))) names.add(name);
     }
+    // A member write the parse cannot name (`*`) or a prototype binding (`*proto`), which can turn a write in any file
+    // into a prototype write, can rebind any member, so every file with a member call is re-resolved.
+    if ([...names].some((name) => name.startsWith('*'))) for (const path of next.keys()) affected.add(path);
     for (const path of nameUsers(this.reverse, names)) affected.add(path);
     for (const path of [...affected]) if (!next.has(path)) affected.delete(path);
     return affected;

@@ -1,0 +1,80 @@
+import { describe, expect, it } from 'vitest';
+import type { CallRef } from '../../src/code/model.js';
+import { parseCode, type ParsedFile } from '../../src/code/parse.js';
+import { linkCode } from '../../src/code/resolve/link.js';
+import { createResolver } from '../../src/code/resolve/resolver.js';
+import { linkFiles as link } from './scope-helpers.js';
+
+/**
+ * COD-59 QA gate: PEP 695 lines no other test pins (surviving mutants). Expectations from CPython 3.14.7, run with
+ * `python3 -I`: `symtable` for where `f` is bound, and the runtime for what a module exports.
+ */
+
+const fCalls = (files: Map<string, ParsedFile>, path: string): CallRef[] => files.get(path)!.calls.filter((c) => c.name === 'f');
+
+describe('gate: a type alias’s own type parameters live only in the alias', () => {
+  it('a call after a generic alias in the same function reaches the module function', async () => {
+    // symtable: TYPE_ALIAS A binds f (free, the type parameter); FUNCTION run sees f as global. Runtime: run() == "A.F".
+    const files = await link({ 'a.py': 'def f(): return "A.F"\ndef run():\n    type A[f] = f()\n    return f()\n' });
+    const [inAlias, after] = fCalls(files, 'a.py');
+    expect(inAlias).toMatchObject({ evidence: 'name-only' });
+    expect(inAlias).not.toHaveProperty('to');
+    expect(after).toMatchObject({ to: 'a.py::f::function', evidence: 'resolved' });
+  });
+
+  it('another alias in the same function does not see the first alias’s type parameters', async () => {
+    // symtable: TYPE_ALIAS B sees f as global.
+    const files = await link({ 'a.py': 'def f(): pass\ndef run():\n    type A[f] = int\n    type B = f()\n' });
+    expect(fCalls(files, 'a.py')).toEqual([expect.objectContaining({ to: 'a.py::f::function', evidence: 'resolved' })]);
+  });
+
+  it.each([
+    ['a from-import', 'from a import f\ndef run():\n    f()\n'],
+    ['a module attribute', 'import a\ndef run():\n    a.f()\n'],
+  ])('a module-level generic alias does not hide the module function from %s', async (_form, b) => {
+    // Runtime: with `type A[f] = list[f]` after `def f`, `import a; a.f()` returns "A.F" and `'f' in vars(a)` is True.
+    const files = await link({ 'a.py': 'def f(): return "A.F"\ntype A[f] = list[f]\n', 'b.py': b });
+    expect(fCalls(files, 'b.py')).toEqual([expect.objectContaining({ to: 'a.py::f::function', evidence: 'resolved' })]);
+  });
+
+  it('a re-export after a generic alias of the same name is traced through the import', async () => {
+    // Runtime: a.py `type A[f] = list[f]` then `from c import f`; `from a import f; f()` returns c's "C.F".
+    const files = await link({
+      'a.py': 'type A[f] = list[f]\nfrom c import f\n',
+      'c.py': 'def f(): return "C.F"\n',
+      'b.py': 'from a import f\ndef run():\n    f()\n',
+    });
+    expect(fCalls(files, 'b.py')).toEqual([expect.objectContaining({ to: 'c.py::f::function', evidence: 'resolved' })]);
+  });
+});
+
+describe('gate: only a parameter’s default value is outside its function’s type parameters', () => {
+  it('the annotation of a parameter that has a default sees the type parameter', async () => {
+    // symtable: ANNOTATION __annotate__ has f free (the type parameter).
+    const files = await link({ 'a.py': 'def f(): pass\ndef run[f](x: f() = 1):\n    pass\n' });
+    const [call] = fCalls(files, 'a.py');
+    expect(call).toMatchObject({ evidence: 'name-only' });
+    expect(call).not.toHaveProperty('to');
+  });
+});
+
+describe('a nested def’s defaults run in the enclosing scope', () => {
+  it('a default does not see a def its own body defines', async () => {
+    // python3 -I: `run()` returns "module-f": the default `f()` runs in `run`, where only the module `f` is bound.
+    const parsed = (await Promise.all([parseCode('a.py', 'def f():\n    pass\n\n\ndef run():\n    def inner(x=f()):\n        def f():\n            pass\n')])).filter((p): p is ParsedFile => !!p);
+    const [file] = linkCode(parsed, createResolver(['a.py'], () => undefined));
+    expect(file!.calls.filter((c) => c.name === 'f').map((c) => c.to)).toEqual(['a.py::f::function']);
+  });
+});
+
+describe('python sweep: a lambda in an annotation binds its own parameters', () => {
+  it.each([
+    ['a parameter annotation', 'def run():\n    def inner(a: (lambda f: f())(g)):\n        pass\n'],
+    ['a return annotation', 'def run():\n    def inner() -> (lambda f: f())(g):\n        pass\n'],
+    ['a method parameter annotation', 'class K:\n    def m(self, a: (lambda f: f())(g)):\n        pass\n'],
+  ])('in %s, the call reaches the lambda parameter', async (_form, body) => {
+    // python3 -I with annotationlib VALUE: the annotation evaluates to 'param', the lambda's argument, not the module f.
+    const [file] = linkCode([(await parseCode('a.py', `def f():\n    pass\n\n\ndef g():\n    pass\n\n\n${body}`))!], createResolver(['a.py'], () => undefined));
+    expect(file!.calls.filter((c) => c.name === 'f').map((c) => [c.evidence, c.to])).toEqual([['name-only', undefined]]);
+  });
+});
