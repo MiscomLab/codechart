@@ -1,4 +1,5 @@
 import type { Node, Query, Tree } from 'web-tree-sitter';
+import { pointOf } from './js-scope-decl.js';
 import { jsScopes, type JsCallScope, type JsMeaning, type JsScopeReader } from './js-scope.js';
 import type { CallRef, CallVia, CodeSymbol, Import } from './model.js';
 import { nodeRange, touches } from './tree.js';
@@ -37,19 +38,33 @@ const attrs = (node: Node | null | undefined): string[] | undefined => {
 
 const OWN_THIS = new Set(['function_expression', 'function_declaration', 'generator_function', 'generator_function_declaration']);
 
+const CLASSES = new Set(['class_declaration', 'class', 'abstract_class_declaration']);
+
+/** The class node a decorator belongs to: its own class for a class decorator, the member's class for a member's. */
+function decoratedClass(decorator: Node): Node | undefined {
+  for (let current = decorator.parent; current; current = current.parent) if (CLASSES.has(current.type)) return current;
+  return undefined;
+}
+
 /**
- * Whether the `this` at `node` is the enclosing class's: the nearest function that binds `this` (arrows keep the outer
- * one) is a class method, a field initializer or a static block. A `function`, or an object-literal method, getter or
- * setter, has a `this` of its own.
+ * The class node whose `this` the `this` at `node` is: the one holding the member (method, field initializer or static
+ * block) that is the nearest function binding `this`; arrows keep the outer one. A `function`, an object-literal
+ * method, getter or setter has a `this` of its own, and a decorator or a heritage clause runs in the scope around the
+ * class it belongs to, so the search goes on from that class.
  */
-function classThis(node: Node): boolean {
+function thisClass(node: Node): Node | undefined {
   for (let current: Node | null = node.parent; current; current = current.parent) {
-    if (OWN_THIS.has(current.type)) return false;
-    if (current.type === 'method_definition') return current.parent?.type === 'class_body';
-    if (current.type === 'class_static_block') return true;
-    if (current.type === 'field_definition' || current.type === 'public_field_definition') return current.parent?.type === 'class_body';
+    if (current.type === 'decorator') {
+      const decorated = decoratedClass(current);
+      if (!decorated) return undefined;
+      current = decorated;
+      continue;
+    }
+    if (OWN_THIS.has(current.type)) return undefined;
+    const member = current.type === 'method_definition' || current.type === 'class_static_block' || current.type === 'field_definition' || current.type === 'public_field_definition';
+    if (member) return current.parent?.type === 'class_body' ? (current.parent.parent ?? undefined) : undefined;
   }
-  return false;
+  return undefined;
 }
 
 /** How the callee is written, so linking can tell a bare name from `this.name` and from `receiver.name`. */
@@ -65,7 +80,7 @@ function calleeOf(call: Node, python: boolean): Callee {
   }
   if (fn?.type === 'member_expression') {
     const object = fn.childForFieldName('object');
-    if (object?.type === 'this') return classThis(call) ? { via: 'this' } : { via: 'member' };
+    if (object?.type === 'this') return { via: 'this' };
     if (object?.type === 'identifier') return { via: 'member', receiver: object.text };
   }
   return { via: 'member' };
@@ -92,6 +107,8 @@ function fromSymbol(symbols: readonly CodeSymbol[], kept: ReadonlySet<string>, c
 /** The callee's own identifier, or the identifier receiver of a member call, as the scopes see it. */
 function callScope(reader: ReturnType<typeof jsScopes>, call: Node): JsCallScope {
   const fn = call.childForFieldName('function');
+  const owner = fn?.type === 'member_expression' && fn.childForFieldName('object')?.type === 'this' ? thisClass(call) : undefined;
+  if (owner) return { callee: OTHER, owner: pointOf(owner) };
   if (fn?.type === 'identifier') return { callee: reader.meaningAt(fn, fn.text) };
   const object = fn?.type === 'member_expression' ? fn.childForFieldName('object') : undefined;
   return object?.type === 'identifier' ? { callee: OTHER, receiver: reader.meaningAt(object, object.text) } : { callee: OTHER };
@@ -125,7 +142,9 @@ export function extractCalls(
     seen.add(ref.id);
     const from = fromSymbol(symbols.symbols, kept, call);
     if (!from) continue;
-    const { via, receiver, receiverPath } = calleeOf(call, python);
+    const callee = calleeOf(call, python);
+    // A `this` that is no class's (a `function`, an object-literal method, top level) is just a member call.
+    const { via, receiver, receiverPath } = callee.via === 'this' && !python && !thisClass(call) ? { via: 'member' as const } : callee;
     calls.push({
       from: from.id,
       name: name.text,

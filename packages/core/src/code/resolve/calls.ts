@@ -1,5 +1,5 @@
 import type { JsMeaning } from '../js-scope.js';
-import type { CallRef, ClassInfo, CodeSymbol } from '../model.js';
+import type { CallRef, ClassInfo, CodeRange, CodeSymbol } from '../model.js';
 import type { ParsedFile } from '../parse.js';
 import { dispatchOf } from './dispatch.js';
 import { pythonCallTarget } from './python-calls.js';
@@ -9,8 +9,6 @@ type Files = ReadonlyMap<string, ParsedFile>;
 type FoundTarget = CodeSymbol | undefined;
 
 const OTHER: JsMeaning = { kind: 'other' };
-
-const isPrefix = (prefix: readonly string[], path: readonly string[]) => prefix.every((part, i) => path[i] === part);
 
 const before = (a: { line: number; column: number }, b: { line: number; column: number }): boolean => a.line < b.line || (a.line === b.line && a.column < b.column);
 
@@ -84,53 +82,33 @@ function importedTarget(call: CallRef, parsed: ParsedFile, trace: Tracer, lookup
 }
 
 /**
- * The innermost class whose range holds the call, whichever callback or arrow the call sits in: the extractor only
- * makes a `this` call of one whose nearest `this`-binding function is a member of that class.
- */
-function classOwner(file: string, call: CallRef, lookup: SymbolLookup): CodeSymbol | undefined {
-  const classes = lookup.all(file).filter((s) => s.kind === 'class' && inside(call.range.start, s.range));
-  return classes.sort((a, b) => b.path.length - a.path.length)[0];
-}
-
-/** Whether the call sits where `this` is the constructor: a static method, a static block or a static field initializer. */
-function inStaticContext(info: ClassInfo, owner: CodeSymbol, call: CallRef, lookup: SymbolLookup): boolean {
-  const method = lookup.all(owner.file).find((s) => s.kind === 'method' && s.path.length === owner.path.length + 1 && isPrefix(owner.path, s.path) && inside(call.range.start, s.range));
-  if (method) return info.statics?.includes(method.path.at(-1)!) ?? false;
-  return info.staticRanges?.some((range) => inside(call.range.start, range)) ?? false;
-}
-
-/**
  * Whether a `this.name()` in `call` reaches a callable member of the enclosing class: an instance method in an
- * instance context (a constructor, a field, an instance method), a `static` one in a static method, static block or
- * static field. A getter, an abstract member or a signature has no body, and a computed member whose key is no proven
- * string or symbol may be the name, so none of those proves a target. A name declared twice is no single target.
+ * instance context, a `static` one where `this` is the constructor. A getter, an abstract member or a signature has no
+ * body, and a computed member whose key is no proven string or symbol may be the name, so none of those proves a
+ * target. A name declared twice on the same side is no single target.
  */
 function callableThrough(info: ClassInfo, fromStatic: boolean, call: CallRef): boolean {
   if (info.members.includes('*') || info.nonCallable?.includes(call.name)) return false;
-  if (info.members.filter((member) => member === call.name).length !== 1) return false;
-  return (info.statics?.includes(call.name) ?? false) === fromStatic;
+  const total = info.members.filter((member) => member === call.name).length;
+  const statics = info.statics?.filter((member) => member === call.name).length ?? 0;
+  return (fromStatic ? statics : total - statics) === 1;
 }
 
 /**
- * `this.name()` to the one method of that name in the enclosing class (COD-59 compiler line: what the TypeScript
- * checker resolves), unless a rebind the source states keeps it name-only: the class or a resolved base writes the
- * member through `this`, a prototype write anywhere in the repo names it (an instance call), a write on a constructor
- * or another object names it (a static call), or the member is declared twice or under a computed key.
+ * `this.name()` to the one method of that name in the class whose `this` it is (COD-59 compiler line: what the
+ * TypeScript checker resolves), unless a rebind the source states keeps it name-only: the class or a resolved base
+ * writes the member through `this`, a prototype write anywhere in the repo names it (an instance call), a write on a
+ * constructor or another object names it (a static call), or the member is declared twice or under a computed key.
  */
-function thisTarget(files: Files, call: CallRef, from: CodeSymbol, lookup: SymbolLookup): FoundTarget {
-  const file = from.file;
-  const owner = classOwner(file, call, lookup);
-  if (!owner) return undefined;
+function thisTarget(files: Files, call: CallRef, from: CodeSymbol, owner: CodeRange['start'] | undefined, lookup: SymbolLookup): FoundTarget {
+  const info = owner && files.get(from.file)?.classes?.find((c) => c.range && c.range.start.line === owner.line && c.range.start.column === owner.column);
   const dispatch = dispatchOf(files);
-  const info = files.get(file)?.classes?.find((c) => c.id === owner.id);
   if (!info || info.writes.includes(call.name) || dispatch.jsBaseWrites(info, call.name)) return undefined;
-  const fromStatic = inStaticContext(info, owner, call, lookup);
+  const fromStatic = info.staticRanges?.some((range) => inside(call.range.start, range)) ?? false;
   if (!callableThrough(info, fromStatic, call)) return undefined;
   if (fromStatic ? dispatch.js.staticWritten(call.name) : dispatch.js.instanceWritten(call.name)) return undefined;
-  const methods = lookup
-    .byName(file, call.name)
-    .filter((s) => s.kind === 'method' && s.path.length === owner.path.length + 1 && isPrefix(owner.path, s.path));
-  return methods.length === 1 ? methods[0] : undefined;
+  const methods = (info.methods ?? []).filter((m) => m.name === call.name && !!m.static === fromStatic);
+  return methods.length === 1 ? lookup.byId(from.file, methods[0]!.id) : undefined;
 }
 
 /** `ns.name()` where `ns` is a resolved `import * as ns`. */
@@ -162,7 +140,7 @@ function resolveCall(parsed: ParsedFile, files: Files, call: CallRef, index: num
     if (meaning.kind === 'def') return withTarget(call, definedTarget(parsed.file.path, call.name, meaning.start, lookup));
     return withTarget(call, meaning.kind === 'import' ? importedTarget(call, parsed, trace, lookup) : undefined);
   }
-  if (call.via === 'this') return withTarget(call, thisTarget(files, call, from, lookup));
+  if (call.via === 'this') return withTarget(call, thisTarget(files, call, from, scope?.owner, lookup));
   return withTarget(call, scope?.receiver?.kind === 'import' ? namespaceTarget(call, parsed, trace, lookup) : undefined);
 }
 

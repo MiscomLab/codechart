@@ -1,4 +1,5 @@
 import type { Node } from 'web-tree-sitter';
+import type { JsScopeReader } from './js-scope.js';
 import { builtinCall, inner, literalKey, propertyKey, writeSites } from './js-writes.js';
 
 /**
@@ -39,10 +40,10 @@ interface Source {
 const GETTERS = new Set(['getPrototypeOf']);
 
 /** The kind of prototype an expression is, through casts: `.prototype` is `proto`; a getter call or `__proto__` is `getter`. */
-function protoKind(value: Node | null | undefined): 'proto' | 'getter' | undefined {
+function protoKind(value: Node | null | undefined, scopes: JsScopeReader): 'proto' | 'getter' | undefined {
   const node = inner(value);
   if (node?.type === 'call_expression') {
-    const parts = builtinCall(node);
+    const parts = builtinCall(node, scopes);
     return parts && GETTERS.has(parts[1]) ? 'getter' : undefined;
   }
   const key = node?.type === 'member_expression' ? node.childForFieldName('property')?.text : node?.type === 'subscript_expression' ? literalKey(node.childForFieldName('index')) : undefined;
@@ -54,7 +55,7 @@ function protoKind(value: Node | null | undefined): 'proto' | 'getter' | undefin
 function rightmostName(value: Node | null | undefined): string | undefined {
   const node = inner(value);
   if (node?.type === 'identifier') return node.text;
-  if (node?.type === 'member_expression') return node.childForFieldName('property')?.text.replace(/^#/, '');
+  if (node?.type === 'member_expression') return node.childForFieldName('property')?.text;
   return node?.type === 'subscript_expression' ? literalKey(node.childForFieldName('index')) : undefined;
 }
 
@@ -65,9 +66,9 @@ function isRequire(node: Node | undefined): boolean {
 }
 
 /** What a value expression stands for, when it can be a prototype or a name that is one. */
-function sourceOf(value: Node | null | undefined): Source | undefined {
+function sourceOf(value: Node | null | undefined, scopes: JsScopeReader): Source | undefined {
   const node = inner(value);
-  const kind = protoKind(node);
+  const kind = protoKind(node, scopes);
   if (kind) return kind === 'getter' ? { getter: true } : {};
   if (isRequire(node)) return { from: 'module.exports' };
   const name = rightmostName(node);
@@ -75,21 +76,21 @@ function sourceOf(value: Node | null | undefined): Source | undefined {
 }
 
 /** How a write's receiver reaches objects. */
-function writeKind(receiver: Node): Pick<MemberWrite, 'kind' | 'receiver'> {
-  const kind = protoKind(receiver);
+function writeKind(receiver: Node, scopes: JsScopeReader): Pick<MemberWrite, 'kind' | 'receiver'> {
+  const kind = protoKind(receiver, scopes);
   if (kind) return { kind };
   const name = rightmostName(receiver);
   return { kind: 'plain', ...(name !== undefined && { receiver: name }) };
 }
 
 /** Every named member write of the file whose receiver is not `this`/`super` (a class's own writes are its `writes`). */
-export function javascriptMemberWrites(root: Node): MemberWrite[] {
-  return writeSites(root)
+export function javascriptMemberWrites(root: Node, scopes: JsScopeReader): MemberWrite[] {
+  return writeSites(root, scopes)
     .filter(({ receiver }) => {
       const type = inner(receiver)?.type;
       return type !== 'this' && type !== 'super';
     })
-    .map(({ name, receiver }) => ({ name, ...writeKind(receiver) }));
+    .map(({ name, receiver }) => ({ name, ...writeKind(receiver, scopes) }));
 }
 
 const OBJECT_PATTERN_ENTRIES = new Set(['shorthand_property_identifier_pattern', 'object_assignment_pattern']);
@@ -104,6 +105,8 @@ function targetName(target: Node): string | undefined {
 /** Collects the bindings one target makes from a value; a destructuring pattern binds from its keys instead. */
 class BindCollector {
   readonly binds: ProtoBind[] = [];
+
+  constructor(private readonly scopes: JsScopeReader) {}
 
   private add(name: string | undefined, source: Source | undefined): void {
     if (name === undefined || !source || source.from === name) return;
@@ -137,13 +140,13 @@ class BindCollector {
   /** The entries of an object literal: each key whose value is a prototype or a prototype name. */
   object(node: Node): void {
     for (const entry of node.namedChildren) {
-      if (entry?.type === 'pair') this.add(propertyKey(entry.childForFieldName('key')), sourceOf(entry.childForFieldName('value')));
+      if (entry?.type === 'pair') this.add(propertyKey(entry.childForFieldName('key')), sourceOf(entry.childForFieldName('value'), this.scopes));
     }
   }
 
   /** `export default value`, `export { P as Q }`. */
   exported(node: Node): void {
-    if (node.childForFieldName('value')) this.add('default', sourceOf(node.childForFieldName('value')));
+    if (node.childForFieldName('value')) this.add('default', sourceOf(node.childForFieldName('value'), this.scopes));
     for (const clause of node.namedChildren) {
       if (clause?.type !== 'export_clause') continue;
       for (const spec of clause.namedChildren) {
@@ -158,20 +161,20 @@ class BindCollector {
       case 'variable_declarator':
       case 'required_parameter':
       case 'optional_parameter':
-        this.bind(node.childForFieldName('name') ?? node.childForFieldName('pattern'), sourceOf(node.childForFieldName('value')));
+        this.bind(node.childForFieldName('name') ?? node.childForFieldName('pattern'), sourceOf(node.childForFieldName('value'), this.scopes));
         break;
       case 'assignment_pattern':
-        this.bind(node.childForFieldName('left'), sourceOf(node.childForFieldName('right')));
+        this.bind(node.childForFieldName('left'), sourceOf(node.childForFieldName('right'), this.scopes));
         break;
       case 'assignment_expression':
-        this.bind(node.childForFieldName('left'), sourceOf(node.childForFieldName('right')));
+        this.bind(node.childForFieldName('left'), sourceOf(node.childForFieldName('right'), this.scopes));
         break;
       case 'augmented_assignment_expression':
-        if (['??=', '||=', '&&='].includes(node.childForFieldName('operator')?.text ?? '')) this.bind(node.childForFieldName('left'), sourceOf(node.childForFieldName('right')));
+        if (['??=', '||=', '&&='].includes(node.childForFieldName('operator')?.text ?? '')) this.bind(node.childForFieldName('left'), sourceOf(node.childForFieldName('right'), this.scopes));
         break;
       case 'field_definition':
       case 'public_field_definition':
-        this.add(propertyKey(node.childForFieldName('name') ?? node.childForFieldName('property')), sourceOf(node.childForFieldName('value')));
+        this.add(propertyKey(node.childForFieldName('name') ?? node.childForFieldName('property')), sourceOf(node.childForFieldName('value'), this.scopes));
         break;
       case 'object':
         this.object(node);
@@ -185,8 +188,8 @@ class BindCollector {
 }
 
 /** Every name the file binds, assigns, exports or keys to a prototype expression or to another name. */
-export function javascriptProtoBinds(root: Node): ProtoBind[] {
-  const collector = new BindCollector();
+export function javascriptProtoBinds(root: Node, scopes: JsScopeReader): ProtoBind[] {
+  const collector = new BindCollector(scopes);
   collector.visit(root);
   return collector.binds;
 }

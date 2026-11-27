@@ -257,7 +257,7 @@ function unlinked(imp: Import): Import {
 
 /** JS/TS only: the classes, the member writes and the prototype bindings, all read from the same tree and scopes. */
 function javascriptIndex(root: Node, symbols: readonly CodeSymbol[], imports: readonly Import[], scopes: JsScopeReader): Required<Pick<ParsedFile, 'classes' | 'memberWrites' | 'protoBinds'>> {
-  return { classes: javascriptClasses(root, symbols, imports, scopes), memberWrites: javascriptMemberWrites(root), protoBinds: javascriptProtoBinds(root) };
+  return { classes: javascriptClasses(root, symbols, imports, scopes), memberWrites: javascriptMemberWrites(root, scopes), protoBinds: javascriptProtoBinds(root, scopes) };
 }
 
 /**

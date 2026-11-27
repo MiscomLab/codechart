@@ -40,7 +40,11 @@ export interface ClassInfo {
   statics?: string[];
   /** JS/TS: members whose body is not a callable method (a getter/setter, `abstract`, or a signature). */
   nonCallable?: string[];
-  /** JS/TS: ranges where `this` is the constructor (a static block, a static field initializer). */
+  /** JS/TS: the class node's range, which a call's `this` owner is matched against. */
+  range?: CodeRange;
+  /** JS/TS: the member methods and function-valued fields with a symbol, by name, so `this.name()` finds its target. */
+  methods?: { name: string; id: string; static?: boolean }[];
+  /** JS/TS: ranges where `this` is the constructor (a static member, a static block). */
   staticRanges?: CodeRange[];
 }
 

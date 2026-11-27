@@ -9,7 +9,7 @@ import { PYTHON_IMPORTS_QUERY } from './python/imports.js';
 
 /** Definitions the upstream `tags.scm` files leave out. */
 const QUOTED_METHOD = `
-(method_definition name: (string) @name) @definition.method
+(class_body (method_definition name: (string) @name) @definition.method)
 `;
 const EXTRA_JS = `
 (field_definition

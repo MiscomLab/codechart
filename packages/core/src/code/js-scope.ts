@@ -19,6 +19,8 @@ export type JsMeaning =
 export interface JsCallScope {
   callee: JsMeaning;
   receiver?: JsMeaning;
+  /** For a `this.name()` call, where the class node whose `this` it is starts. */
+  owner?: CodeRange['start'];
 }
 
 /** Reads what a name means at any node of a JS/TS tree, from the file's scopes. */

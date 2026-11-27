@@ -1,6 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { JsScopeReader } from './js-scope.js';
-import { inner, literalKey, propertyKey, WRAPPERS, writeSites } from './js-writes.js';
+import { inner, literalKey, propertyKey, stringValue, WRAPPERS, writeSites } from './js-writes.js';
 import type { ClassInfo, CodeRange, CodeSymbol, Import } from './model.js';
 import { nodeRange } from './tree.js';
 
@@ -29,9 +29,9 @@ function thisAliases(body: Node): Set<string> {
  * constructor, field initializer, static block or nested function, including the reflective `Object.defineProperty`,
  * `Object.assign` and `Reflect` writes with a literal name.
  */
-function ownWrites(body: Node): string[] {
+function ownWrites(body: Node, scopes: JsScopeReader): string[] {
   const aliases = thisAliases(body);
-  return writeSites(body)
+  return writeSites(body, scopes)
     .filter(({ receiver }) => {
       const node = inner(receiver);
       return node?.type === 'this' || node?.type === 'super' || (node?.type === 'identifier' && aliases.has(node.text));
@@ -90,11 +90,17 @@ function computedName(key: Node | undefined, scopes: JsScopeReader): string | un
   return global && WELL_KNOWN_SYMBOLS.has(expr.childForFieldName('property')?.text ?? '') ? undefined : '*';
 }
 
-/** A member's declared name, unquoted; undefined when it is a computed key proved a symbol. */
+/**
+ * A member's declared name: a quoted name unquoted with its escapes decoded (`*` when one cannot be), a private name
+ * with its `#`; undefined for a computed key proved a symbol and for the constructor spelled as a string.
+ */
 function memberName(member: Node, scopes: JsScopeReader): string | undefined {
   const name = member.childForFieldName('name') ?? member.childForFieldName('property');
   if (!name) return undefined;
-  return name.type === 'computed_property_name' ? computedName(name.namedChildren[0] ?? undefined, scopes) : propertyKey(name);
+  if (name.type === 'computed_property_name') return computedName(name.namedChildren[0] ?? undefined, scopes);
+  if (name.type !== 'string') return propertyKey(name);
+  const value = stringValue(name);
+  return value === 'constructor' && member.type === 'method_definition' && !isStatic(member) ? undefined : (value ?? '*');
 }
 
 /** Whether a member declares a body `this.f()` can call: a getter's value or an abstract/signature is not one. */
@@ -112,10 +118,10 @@ const FIELD_TYPES = new Set(['public_field_definition', 'field_definition']);
 
 const isStatic = (member: Node): boolean => member.children.some((child) => child?.type === 'static');
 
-/** A member whose initializer runs with `this` bound to the constructor, where `this.name()` reaches a static one. */
-const staticContext = (member: Node): boolean => member.type === 'class_static_block' || (FIELD_TYPES.has(member.type) && isStatic(member));
+/** A member that runs with `this` bound to the constructor, where `this.name()` reaches a static one. */
+const staticContext = (member: Node): boolean => member.type === 'class_static_block' || ((FIELD_TYPES.has(member.type) || member.type === 'method_definition') && isStatic(member));
 
-/** What a class body declares: the member names, its statics, the members without a callable body, and its static ranges. */
+/** What a class body declares: the member names, its statics, the members without a callable body, and the ranges where `this` is the constructor. */
 function classMembers(body: Node, scopes: JsScopeReader): Pick<ClassInfo, 'members' | 'statics' | 'nonCallable' | 'staticRanges'> {
   const members: string[] = [];
   const statics: string[] = [];
@@ -133,9 +139,22 @@ function classMembers(body: Node, scopes: JsScopeReader): Pick<ClassInfo, 'membe
   return { members, ...(statics.length && { statics }), ...(nonCallable.length && { nonCallable }), ...(staticRanges.length && { staticRanges }) };
 }
 
+/** The member methods of a class body, each with the symbol the file's symbol table holds for it. */
+function classMethods(body: Node, symbols: ReadonlyMap<string, CodeSymbol>, scopes: JsScopeReader): NonNullable<ClassInfo['methods']> {
+  const out: NonNullable<ClassInfo['methods']> = [];
+  for (const member of body.namedChildren) {
+    const name = member ? memberName(member, scopes) : undefined;
+    const start = member ? nodeRange(member).start : undefined;
+    const symbol = start ? symbols.get(`${start.line}:${start.column}`) : undefined;
+    if (member && name && name !== '*' && symbol) out.push({ name, id: symbol.id, ...(isStatic(member) && { static: true }) });
+  }
+  return out;
+}
+
 /** Every class and class expression of a JavaScript or TypeScript file, with what it extends, declares and writes. */
 export function javascriptClasses(root: Node, symbols: readonly CodeSymbol[], imports: readonly Import[], scopes: JsScopeReader): ClassInfo[] {
   const classes: ClassInfo[] = [];
+  const methodSymbols = new Map(symbols.filter((s) => s.kind === 'method').map((s) => [`${s.range.start.line}:${s.range.start.column}`, s]));
   const stack: Node[] = [root];
   while (stack.length) {
     const node = stack.pop()!;
@@ -152,9 +171,11 @@ export function javascriptClasses(root: Node, symbols: readonly CodeSymbol[], im
     classes.push({
       ...(symbol && { id: symbol.id }),
       name: declared,
+      range,
       bases: baseNames(value, (base) => (value ? canonicalBase(base.text, value, scopes, imports) : base.text)),
       ...classMembers(body, scopes),
-      writes: ownWrites(body),
+      writes: ownWrites(body, scopes),
+      methods: classMethods(body, methodSymbols, scopes),
     });
   }
   return classes;

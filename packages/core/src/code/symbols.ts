@@ -1,4 +1,5 @@
 import type { Node, Query, Tree } from 'web-tree-sitter';
+import { decodeString } from './js-writes.js';
 import type { Grammar } from './languages.js';
 import { SYMBOL_KINDS, symbolId, type CodeSymbol, type CodeRange, type SymbolKind } from './model.js';
 import { errorNodes, nodeRange, touches } from './tree.js';
@@ -51,11 +52,28 @@ function definitions(tree: Tree, tags: Query, grammar: Grammar | 'bash'): Omit<D
       continue;
     }
     seen.add(def.node.id);
-    // A quoted method name (`"f"() {}`) names the member `f`.
+    // A quoted method name (`"f"() {}`) names the member `f`, escapes decoded; one that cannot be decoded names no symbol,
+    // and a quoted `constructor` is the constructor.
     const quoted = kind === 'method' && name.node.type === 'string';
-    defs.push({ node: def.node, name: quoted ? name.node.text.slice(1, -1) : name.node.text, kind: kind as SymbolKind });
+    const text = quoted ? decodeString(name.node.text) : name.node.text;
+    if (text === undefined || (quoted && text === 'constructor')) continue;
+    defs.push({ node: def.node, name: text, kind: kind as SymbolKind });
   }
   return defs.sort((a, b) => a.node.startIndex - b.node.startIndex || b.node.endIndex - a.node.endIndex);
+}
+
+/**
+ * The names of the field initializers a definition sits in below its parent definition: a class expression's method in
+ * `x = class { f() {} }` is `K.x.f`, so it never shares an identity with `K.f`.
+ */
+function initializerNames(node: Node, parent: Node | undefined): string[] {
+  const names: string[] = [];
+  for (let current = node.parent; current && current.id !== parent?.id; current = current.parent) {
+    if (current.type !== 'field_definition' && current.type !== 'public_field_definition') continue;
+    const name = (current.childForFieldName('name') ?? current.childForFieldName('property'))?.text;
+    if (name && current.childForFieldName('name')?.type !== 'computed_property_name') names.unshift(name);
+  }
+  return names;
 }
 
 /** Gives each definition its path from the definitions around it; a definition in a broken one is broken too. */
@@ -65,7 +83,7 @@ function nest(defs: Omit<Def, 'path' | 'broken'>[], errors: Node[]): Def[] {
     while (stack.length && stack[stack.length - 1]!.node.endIndex < d.node.endIndex) stack.pop();
     const parent = stack[stack.length - 1];
     // `namespace A.B` is `namespace A { namespace B }`.
-    const nested: Def = { ...d, path: [...(parent?.path ?? []), ...d.name.split('.')], broken: (parent?.broken ?? false) || errors.some((e) => touches(d.node, e)) };
+    const nested: Def = { ...d, path: [...(parent?.path ?? []), ...initializerNames(d.node, parent?.node), ...d.name.split('.')], broken: (parent?.broken ?? false) || errors.some((e) => touches(d.node, e)) };
     stack.push(nested);
     return nested;
   });
@@ -96,7 +114,7 @@ export function extractSymbols(file: string, tree: Tree, tags: Query, grammar: G
   const errors = tree.rootNode.hasError ? errorNodes(tree.rootNode) : [];
   const symbols: CodeSymbol[] = [];
   const broken = new Set<string>();
-  const byId = new Map<string, { symbol: CodeSymbol; signature: boolean; scope: number | undefined; count: number }>();
+  const byId = new Map<string, { symbol: CodeSymbol; signature: boolean; scope: number | undefined; count: number; first: { symbol: CodeSymbol; static: boolean } }>();
   for (const def of nest(definitions(tree, tags, grammar), errors)) {
     const base = symbolId(file, def.path, def.kind);
     const prev = byId.get(base);
@@ -106,10 +124,17 @@ export function extractSymbols(file: string, tree: Tree, tags: Query, grammar: G
       if (def.broken) broken.add(prev.symbol.id);
       continue;
     }
-    const id = prev ? `${base}~${++prev.count}` : base;
+    const isStatic = def.node.children.some((child) => child?.type === 'static');
+    let id = prev ? `${base}~${++prev.count}` : base;
+    // An instance member keeps the plain identity over a static member of the same name that came first.
+    if (prev?.first.static && !isStatic && prev.first.symbol.id === base) {
+      prev.first.symbol.id = id;
+      if (broken.delete(base)) broken.add(id);
+      id = base;
+    }
     const symbol: CodeSymbol = { id, file, path: def.path, kind: def.kind, range: definitionRange(grammar, def.node, def.kind) };
     // The latest group with this identity is the one a following overload can join.
-    byId.set(base, { symbol, signature: def.node.type.endsWith('_signature'), scope: scopeOf(def.node), count: prev?.count ?? 1 });
+    byId.set(base, { symbol, signature: def.node.type.endsWith('_signature'), scope: scopeOf(def.node), count: prev?.count ?? 1, first: prev?.first ?? { symbol, static: isStatic } });
     symbols.push(symbol);
     if (def.broken) broken.add(id);
   }
