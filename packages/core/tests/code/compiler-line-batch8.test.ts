@@ -80,26 +80,54 @@ describe('ids of definitions inside a class static block', () => {
   const src = 'class K {\n  f() {}\n  static { const X = class { f() {} g() { this.f(); } }; }\n}\n';
   const ids = async (ext: string, text = src) => (await link({ [`a.${ext}`]: text })).files.get(`a.${ext}`)!.symbols.map((s) => s.id);
 
-  // Rule: a definition in a static block nests under a `static` segment, like a field initializer nests under its field.
-  it.each(ALL)('a class expression in a static block nests under K.static (%s)', async (ext) => {
+  // Rule: a definition in a static block nests under a `static{}` segment, like a field initializer nests under its field.
+  it.each(ALL)('a class expression in a static block nests under K.static{} (%s)', async (ext) => {
     const got = await ids(ext);
     expect(got).toContain(`a.${ext}::K.f::method`);
-    expect(got).toContain(`a.${ext}::K.static.f::method`);
-    expect(got).toContain(`a.${ext}::K.static.g::method`);
+    expect(got).toContain(`a.${ext}::K.static{}.f::method`);
+    expect(got).toContain(`a.${ext}::K.static{}.g::method`);
     expect(got.filter((id) => id.endsWith('::method~2'))).toEqual([]);
   });
 
   it.each(ALL)('this.f() in the static-block class resolves to its own f, not K.f (%s)', async (ext) => {
-    await expectArrow({ [`a.${ext}`]: src }, ext, { caller: 'K.static.g', declLine: 3, target: `a.${ext}::K.static.f::method` });
+    await expectArrow({ [`a.${ext}`]: src }, ext, { caller: 'K.static{}.g', declLine: 3, target: `a.${ext}::K.static{}.f::method` });
   });
 
-  it.each(ALL)('a function declared in a static block is K.static.h (%s)', async (ext) => {
-    expect(await ids(ext, 'class K {\n  static { function h() {} }\n}\n')).toContain(`a.${ext}::K.static.h::function`);
+  it.each(ALL)('a function declared in a static block is K.static{}.h (%s)', async (ext) => {
+    expect(await ids(ext, 'class K {\n  static { function h() {} }\n}\n')).toContain(`a.${ext}::K.static{}.h::function`);
   });
 
   it.each(ALL)('two static blocks defining the same name: the second takes ~2 (%s)', async (ext) => {
     const got = await ids(ext, 'class K {\n  static { function h() {} }\n  static { function h() {} }\n}\n');
-    expect(got).toContain(`a.${ext}::K.static.h::function`);
-    expect(got).toContain(`a.${ext}::K.static.h::function~2`);
+    expect(got).toContain(`a.${ext}::K.static{}.h::function`);
+    expect(got).toContain(`a.${ext}::K.static{}.h::function~2`);
+  });
+
+  // Rule: a member named `static` is a different segment from a static block, so each X keeps its own id and none takes ~2.
+  const fieldSrc = 'class K {\n  static = class X { f() { return 1; } g() { this.f(); } };\n  static { class X { f() { return 2; } h() { this.f(); } } }\n}\n';
+  it.each(ALL)('a field named static and a static block do not share ids (%s)', async (ext) => {
+    const got = await ids(ext, fieldSrc);
+    expect(got).toContain(`a.${ext}::K.static.X.f::method`);
+    expect(got).toContain(`a.${ext}::K.static{}.X.f::method`);
+    expect(got.filter((id) => id.endsWith('~2'))).toEqual([]);
+  });
+
+  it.each(ALL)('this.f() resolves to the X of its own field or static block (%s)', async (ext) => {
+    await expectArrow({ [`a.${ext}`]: fieldSrc }, ext, { caller: 'K.static.X.g', declLine: 2, target: `a.${ext}::K.static.X.f::method` });
+    await expectArrow({ [`a.${ext}`]: fieldSrc }, ext, { caller: 'K.static{}.X.h', declLine: 3, target: `a.${ext}::K.static{}.X.f::method` });
+  });
+
+  // A class inside the method named `static` nests under it, as it does without a static block (`L.static.X.f`).
+  const methodSrc = 'class L {\n  static() { class X { f() {} g() { this.f(); } } }\n  static { class X { f() {} h() { this.f(); } } }\n}\n';
+  it.each(ALL)('a method named static and a static block do not share ids (%s)', async (ext) => {
+    const got = await ids(ext, methodSrc);
+    expect(got).toContain(`a.${ext}::L.static.X.f::method`);
+    expect(got).toContain(`a.${ext}::L.static{}.X.f::method`);
+    expect(got.filter((id) => id.endsWith('~2'))).toEqual([]);
+  });
+
+  it.each(ALL)('this.f() resolves to the X of its own method or static block (%s)', async (ext) => {
+    await expectArrow({ [`a.${ext}`]: methodSrc }, ext, { caller: 'L.static.X.g', declLine: 2, target: `a.${ext}::L.static.X.f::method` });
+    await expectArrow({ [`a.${ext}`]: methodSrc }, ext, { caller: 'L.static{}.X.h', declLine: 3, target: `a.${ext}::L.static{}.X.f::method` });
   });
 });

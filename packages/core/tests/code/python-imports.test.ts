@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Import } from '../../src/code/model.js';
 import type { ParsedFile } from '../../src/code/parse.js';
+import { parseCode } from '../../src/code/parse.js';
 import { parseRepo } from '../../src/code/repo.js';
 
 const FIXTURE = join(import.meta.dirname, '..', 'fixtures', 'code', 'py-src');
@@ -130,5 +131,23 @@ describe('Python calls on the py-src fixture', () => {
     const call = callOf('src/shop/billing.py', 'getcwd');
     expect(call?.evidence).toBe('name-only');
     expect(call).not.toHaveProperty('to');
+  });
+});
+
+describe('an import whose statement holds a syntax error', () => {
+  const specsOf = async (text: string) => ((await parseCode('a.py', text))?.imports ?? []).map((i) => i.spec);
+
+  // tree-sitter puts the ERROR inside the anonymous `not in` node here (checked by dumping the web-tree-sitter tree), so the statement has an error and `m` is hidden.
+  it('hides a dynamic import whose arguments hold an ERROR under a `not in` operator', async () => {
+    expect(await specsOf('import importlib\ny = importlib.import_module("m", a not 1 in b)\n')).toEqual(['importlib']);
+  });
+
+  // Here the MISSING `in` sits inside the anonymous `not in` node.
+  it('hides a dynamic import whose arguments hold a MISSING token under a `not in` operator', async () => {
+    expect(await specsOf('import importlib\ny = importlib.import_module("m", a is 1 not b)\n')).toEqual(['importlib']);
+  });
+
+  it('keeps the dynamic import when the same operators parse cleanly', async () => {
+    expect(await specsOf('import importlib\ny = importlib.import_module("m", a not in b)\n')).toEqual(['importlib', 'm']);
   });
 });
