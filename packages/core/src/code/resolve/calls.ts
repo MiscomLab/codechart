@@ -88,7 +88,7 @@ function importedTarget(call: CallRef, parsed: ParsedFile, trace: Tracer, lookup
  * target. A name declared twice on the same side is no single target.
  */
 function callableThrough(info: ClassInfo, fromStatic: boolean, call: CallRef): boolean {
-  if (info.unknownMember || info.nonCallable?.includes(call.name)) return false;
+  if ((fromStatic ? info.unknownStatic : info.unknownInstance) || info.nonCallable?.includes(call.name)) return false;
   const total = info.members.filter((member) => member === call.name).length;
   const statics = info.statics?.filter((member) => member === call.name).length ?? 0;
   return (fromStatic ? statics : total - statics) === 1;

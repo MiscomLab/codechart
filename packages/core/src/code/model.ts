@@ -34,14 +34,22 @@ export interface ClassInfo {
   writes: string[];
   /** Python: a `metaclass=` keyword, so a constructed receiver is not provably an instance of the class. */
   metaclass?: boolean;
+  /** Python: the identifier a `metaclass=` keyword names; absent when it is any other expression. */
+  metaclassName?: string;
   /** A base the syntax cannot read as a (dotted) name, so the class's real ancestors are unknown. */
   opaqueBase?: boolean;
+  /** Python: a dotted base (`mod.K`), of which `bases` holds only the last identifier. */
+  qualifiedBase?: boolean;
+  /** Python: each decorator's callee text (`dataclass`, `dataclasses.dataclass`), `*` for one the syntax cannot read. */
+  decorators?: string[];
   /** JS/TS: the members declared `static`; a `this` call in a static method reaches only these. */
   statics?: string[];
   /** JS/TS: members whose body is not a callable method (a getter/setter, `abstract`, or a signature). */
   nonCallable?: string[];
-  /** JS/TS: a computed member key no parse can prove a string or a symbol: it may be any name. */
-  unknownMember?: boolean;
+  /** JS/TS: a computed instance member key no parse can prove a string or a symbol: it may be any name. */
+  unknownInstance?: boolean;
+  /** JS/TS: the same for a computed `static` member key. */
+  unknownStatic?: boolean;
   /** JS/TS: the class node's range, which a call's `this` owner is matched against. */
   range?: CodeRange;
   /** JS/TS: the member methods and function-valued fields with a symbol, by name, so `this.name()` finds its target. */

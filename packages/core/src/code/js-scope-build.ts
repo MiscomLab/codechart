@@ -182,6 +182,9 @@ export class Scopes {
   /** A function-like node's parameters and body scopes; the body never sees its own parameters' defaults. */
   private walkFunction(node: Node, scope: Scope, strict: boolean): void {
     const name = FUNCTION_NAMES.has(node.type) ? node.childForFieldName('name') : undefined;
+    // A computed member name is an expression of the enclosing scope, not of the method.
+    const key = node.type === 'method_definition' ? node.childForFieldName('name') : undefined;
+    if (key?.type === 'computed_property_name') this.walk(key, scope, strict);
     const outer = name ? this.nameScope(node, scope, name.text, strict, { kind: 'def', start: pointOf(node), func: true }) : scope;
     const params = this.make('params', node, outer, strict);
     for (const parameter of parameterBindings(node)) this.add(params, parameter, OTHER);

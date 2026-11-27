@@ -1,7 +1,8 @@
-import type { Node, Query, Tree } from 'web-tree-sitter';
+import type { Query, Tree } from 'web-tree-sitter';
 import type { ModuleExports } from '../imports.js';
 import type { ClassInfo, CodeRange, CodeSymbol, Import } from '../model.js';
 import { nodeRange } from '../tree.js';
+import { mirrorTree, type PyNode } from './py-tree.js';
 import { collectBindings, type PyBinding, type PyDefinition } from './module-scope.js';
 import { moduleExports, settleGuards } from './exports.js';
 import { moduleEscapes, type ModuleEscape } from './module-escapes.js';
@@ -57,8 +58,8 @@ export interface PythonFile {
   sysPathEdited: boolean;
 }
 
-function hasWildcard(root: Node): boolean {
-  const stack: Node[] = [root];
+function hasWildcard(root: PyNode): boolean {
+  const stack: PyNode[] = [root];
   while (stack.length) {
     const node = stack.pop()!;
     if (node.type === 'wildcard_import') return true;
@@ -95,7 +96,7 @@ function resolveClassBases(classes: readonly ClassInfo[], bindings: readonly PyB
  * The attribute writes that land on a module the file imported: `import a; a.f = …`, `setattr(a, 'f', …)`,
  * `del a.f`, `delattr(a, 'f')`. Only those can replace a module function another file calls by name.
  */
-function moduleAttributeWrites(root: Node, bindings: readonly PyBinding[], imports: readonly ImportSpec[]): ModuleEscape[] {
+function moduleAttributeWrites(root: PyNode, bindings: readonly PyBinding[], imports: readonly ImportSpec[]): ModuleEscape[] {
   const bound = new Map<string, number | null>();
   for (const b of bindings) {
     if (b.scope !== '' || b.kind !== 'import' || b.import === undefined) continue;
@@ -109,11 +110,11 @@ function moduleAttributeWrites(root: Node, bindings: readonly PyBinding[], impor
 }
 
 /**
- * The imports, scope bindings and own exports of a parsed Python file. `symbols` are the file's symbols, which give each
- * function and class scope its id. A module's exports are the names its own scope binds exactly once, imports
+ * The imports, scope bindings and own exports of a parsed Python file. `source` is the text `tree` parsed. `symbols` are the file's symbols, which give each function and class scope its id. A module's exports are the names its own scope binds exactly once, imports
  * included, which is how a package's `__init__.py` re-exports through the shared tracer.
  */
-export function extractPythonImports(file: string, tree: Tree, query: Query, symbols: readonly CodeSymbol[]): PythonFile {
+export function extractPythonImports(file: string, tree: Tree, query: Query, symbols: readonly CodeSymbol[], source: string): PythonFile {
+  const { root, byId } = mirrorTree(tree, source);
   const imports: ImportSpec[] = [];
   const hidden: ImportSpec[] = [];
   const index = new Map<number, { locals: { name: string; dotted: boolean; index: number }[]; typeOnly: boolean; wildcard: boolean; at: number }>();
@@ -122,7 +123,7 @@ export function extractPythonImports(file: string, tree: Tree, query: Query, sym
     const capture = match.captures.find((c) => c.name !== 'mod' && c.name !== 'fn');
     if (!capture || seen.has(capture.node.id)) continue;
     seen.add(capture.node.id);
-    const main = capture.node;
+    const main = byId.get(capture.node.id)!;
     const typeOnly = typeGuarded(main);
     const locals: { name: string; dotted: boolean; index: number }[] = [];
     let first = -1;
@@ -140,22 +141,22 @@ export function extractPythonImports(file: string, tree: Tree, query: Query, sym
     const wildcard = main.namedChildren.some((c) => c?.type === 'wildcard_import');
     if (first >= 0) index.set(main.id, { locals, typeOnly, wildcard, at: first });
   }
-  const { bindings, defs, deferred, lambdas, classes } = collectBindings(tree.rootNode, symbols, index);
+  const { bindings, defs, deferred, lambdas, classes } = collectBindings(root, symbols, index);
   resolveClassBases(classes, bindings, imports);
-  const attrWrites = attributeWrites(tree.rootNode, null);
+  const attrWrites = attributeWrites(root, null);
   settleGuards(bindings, imports, new Set(attrWrites));
   return {
     imports,
-    exports: moduleExports(bindings, hasWildcard(tree.rootNode)),
+    exports: moduleExports(bindings, hasWildcard(root)),
     hidden,
     bindings,
     defs,
     deferred,
     lambdas,
     attrWrites,
-    moduleWrites: [...moduleAttributeWrites(tree.rootNode, bindings, imports), ...moduleEscapes(tree.rootNode, symbols, bindings, index, imports)],
-    escapes: escapedAttributes(tree.rootNode),
+    moduleWrites: [...moduleAttributeWrites(root, bindings, imports), ...moduleEscapes(root, symbols, bindings, index, imports)],
+    escapes: escapedAttributes(root),
     classes,
-    sysPathEdited: editsSysPath(tree.rootNode),
+    sysPathEdited: editsSysPath(root),
   };
 }

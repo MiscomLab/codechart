@@ -1,7 +1,7 @@
-import type { Node } from 'web-tree-sitter';
+import type { PyNode } from './py-tree.js';
 import type { ClassInfo, CodeRange, CodeSymbol } from '../model.js';
 import { nodeRange } from '../tree.js';
-import { annotationExpressions, baseNames, declared, defaultRanges, defaultValues, deferredRanges, hasMetaclass, identifiers, opaqueBase, parameterNames, targets, typeClasses, typeParameterNames, typeCheckingGuard, typeParametersIn } from './scope-nodes.js';
+import { annotationExpressions, baseNames, declared, decoratorNames, defaultRanges, defaultValues, deferredRanges, hasMetaclass, identifiers, metaclassName, opaqueBase, parameterNames, qualifiedBase, targets, typeClasses, typeParameterNames, typeCheckingGuard, typeParametersIn } from './scope-nodes.js';
 import { attributeWrites, dynamicModuleBindings } from './write-nodes.js';
 
 /**
@@ -56,7 +56,7 @@ const typeParamsScope = (scope: string): string => `${scope}#typeparams`;
  * own; a class body is a scope its methods do not see; comprehensions and lambdas have their own scope. Scope ids are
  * the symbols `extractSymbols` found for each `def` and `class`.
  */
-export function collectBindings(root: Node, symbols: readonly CodeSymbol[], imports: ImportIndex): { bindings: PyBinding[]; defs: PyDefinition[]; deferred: CodeRange[]; lambdas: CodeRange[]; classes: ClassInfo[] } {
+export function collectBindings(root: PyNode, symbols: readonly CodeSymbol[], imports: ImportIndex): { bindings: PyBinding[]; defs: PyDefinition[]; deferred: CodeRange[]; lambdas: CodeRange[]; classes: ClassInfo[] } {
   const out: PyBinding[] = [];
   const defs: PyDefinition[] = [];
   const deferred: CodeRange[] = [];
@@ -83,7 +83,7 @@ interface Walker {
   lambdas: CodeRange[];
   classes: ClassInfo[];
   imports: ImportIndex;
-  scopeOf: (def: Node) => string;
+  scopeOf: (def: PyNode) => string;
 }
 
 /** Where writes land: the current scope, the enclosing function scopes, and names redirected by `global` / `nonlocal`. */
@@ -125,14 +125,14 @@ function binder(w: Walker, at: Scope): Bind {
 }
 
 /** Whether a compound statement's test is a literal that is always falsy: its body never runs. */
-function neverRuns(node: Node): boolean {
+function neverRuns(node: PyNode): boolean {
   if (node.type !== 'if_statement' && node.type !== 'while_statement') return false;
   const test = node.childForFieldName('condition');
   return test?.type === 'false' || test?.type === 'none' || (test?.type === 'integer' && test.text === '0');
 }
 
 /** The scope a statement runs in: inside a compound statement or after a jump, its bindings are conditional or dead. */
-function childScope(scope: Scope, child: Node, dead: boolean): Scope {
+function childScope(scope: Scope, child: PyNode, dead: boolean): Scope {
   const guard = COMPOUND.has(child.type) && !scope.conditional ? typeCheckingGuard(child) : undefined;
   if (guard) return { ...scope, guards: [...(scope.guards ?? []), guard], dead };
   if (COMPOUND.has(child.type) && !scope.conditional) return { ...scope, conditional: true, dead, ...(neverRuns(child) && { never: true }) };
@@ -140,7 +140,7 @@ function childScope(scope: Scope, child: Node, dead: boolean): Scope {
 }
 
 /** Binds the names an import node brings in; false when the node is not an import. */
-function bindImports(w: Walker, node: Node, bind: Bind): boolean {
+function bindImports(w: Walker, node: PyNode, bind: Bind): boolean {
   const imported = w.imports.get(node.id);
   if (!imported) return false;
   const start = nodeRange(node).start;
@@ -149,7 +149,7 @@ function bindImports(w: Walker, node: Node, bind: Bind): boolean {
   return true;
 }
 
-function walk(w: Walker, node: Node, scope: Scope): void {
+function walk(w: Walker, node: PyNode, scope: Scope): void {
   // A lambda may itself be the expression walked (a parameter default): its own parameters bind where it is written.
   if (node.type === 'lambda') for (const p of parameterNames(node.childForFieldName('parameters'))) binder(w, scope)(p, 'other', { start: nodeRange(node).start });
   for (const range of deferredRanges(node)) w.deferred.push(range);
@@ -181,12 +181,12 @@ function walk(w: Walker, node: Node, scope: Scope): void {
 }
 
 /** Decorator expressions run in the scope enclosing the definition they decorate. */
-function walkDecorators(w: Walker, node: Node, at: Scope): void {
+function walkDecorators(w: Walker, node: PyNode, at: Scope): void {
   for (const child of node.namedChildren) if (child?.type === 'decorator') walk(w, child, at);
 }
 
 /** A type alias binds its name here; its own type parameters live in its value only, never in the enclosing scope. */
-function bindTypeAlias(w: Walker, node: Node, bind: Bind, at: Scope): void {
+function bindTypeAlias(w: Walker, node: PyNode, bind: Bind, at: Scope): void {
   const left = node.childForFieldName('left');
   const value = node.childForFieldName('right');
   // The value and the bounds evaluate lazily, but a lambda or comprehension in them is a scope like in an annotation.
@@ -218,7 +218,7 @@ function bindTypeParameters(w: Walker, own: string, inherited: readonly string[]
 }
 
 /** A class's name and bases for the dispatch index; its members and writes are read from the bindings once all are made. */
-function recordClass(w: Walker, def: Node, id: string): void {
+function recordClass(w: Walker, def: PyNode, id: string): void {
   if (def.type !== 'class_definition') return;
   const superclasses = def.childForFieldName('superclasses');
   w.classes.push({
@@ -228,25 +228,28 @@ function recordClass(w: Walker, def: Node, id: string): void {
     members: [],
     writes: [],
     ...(hasMetaclass(superclasses) && { metaclass: true }),
+    ...(metaclassName(superclasses) && { metaclassName: metaclassName(superclasses) }),
     ...(opaqueBase(superclasses) && { opaqueBase: true }),
+    ...(qualifiedBase(superclasses) && { qualifiedBase: true }),
+    ...(decoratorNames(def).length && { decorators: decoratorNames(def) }),
   });
 }
 
 /** A method's `self.f = …` writes poison the class attribute `f` for member calls, though not for a bare name. */
-function bindAttributeWrites(w: Walker, def: Node, at: Scope): void {
+function bindAttributeWrites(w: Walker, def: PyNode, at: Scope): void {
   const body = def.childForFieldName('body');
   if (def.type !== 'function_definition' || !body || at.isFunction || !at.scope) return;
   for (const attr of attributeWrites(body, parameterNames(def.childForFieldName('parameters'))[0])) w.out.push({ scope: at.scope, name: attr, kind: 'other', attr: true });
 }
 
 /** A decorator's return value is what a decorated definition's name binds, so it proves no target. */
-const definitionKind = (def: Node): PyBinding['kind'] => (def.parent?.type === 'decorated_definition' ? 'other' : 'def');
+const definitionKind = (def: PyNode): PyBinding['kind'] => (def.parent?.type === 'decorated_definition' ? 'other' : 'def');
 
 /**
  * A `def` or `class` binds its name here; its parameters and body bind in its own scope. A method's `global`/`nonlocal`
  * of an inherited type parameter makes that name reach the outer scope, so the inherited binding is not recorded.
  */
-function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
+function enterDefinition(w: Walker, def: PyNode, bind: Bind, at: Scope): void {
   const name = def.childForFieldName('name')?.text;
   if (name) bind(name, definitionKind(def), { start: nodeRange(def).start });
   const own = w.scopeOf(def);
@@ -286,10 +289,10 @@ function enterDefinition(w: Walker, def: Node, bind: Bind, at: Scope): void {
 }
 
 /** The names a body declares with `global` or `nonlocal`, which make those names belong to another scope. */
-const declaredNames = (body: Node | null, statement: 'global_statement' | 'nonlocal_statement'): Set<string> => new Set(body ? declared(body, statement) : []);
+const declaredNames = (body: PyNode | null, statement: 'global_statement' | 'nonlocal_statement'): Set<string> => new Set(body ? declared(body, statement) : []);
 
 /** The names that writes in `node` bind in the current scope. */
-function bindWrites(w: Walker, node: Node, bind: Bind): void {
+function bindWrites(w: Walker, node: PyNode, bind: Bind): void {
   const start = nodeRange(node).start;
   if (node.type === 'assignment') {
     const right = node.childForFieldName('right');

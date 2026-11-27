@@ -278,7 +278,7 @@ export async function parseCode(path: string, text: string, lastGood?: LastGood,
     const errors = tree.rootNode.hasError ? errorNodes(tree.rootNode) : [];
     const extracted = extractSymbols(path, tree, tags, grammar);
     const good = keepLastGoodSymbols(extracted, Array.isArray(lastGood) ? lastGood : previous?.symbols);
-    const python = grammar === 'python' ? extractPythonImports(path, tree, query, extracted.symbols) : undefined;
+    const python = grammar === 'python' ? extractPythonImports(path, tree, query, extracted.symbols, text) : undefined;
     const stated = python ?? extractImports(path, tree, query);
     const imports = keepLastGoodImports(stated.imports, stated.hidden, extracted.errors, previous, text).map(unlinked);
     const exports = keepLastGoodExports(stated.exports, extracted.errors, previous, text);

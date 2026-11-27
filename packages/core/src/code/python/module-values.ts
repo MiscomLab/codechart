@@ -1,4 +1,4 @@
-import type { Node } from 'web-tree-sitter';
+import type { PyNode } from './py-tree.js';
 import type { CodeRange, CodeSymbol, Import } from '../model.js';
 import type { ImportIndex, PyBinding } from './module-scope.js';
 import { argsOf, stringConstant } from './write-nodes.js';
@@ -46,25 +46,25 @@ const before = (a: CodeRange['start'], b: CodeRange['start']): boolean => a.line
 const inside = (at: CodeRange['start'], range: CodeRange): boolean => !before(at, range.start) && before(at, range.end);
 
 /** A node's start point, for a scope lookup: its row and column, which need no walk of the tree. */
-export const startOf = (node: Node): CodeRange['start'] => ({ line: node.startPosition.row + 1, column: node.startPosition.column });
+export const startOf = (node: PyNode): CodeRange['start'] => ({ line: node.startPosition.row + 1, column: node.startPosition.column });
 
 /** A node with the parentheses around it removed. */
-export function unwrap(node: Node | null | undefined): Node | undefined {
+export function unwrap(node: PyNode | null | undefined): PyNode | undefined {
   let current = node ?? undefined;
   while (current?.type === 'parenthesized_expression') current = current.namedChildren[0] ?? undefined;
   return current;
 }
 
 /** The parent of `node`, after any parentheses around it. */
-export function outerParent(node: Node): Node | undefined {
+export function outerParent(node: PyNode): PyNode | undefined {
   let parent = node.parent;
   while (parent?.type === 'parenthesized_expression') parent = parent.parent;
   return parent ?? undefined;
 }
 
 /** Whether a node is a write target rather than a read: `x = …`, `for x in …`, `del x`, `x := …`. */
-export function inTarget(node: Node): boolean {
-  let child: Node = node;
+export function inTarget(node: PyNode): boolean {
+  let child: PyNode = node;
   for (let parent = node.parent; parent; child = parent, parent = parent.parent) {
     if (parent.type === 'assignment' || parent.type === 'augmented_assignment') return parent.childForFieldName('left')?.id === child.id;
     if (parent.type === 'delete_statement') return true;
@@ -82,11 +82,26 @@ function scopesAtIn(symbols: readonly CodeSymbol[], at: CodeRange['start']): str
   return [...holders.flatMap((holder, index) => (index === 0 || holder.kind !== 'class' ? [holder.id] : [])), ''];
 }
 
+/** The bindings a lookup can see, by scope and name: the lookups of one file read the same lists again and again. */
+const bindingIndex = new WeakMap<readonly PyBinding[], Map<string, PyBinding[]>>();
+
 /** Every binding of `name` in the nearest scope that binds it: several may exist (`import a` twice, a fallback assignment). */
 export function scopeBindings(bindings: readonly PyBinding[], scopes: readonly string[], name: string): readonly PyBinding[] | undefined {
+  let index = bindingIndex.get(bindings);
+  if (!index) {
+    index = new Map();
+    for (const binding of bindings) {
+      if (binding.attr || binding.alias || binding.inherited) continue;
+      const key = `${binding.scope}\0${binding.name}`;
+      const scoped = index.get(key);
+      if (scoped) scoped.push(binding);
+      else index.set(key, [binding]);
+    }
+    bindingIndex.set(bindings, index);
+  }
   for (const scope of scopes) {
-    const scoped = bindings.filter((binding) => binding.scope === scope && binding.name === name && !binding.attr && !binding.alias && !binding.inherited);
-    if (scoped.length) return scoped;
+    const scoped = index.get(`${scope}\0${name}`);
+    if (scoped) return scoped;
   }
   return undefined;
 }
@@ -107,9 +122,9 @@ function importedAs(context: Context, at: CodeRange['start'], name: string, spec
 }
 
 /** The `a.b.c` chain a node is: its root identifier and the attribute names below it. */
-function chainOf(node: Node): { root: Node; parts: string[] } | undefined {
+function chainOf(node: PyNode): { root: PyNode; parts: string[] } | undefined {
   const parts: string[] = [];
-  let current: Node | undefined = node;
+  let current: PyNode | undefined = node;
   while (current?.type === 'attribute') {
     const attribute = current.childForFieldName('attribute');
     if (!attribute) return undefined;
@@ -130,7 +145,7 @@ function fromSysModules(context: Context, at: CodeRange['start'], name: string):
 }
 
 /** Whether a node is `sys.modules`, under any binding of `sys`, or a name `from sys import modules` binds. */
-export function isSysModules(node: Node | null | undefined, context: Context): boolean {
+export function isSysModules(node: PyNode | null | undefined, context: Context): boolean {
   if (!node) return false;
   if (node.type === 'identifier') return fromSysModules(context, startOf(node), node.text);
   if (node.type !== 'attribute') return false;
@@ -149,7 +164,7 @@ function fromImportlib(context: Context, at: CodeRange['start'], name: string): 
 }
 
 /** Whether a call is the builtin `__import__` or resolves to `importlib.import_module`/`importlib.__import__`, through aliases and from-imports. */
-export function isImportFunction(fn: Node | null | undefined, context: Context): boolean {
+export function isImportFunction(fn: PyNode | null | undefined, context: Context): boolean {
   if (!fn) return false;
   const at = startOf(fn);
   if (fn.type === 'identifier') {
@@ -165,13 +180,13 @@ export function isImportFunction(fn: Node | null | undefined, context: Context):
 }
 
 /** Whether a node is the unshadowed builtin `name`: no scope binds that name where it is written. */
-export function isBuiltin(context: Context, node: Node | null | undefined, name: string): boolean {
+export function isBuiltin(context: Context, node: PyNode | null | undefined, name: string): boolean {
   const target = unwrap(node);
   return target?.type === 'identifier' && target.text === name && !scopeBindings(context.bindings, context.scopesAt(startOf(target)), name)?.length;
 }
 
 /** Whether a call names a module at run time: a stated literal name, or a computed one no parse can resolve. */
-function importCallValue(node: Node, context: Context): ModuleValue | undefined {
+function importCallValue(node: PyNode, context: Context): ModuleValue | undefined {
   if (node.type !== 'call' || !isImportFunction(node.childForFieldName('function'), context)) return undefined;
   const args = argsOf(node);
   const literal = args[0] ? stringConstant(args[0]) : undefined;
@@ -180,7 +195,7 @@ function importCallValue(node: Node, context: Context): ModuleValue | undefined 
 }
 
 /** A module value named by a literal `sys.modules[...]` subscript; a computed key or bare `sys.modules` is any module. */
-function sysModulesValue(node: Node, context: Context): ModuleValue | undefined {
+function sysModulesValue(node: PyNode, context: Context): ModuleValue | undefined {
   if (node.type === 'subscript') {
     if (!isSysModules(node.childForFieldName('value'), context)) return undefined;
     const key = node.childForFieldName('subscript');
@@ -193,7 +208,7 @@ function sysModulesValue(node: Node, context: Context): ModuleValue | undefined 
 }
 
 /** The module values an expression names: an import binding, an attribute chain below it, a `sys.modules` entry, or a call. */
-export function resolveValues(node: Node | null | undefined, context: Context): ModuleValue[] {
+export function resolveValues(node: PyNode | null | undefined, context: Context): ModuleValue[] {
   const target = unwrap(node);
   if (!target) return [];
   // `sys.modules` is read before the attribute branch: it is a module value, not an attribute of the external `sys` import.
@@ -220,14 +235,14 @@ export function resolveValues(node: Node | null | undefined, context: Context): 
 }
 
 /** Whether a subscript is `sys.modules[<computed>]`: it can name any module, so the whole any-module set is written. */
-export function dynamicSysModules(node: Node, context: Context): boolean {
+export function dynamicSysModules(node: PyNode, context: Context): boolean {
   if (node.type !== 'subscript' || !isSysModules(node.childForFieldName('value'), context)) return false;
   const key = node.childForFieldName('subscript');
   return !(key?.type === 'identifier' && key.text === '__name__') && stringConstant(key) === undefined;
 }
 
 /** The module values a namespace expression names: `X.__dict__` or `vars(X)` where X is a module. */
-function namespaceValues(node: Node | null | undefined, context: Context): ModuleValue[] {
+function namespaceValues(node: PyNode | null | undefined, context: Context): ModuleValue[] {
   const target = unwrap(node);
   if (!target) return [];
   if (target.type === 'attribute' && target.childForFieldName('attribute')?.text === '__dict__') return resolveValues(target.childForFieldName('object'), context);
@@ -240,7 +255,7 @@ function namespaceValues(node: Node | null | undefined, context: Context): Modul
 }
 
 /** The module values a write target writes on: `X.f = …` writes X's `f`, `X.__dict__['f'] = …` the module's dict. */
-export function targetValues(node: Node | null | undefined, context: Context): ModuleValue[] {
+export function targetValues(node: PyNode | null | undefined, context: Context): ModuleValue[] {
   const target = unwrap(node);
   if (!target) return [];
   if (TARGET_PATTERNS.has(target.type)) return target.namedChildren.flatMap((child) => (child ? targetValues(child, context) : []));
@@ -250,7 +265,7 @@ export function targetValues(node: Node | null | undefined, context: Context): M
 }
 
 /** The attribute name a write target names, or the key `X.__dict__[key]` / `vars(X)[key]` writes: `*` when not a constant. */
-export function targetName(node: Node | null | undefined): string | undefined {
+export function targetName(node: PyNode | null | undefined): string | undefined {
   const target = unwrap(node);
   if (!target) return undefined;
   if (target.type === 'attribute') return target.childForFieldName('attribute')?.text;
@@ -259,7 +274,7 @@ export function targetName(node: Node | null | undefined): string | undefined {
 }
 
 /** A call to the builtin `setattr`/`delattr`, whose first argument names the object it writes. */
-export function isSetattrCall(node: Node): boolean {
+export function isSetattrCall(node: PyNode): boolean {
   if (node.type !== 'call') return false;
   const fn = node.childForFieldName('function');
   return fn?.type === 'identifier' && (fn.text === 'setattr' || fn.text === 'delattr');
@@ -268,5 +283,11 @@ export function isSetattrCall(node: Node): boolean {
 /** The scope lookup of a file's names, as `moduleEscapes` reads them; the symbols stay sorted once, longest path first. */
 export const scopesOf = (symbols: readonly CodeSymbol[]): Context['scopesAt'] => {
   const sorted = [...symbols].sort((a, b) => b.path.length - a.path.length);
-  return (at) => scopesAtIn(sorted, at);
+  const known = new Map<string, string[]>();
+  return (at) => {
+    const key = `${at.line}:${at.column}`;
+    let scopes = known.get(key);
+    if (!scopes) known.set(key, (scopes = scopesAtIn(sorted, at)));
+    return scopes;
+  };
 };

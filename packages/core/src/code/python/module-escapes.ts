@@ -1,4 +1,4 @@
-import type { Node } from 'web-tree-sitter';
+import type { PyNode } from './py-tree.js';
 import type { CodeSymbol } from '../model.js';
 import type { ImportIndex, PyBinding } from './module-scope.js';
 import { type Context, type ModuleValue, TARGET_PATTERNS, dynamicSysModules, inImport, inTarget, isBuiltin, isImportFunction, isSetattrCall, isSysModules, outerParent, resolveValues, scopeBindings, scopesOf, startOf, targetName, targetValues, unwrap } from './module-values.js';
@@ -32,18 +32,18 @@ export interface ModuleEscape {
 const NAMESPACE = new Set(['__setattr__', '__delattr__', '__dict__']);
 
 /** Whether a node is the first argument of a `setattr`/`delattr` call, which writes rather than escaping. */
-function setattrOperand(node: Node, parent: Node | undefined): boolean {
+function setattrOperand(node: PyNode, parent: PyNode | undefined): boolean {
   return parent?.type === 'call' && isSetattrCall(parent) && unwrap(argsOf(parent)[0])?.id === node.id;
 }
 
 /** Whether a node sits in a `X.__dict__[<literal>] = …` / `vars(X)[<literal>] = …` write, handled by the write pass. */
-function namespaceWrite(node: Node): boolean {
+function namespaceWrite(node: PyNode): boolean {
   const parent = outerParent(node);
   return parent?.type === 'subscript' && parent.childForFieldName('value')?.id === node.id && inTarget(parent);
 }
 
 /** Whether an import call's result is handed on: not a plain `name = …` (that name is itself an import binding) nor a write. */
-function escapesCall(node: Node, parent: Node | undefined): boolean {
+function escapesCall(node: PyNode, parent: PyNode | undefined): boolean {
   return !(parent?.type === 'assignment' && unwrap(parent.childForFieldName('right'))?.id === node.id && parent.childForFieldName('left')?.type === 'identifier');
 }
 
@@ -51,7 +51,7 @@ function escapesCall(node: Node, parent: Node | undefined): boolean {
 const VALUE_TYPES = new Set(['identifier', 'attribute', 'subscript', 'call']);
 
 /** Whether a node is used as a value: not a write target, an attribute's object or name, a subscripted value, or an import. */
-function readAsValue(node: Node, parent: Node | undefined, insideImport: boolean): boolean {
+function readAsValue(node: PyNode, parent: PyNode | undefined, insideImport: boolean): boolean {
   // The parent checks come first: they skip the write-target walk for an attribute's object, the commonest node.
   if (insideImport || parent?.type === 'attribute') return false;
   // `X[k]`'s key is read; the subscripted value is the object an attribute chain continues from.
@@ -77,7 +77,7 @@ function addEscape(out: Map<string, ModuleEscape>, value: ModuleValue, name: str
 }
 
 /** Records the module writes one write target makes: `X.f = …`, `X.__dict__['f'] = …`, through a destructuring pattern. */
-function writeTarget(target: Node | null | undefined, context: Context, out: Map<string, ModuleEscape>): void {
+function writeTarget(target: PyNode | null | undefined, context: Context, out: Map<string, ModuleEscape>): void {
   const node = unwrap(target);
   if (!node) return;
   if (TARGET_PATTERNS.has(node.type)) return node.namedChildren.forEach((child) => writeTarget(child, context, out));
@@ -86,8 +86,8 @@ function writeTarget(target: Node | null | undefined, context: Context, out: Map
 }
 
 /** Every direct module write of the file: attribute targets, deletes, `for` targets and `setattr`/`delattr` calls. */
-function collectWrites(root: Node, context: Context, out: Map<string, ModuleEscape>): void {
-  const visit = (node: Node): void => {
+function collectWrites(root: PyNode, context: Context, out: Map<string, ModuleEscape>): void {
+  const visit = (node: PyNode): void => {
     if (node.type === 'call' && isSetattrCall(node)) {
       const args = argsOf(node);
       const name = args[1] ? (stringConstant(args[1]) ?? '*') : '*';
@@ -102,7 +102,7 @@ function collectWrites(root: Node, context: Context, out: Map<string, ModuleEsca
 }
 
 /** The escapes a namespace access makes: `a.__setattr__`, `a.__dict__.update`, `d = a.__dict__`, `vars(a)`. */
-function namespaceEscape(node: Node, type: string, context: Context, out: Map<string, ModuleEscape>): void {
+function namespaceEscape(node: PyNode, type: string, context: Context, out: Map<string, ModuleEscape>): void {
   // `sys.modules[<computed>]` can name any module, so any module may be written through it.
   if (type === 'subscript' && dynamicSysModules(node, context)) addEscape(out, { receiver: '', any: true }, '*', true);
   const attribute = type === 'attribute' ? node.childForFieldName('attribute')?.text : undefined;
@@ -116,7 +116,7 @@ function namespaceEscape(node: Node, type: string, context: Context, out: Map<st
 }
 
 /** The escape one value use makes: a module value handed on, other than a plain `name = import_module(…)`. */
-function valueEscape(node: Node, type: string, context: Context, out: Map<string, ModuleEscape>, insideImport: boolean): void {
+function valueEscape(node: PyNode, type: string, context: Context, out: Map<string, ModuleEscape>, insideImport: boolean): void {
   const parent = outerParent(node);
   const boundImport = type === 'call' && isImportFunction(node.childForFieldName('function'), context) && !escapesCall(node, parent);
   if (boundImport || !readAsValue(node, parent, insideImport) || setattrOperand(node, parent)) return;
@@ -131,7 +131,7 @@ function moduleScopeImports(context: Context): ModuleValue[] {
 }
 
 /** Whether a `globals()`/`vars()` call's namespace is used only by a write form `write-nodes.ts` already reads. */
-function namespaceWriteForm(call: Node, globals: boolean): boolean {
+function namespaceWriteForm(call: PyNode, globals: boolean): boolean {
   const parent = outerParent(call);
   if (parent?.type === 'subscript' && unwrap(parent.childForFieldName('value'))?.id === call.id && inTarget(parent)) return true;
   const attribute = parent?.type === 'attribute' ? parent.childForFieldName('attribute')?.text : undefined;
@@ -141,7 +141,7 @@ function namespaceWriteForm(call: Node, globals: boolean): boolean {
 }
 
 /** Whether a call reads the file's own namespace in a way the write pass does not already read. */
-function escapesGlobals(call: Node, context: Context): boolean {
+function escapesGlobals(call: PyNode, context: Context): boolean {
   const fn = call.childForFieldName('function');
   const globals = isBuiltin(context, fn, 'globals');
   if (!globals) {
@@ -152,7 +152,7 @@ function escapesGlobals(call: Node, context: Context): boolean {
 }
 
 /** Whether an identifier names a `def` of this file in its scope, so its `__globals__` is this module's namespace. */
-function definedHere(context: Context, node: Node): boolean {
+function definedHere(context: Context, node: PyNode): boolean {
   return !!scopeBindings(context.bindings, context.scopesAt(startOf(node)), node.text)?.some((binding) => binding.kind === 'def');
 }
 
@@ -170,7 +170,7 @@ function functionModule(value: ModuleValue, context: Context): ModuleEscape | un
 }
 
 /** `X.__globals__` names a function's module; `X.f_globals` a frame's. An unknown receiver can reach any module. */
-function globalsRead(node: Node, context: Context, out: Map<string, ModuleEscape>): void {
+function globalsRead(node: PyNode, context: Context, out: Map<string, ModuleEscape>): void {
   if (node.type !== 'attribute') return;
   const attribute = node.childForFieldName('attribute')?.text;
   if (attribute === 'f_globals') return addEscape(out, { receiver: '', any: true }, '*', true);
@@ -184,7 +184,7 @@ function globalsRead(node: Node, context: Context, out: Map<string, ModuleEscape
 }
 
 /** A resolved `sys.modules` read outside a literal-key subscript can hand out any module's namespace. */
-function sysModulesRead(node: Node, context: Context, out: Map<string, ModuleEscape>): void {
+function sysModulesRead(node: PyNode, context: Context, out: Map<string, ModuleEscape>): void {
   if (!isSysModules(node, context)) return;
   const parent = outerParent(node);
   if (parent?.type === 'subscript' && unwrap(parent.childForFieldName('value'))?.id === node.id) {
@@ -195,7 +195,7 @@ function sysModulesRead(node: Node, context: Context, out: Map<string, ModuleEsc
 }
 
 /** An import function used other than as a callee can import and hand back any module. */
-function importFunctionUse(node: Node, context: Context, out: Map<string, ModuleEscape>): void {
+function importFunctionUse(node: PyNode, context: Context, out: Map<string, ModuleEscape>): void {
   if (!isImportFunction(node, context)) return;
   const parent = outerParent(node);
   if (parent?.type === 'call' && parent.childForFieldName('function')?.id === node.id) return;
@@ -203,14 +203,14 @@ function importFunctionUse(node: Node, context: Context, out: Map<string, Module
 }
 
 /** `exec`/`eval` can import and rebind any module; the executing file's own bindings are read by the write pass. */
-function executableCall(node: Node, context: Context, out: Map<string, ModuleEscape>): void {
+function executableCall(node: PyNode, context: Context, out: Map<string, ModuleEscape>): void {
   const fn = node.childForFieldName('function');
   if (isBuiltin(context, fn, 'exec') || isBuiltin(context, fn, 'eval')) addEscape(out, { receiver: '', any: true }, '*', true);
 }
 
 /** Every module value of the file that escapes as a value: bindings, attribute chains, `sys.modules` entries, calls. */
-function collectEscapes(root: Node, context: Context, out: Map<string, ModuleEscape>): void {
-  const visit = (node: Node, insideImport: boolean): void => {
+function collectEscapes(root: PyNode, context: Context, out: Map<string, ModuleEscape>): void {
+  const visit = (node: PyNode, insideImport: boolean): void => {
     const type = node.type;
     if (type === 'attribute' || type === 'subscript' || type === 'call') namespaceEscape(node, type, context, out);
     if (type === 'call') {
@@ -247,7 +247,7 @@ function importBoundNames(bindings: readonly PyBinding[], imports: Context['impo
  * a callee resolving to `importlib.import_module`/`__import__` whose result is not a plain name assignment. Direct
  * writes and namespace accesses (`setattr`, `__dict__`, `vars`) name the attribute they write; every other use is `*`.
  */
-export function moduleEscapes(root: Node, symbols: readonly CodeSymbol[], bindings: readonly PyBinding[], index: ImportIndex, imports: Context['imports']): ModuleEscape[] {
+export function moduleEscapes(root: PyNode, symbols: readonly CodeSymbol[], bindings: readonly PyBinding[], index: ImportIndex, imports: Context['imports']): ModuleEscape[] {
   const context: Context = {
     symbols,
     bindings,

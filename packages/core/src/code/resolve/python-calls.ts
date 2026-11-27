@@ -2,6 +2,7 @@ import type { CallRef, ClassInfo, CodeSymbol, Import, ImportedName } from '../mo
 import type { ParsedFile } from '../parse.js';
 import type { PyBinding } from '../python/module-scope.js';
 import { dispatchOf } from './dispatch.js';
+import { inheritedBase } from './python-inherit.js';
 import { submoduleIn, type Found, type Tracer } from './trace.js';
 
 type Files = ReadonlyMap<string, ParsedFile>;
@@ -261,15 +262,25 @@ function eagerCall(parsed: ParsedFile, caller: CodeSymbol, at: CallRef['range'][
   return (caller.kind === 'class' || caller.kind === 'module' || caller.kind === 'constant') && runsAtImport(parsed, caller);
 }
 
+/** The one method `name` of a class. */
+function methodOf(parsed: ParsedFile, cls: CodeSymbol, name: string): CodeSymbol | undefined {
+  const methods = parsed.symbols.filter((s) => s.kind === 'method' && s.path.length === cls.path.length + 1 && isPrefix(cls.path, s.path) && s.path.at(-1) === name && holds(cls, s));
+  return methods.length === 1 ? methods[0] : undefined;
+}
+
 function thisTarget(parsed: ParsedFile, files: Files, call: CallRef, from: CodeSymbol): CodeSymbol | undefined {
   // `self` and `cls` are bound in a method's body only: not in a class body, nor in the method's own header.
   const body = parsed.defs?.find((def) => def.id === from.id)?.body;
   if (from.kind !== 'method' || (body && before(call.range.start, body))) return undefined;
   const owner = classOwner(parsed, from);
   // A method object read as a value elsewhere may be called with another `self`, so nothing in it is provable.
-  if (!owner || dispatchOf(files).pythonEscaped(from.path.at(-1)!) || !undisturbed(files, parsed, owner, call.name)) return undefined;
-  const methods = parsed.symbols.filter((s) => s.kind === 'method' && s.path.length === owner.path.length + 1 && isPrefix(owner.path, s.path) && s.path.at(-1) === call.name && holds(owner, s));
-  return methods.length === 1 ? methods[0] : undefined;
+  if (!owner || dispatchOf(files).pythonEscaped(from.path.at(-1)!)) return undefined;
+  if (!parsed.classes?.find((c) => c.id === owner.id)?.members.includes(call.name)) {
+    const base = inheritedBase(parsed, files, owner, call.name);
+    return base && undisturbed(files, parsed, base, call.name) ? methodOf(parsed, base, call.name) : undefined;
+  }
+  if (!undisturbed(files, parsed, owner, call.name)) return undefined;
+  return methodOf(parsed, owner, call.name);
 }
 
 /**

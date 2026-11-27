@@ -124,23 +124,27 @@ const isStatic = (member: Node): boolean => member.children.some((child) => chil
 const staticContext = (member: Node): boolean => member.type === 'class_static_block' || ((FIELD_TYPES.has(member.type) || member.type === 'method_definition') && isStatic(member));
 
 /** What a class body declares: the member names, its statics, the members without a callable body, and the ranges where `this` is the constructor. */
-function classMembers(body: Node, scopes: JsScopeReader): Pick<ClassInfo, 'members' | 'statics' | 'nonCallable' | 'staticRanges' | 'unknownMember'> {
+function classMembers(body: Node, scopes: JsScopeReader): Pick<ClassInfo, 'members' | 'statics' | 'nonCallable' | 'staticRanges' | 'unknownInstance' | 'unknownStatic'> {
   const members: string[] = [];
   const statics: string[] = [];
   const nonCallable: string[] = [];
   const staticRanges: CodeRange[] = [];
-  let unknownMember = false;
+  let unknownInstance = false;
+  let unknownStatic = false;
   for (const member of body.namedChildren) {
     if (!member) continue;
     if (staticContext(member)) staticRanges.push(nodeRange(member));
     const name = memberName(member, scopes);
-    if (name === null) unknownMember = true;
+    if (name === null) {
+      if (isStatic(member)) unknownStatic = true;
+      else unknownInstance = true;
+    }
     if (!name) continue;
     members.push(name);
     if (isStatic(member)) statics.push(name);
     if (!callableMember(member)) nonCallable.push(name);
   }
-  return { members, ...(statics.length && { statics }), ...(nonCallable.length && { nonCallable }), ...(staticRanges.length && { staticRanges }), ...(unknownMember && { unknownMember }) };
+  return { members, ...(statics.length && { statics }), ...(nonCallable.length && { nonCallable }), ...(staticRanges.length && { staticRanges }), ...(unknownInstance && { unknownInstance }), ...(unknownStatic && { unknownStatic }) };
 }
 
 /** The member methods of a class body, each with the symbol the file's symbol table holds for it. */
