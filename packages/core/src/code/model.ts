@@ -34,14 +34,8 @@ export interface ClassInfo {
   writes: string[];
   /** Python: a `metaclass=` keyword, so a constructed receiver is not provably an instance of the class. */
   metaclass?: boolean;
-  /** Python: the identifier a `metaclass=` keyword names; absent when it is any other expression. */
-  metaclassName?: string;
   /** A base the syntax cannot read as a (dotted) name, so the class's real ancestors are unknown. */
   opaqueBase?: boolean;
-  /** Python: a dotted base (`mod.K`), of which `bases` holds only the last identifier. */
-  qualifiedBase?: boolean;
-  /** Python: each decorator's callee text (`dataclass`, `dataclasses.dataclass`), `*` for one the syntax cannot read. */
-  decorators?: string[];
   /** JS/TS: the members declared `static`; a `this` call in a static method reaches only these. */
   statics?: string[];
   /** JS/TS: members whose body is not a callable method (a getter/setter, `abstract`, or a signature). */

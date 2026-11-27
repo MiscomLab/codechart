@@ -2,7 +2,6 @@ import type { CallRef, ClassInfo, CodeSymbol, Import, ImportedName } from '../mo
 import type { ParsedFile } from '../parse.js';
 import type { PyBinding } from '../python/module-scope.js';
 import { dispatchOf } from './dispatch.js';
-import { inheritedBase } from './python-inherit.js';
 import { submoduleIn, type Found, type Tracer } from './trace.js';
 
 type Files = ReadonlyMap<string, ParsedFile>;
@@ -274,12 +273,7 @@ function thisTarget(parsed: ParsedFile, files: Files, call: CallRef, from: CodeS
   if (from.kind !== 'method' || (body && before(call.range.start, body))) return undefined;
   const owner = classOwner(parsed, from);
   // A method object read as a value elsewhere may be called with another `self`, so nothing in it is provable.
-  if (!owner || dispatchOf(files).pythonEscaped(from.path.at(-1)!)) return undefined;
-  if (!parsed.classes?.find((c) => c.id === owner.id)?.members.includes(call.name)) {
-    const base = inheritedBase(parsed, files, owner, call.name);
-    return base && undisturbed(files, parsed, base, call.name) ? methodOf(parsed, base, call.name) : undefined;
-  }
-  if (!undisturbed(files, parsed, owner, call.name)) return undefined;
+  if (!owner || dispatchOf(files).pythonEscaped(from.path.at(-1)!) || !undisturbed(files, parsed, owner, call.name)) return undefined;
   return methodOf(parsed, owner, call.name);
 }
 

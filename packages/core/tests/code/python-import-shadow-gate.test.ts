@@ -10,9 +10,10 @@ const X = 'class Foreign:\n    def f(self): return "foreign"\n';
 const run = async (a: string): Promise<(string | undefined)[]> => results(await linkFiles({ 'a.py': a, 'x.py': X }), 'f');
 
 describe('Python: the base name L(K) is the binding live at the class statement', () => {
-  it('the import comes first, the local class rebinds K: self.f() reaches the local K.f', async () => {
+  it('the import comes first, the local class rebinds K: self.f() stays name-only', async () => {
     // CPython: prints `local ['__main__.L', '__main__.K', 'builtins.object']`: the later `class K` wins, MRO L, K(local), object.
-    expect(await run('from x import Foreign as K\nclass K:\n    def f(self): return "local"\nclass L(K):\n    def g(self): return self.f()\n')).toEqual(['a.py::K.f::method']);
+    // Core does not dispatch self calls through a base (owner, COD-59 checker line), so the call stays name-only.
+    expect(await run('from x import Foreign as K\nclass K:\n    def f(self): return "local"\nclass L(K):\n    def g(self): return self.f()\n')).toEqual([undefined]);
   });
 
   it('the local class comes first, the import rebinds K: self.f() never reaches the local K.f', async () => {

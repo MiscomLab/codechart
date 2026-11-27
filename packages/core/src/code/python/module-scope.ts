@@ -1,7 +1,7 @@
 import type { PyNode } from './py-tree.js';
 import type { ClassInfo, CodeRange, CodeSymbol } from '../model.js';
 import { nodeRange } from '../tree.js';
-import { annotationExpressions, baseNames, declared, decoratorNames, defaultRanges, defaultValues, deferredRanges, hasMetaclass, identifiers, metaclassName, opaqueBase, parameterNames, qualifiedBase, targets, typeClasses, typeParameterNames, typeCheckingGuard, typeParametersIn } from './scope-nodes.js';
+import { annotationExpressions, baseNames, declared, defaultRanges, defaultValues, deferredRanges, hasMetaclass, identifiers, opaqueBase, parameterNames, targets, typeClasses, typeParameterNames, typeCheckingGuard, typeParametersIn } from './scope-nodes.js';
 import { attributeWrites, dynamicModuleBindings } from './write-nodes.js';
 
 /**
@@ -228,10 +228,7 @@ function recordClass(w: Walker, def: PyNode, id: string): void {
     members: [],
     writes: [],
     ...(hasMetaclass(superclasses) && { metaclass: true }),
-    ...(metaclassName(superclasses) && { metaclassName: metaclassName(superclasses) }),
     ...(opaqueBase(superclasses) && { opaqueBase: true }),
-    ...(qualifiedBase(superclasses) && { qualifiedBase: true }),
-    ...(decoratorNames(def).length && { decorators: decoratorNames(def) }),
   });
 }
 

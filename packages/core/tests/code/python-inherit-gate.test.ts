@@ -3,16 +3,16 @@ import { linkFiles, results } from './scope-helpers.js';
 
 /**
  * COD-59: `self.f()` in `class L(K)` where L binds no `f`. Oracle: CPython 3.14 (`PYTHONPATH=. python3 a.py` in a scratch dir, one file
- * per scenario; `python3 -m pkg.a` for the relative import); each output is in its test's comment. Core's `to` is exactly what
- * CPython ran when it proves that, otherwise name-only (`undefined`): an arrow to a method CPython does not run is wrong.
+ * per scenario; `python3 -m pkg.a` for the relative import); each output is in its test's comment. Core does not dispatch self calls through a base
+ * (owner, COD-59 checker line), so `self.f()` through a base stays name-only (`undefined`) whatever CPython runs.
  */
 
 const run = async (tree: Record<string, string>, path = 'a.py'): Promise<(string | undefined)[]> => results(await linkFiles(tree), 'f', path);
 
 describe('Python: self.f() inherited from the local base K', () => {
-  it("plain base: L().g() runs K.f", async () => {
-    // CPython: prints `K.f`.
-    expect(await run({"a.py": "class K:\n    def f(self): return \"K.f\"\nclass L(K):\n    def g(self): return self.f()\nprint(L().g())\n"})).toEqual(['a.py::K.f::method']);
+  it("plain base: L().g() stays name-only", async () => {
+    // CPython: prints `K.f`. Core does not dispatch self calls through a base (owner, COD-59 checker line), so the call stays name-only.
+    expect(await run({"a.py": "class K:\n    def f(self): return \"K.f\"\nclass L(K):\n    def g(self): return self.f()\nprint(L().g())\n"})).toEqual([undefined]);
   });
 
   it("two levels, M(L) calling self.f() with f on K: stays name-only (one base hop only)", async () => {
@@ -85,14 +85,14 @@ describe('Python: self.f() inherited from the local base K', () => {
     expect(await run({"a.py": "class K:\n    def f(self): return \"K.f\"\ndef deco(c):\n    return type(\"N\", (c,), {\"f\": lambda self: \"N.f\"})\n@deco\nclass L(K):\n    def g(self): return self.f()\nprint(L().g())\n"})).toEqual([undefined]);
   });
 
-  it("@dataclass on L is still fine", async () => {
-    // CPython: prints `K.f`.
-    expect(await run({"a.py": "from dataclasses import dataclass\nclass K:\n    def f(self): return \"K.f\"\n@dataclass\nclass L(K):\n    a: int = 1\n    def g(self): return self.f()\nprint(L().g())\n"})).toEqual(['a.py::K.f::method']);
+  it("@dataclass on L: stays name-only", async () => {
+    // CPython: prints `K.f`. Core does not dispatch self calls through a base (owner, COD-59 checker line), so the call stays name-only.
+    expect(await run({"a.py": "from dataclasses import dataclass\nclass K:\n    def f(self): return \"K.f\"\n@dataclass\nclass L(K):\n    a: int = 1\n    def g(self): return self.f()\nprint(L().g())\n"})).toEqual([undefined]);
   });
 
-  it("K has a metaclass that does not touch L", async () => {
-    // CPython: prints `K.f` (type(L) is Meta).
-    expect(await run({"a.py": "class Meta(type):\n    def __getattribute__(cls, n): return type.__getattribute__(cls, n)\nclass K(metaclass=Meta):\n    def f(self): return \"K.f\"\nclass L(K):\n    def g(self): return self.f()\nprint(L().g())\n"})).toEqual(['a.py::K.f::method']);
+  it("K has a metaclass that does not touch L: stays name-only", async () => {
+    // CPython: prints `K.f` (type(L) is Meta). Core does not dispatch self calls through a base (owner, COD-59 checker line), so the call stays name-only.
+    expect(await run({"a.py": "class Meta(type):\n    def __getattribute__(cls, n): return type.__getattribute__(cls, n)\nclass K(metaclass=Meta):\n    def f(self): return \"K.f\"\nclass L(K):\n    def g(self): return self.f()\nprint(L().g())\n"})).toEqual([undefined]);
   });
 
   it("K's metaclass __new__ injects f into L's namespace", async () => {
@@ -115,9 +115,9 @@ describe('Python: self.f() inherited from the local base K', () => {
     expect(await run({"a.py": "from x import Foreign\nclass K(Foreign):\n    pass\nclass L(K):\n    def g(self): return self.f()\nprint(L().g())\n", "x.py": "class Foreign:\n    def f(self): return \"x.Foreign.f\"\n"})).toEqual([undefined]);
   });
 
-  it("K(Foreign) defines f itself", async () => {
-    // CPython: prints `K.f`.
-    expect(await run({"a.py": "from x import Foreign\nclass K(Foreign):\n    def f(self): return \"K.f\"\nclass L(K):\n    def g(self): return self.f()\nprint(L().g())\n", "x.py": "class Foreign:\n    def f(self): return \"x.Foreign.f\"\n"})).toEqual(['a.py::K.f::method']);
+  it("K(Foreign) defines f itself: stays name-only", async () => {
+    // CPython: prints `K.f`. Core does not dispatch self calls through a base (owner, COD-59 checker line), so the call stays name-only.
+    expect(await run({"a.py": "from x import Foreign\nclass K(Foreign):\n    def f(self): return \"K.f\"\nclass L(K):\n    def g(self): return self.f()\nprint(L().g())\n", "x.py": "class Foreign:\n    def f(self): return \"x.Foreign.f\"\n"})).toEqual([undefined]);
   });
 
   it("K(Foreign), Foreign (a library the repo does not hold) defines __getattribute__", async () => {
@@ -180,14 +180,14 @@ describe('Python: self.f() inherited from the local base K', () => {
     expect(await run({"a.py": "class K:\n    def f(self): return \"K.f\"\nclass Mixin:\n    def f(self): return \"Mixin.f\"\nclass L(Mixin, K):\n    def g(self): return self.f()\nprint(L().g())\n"})).toEqual([undefined]);
   });
 
-  it("L defines __getattr__ (only a fallback; K.f still runs)", async () => {
-    // CPython: prints `K.f`.
-    expect(await run({"a.py": "class K:\n    def f(self): return \"K.f\"\nclass L(K):\n    def __getattr__(self, n): return lambda: \"ga\"\n    def g(self): return self.f()\nprint(L().g())\n"})).toEqual(['a.py::K.f::method']);
+  it("L defines __getattr__ (only a fallback): stays name-only", async () => {
+    // CPython: prints `K.f`. Core does not dispatch self calls through a base (owner, COD-59 checker line), so the call stays name-only.
+    expect(await run({"a.py": "class K:\n    def f(self): return \"K.f\"\nclass L(K):\n    def __getattr__(self, n): return lambda: \"ga\"\n    def g(self): return self.f()\nprint(L().g())\n"})).toEqual([undefined]);
   });
 
-  it("K defines __getattr__ and f (only a fallback; K.f still runs)", async () => {
-    // CPython: prints `K.f`.
-    expect(await run({"a.py": "class K:\n    def __getattr__(self, n): return lambda: \"ga\"\n    def f(self): return \"K.f\"\nclass L(K):\n    def g(self): return self.f()\nprint(L().g())\n"})).toEqual(['a.py::K.f::method']);
+  it("K defines __getattr__ and f (only a fallback): stays name-only", async () => {
+    // CPython: prints `K.f`. Core does not dispatch self calls through a base (owner, COD-59 checker line), so the call stays name-only.
+    expect(await run({"a.py": "class K:\n    def __getattr__(self, n): return lambda: \"ga\"\n    def f(self): return \"K.f\"\nclass L(K):\n    def g(self): return self.f()\nprint(L().g())\n"})).toEqual([undefined]);
   });
 
   it("K.f is a staticmethod (core stays name-only on decorated bindings)", async () => {

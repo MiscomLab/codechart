@@ -206,29 +206,6 @@ export function escapedAttributes(root: PyNode): string[] {
   return names;
 }
 
-/** Whether a class's bases include a dotted one (`mod.K`): `bases` then holds only its last identifier. */
-export function qualifiedBase(superclasses: PyNode | null): boolean {
-  return (superclasses?.namedChildren ?? []).some((base) => !!base && base.type !== 'keyword_argument' && unparenthesized(base).type === 'attribute');
-}
-
-/** The identifier a `metaclass=` keyword names, or undefined when it is anything else. */
-export function metaclassName(superclasses: PyNode | null): string | undefined {
-  const keyword = (superclasses?.namedChildren ?? []).find((base) => base?.type === 'keyword_argument' && base.childForFieldName('name')?.text === 'metaclass');
-  const value = keyword?.childForFieldName('value');
-  return value?.type === 'identifier' ? value.text : undefined;
-}
-
-/** The expression of each decorator on a class definition: a call is read as its callee, anything unreadable is `*`. */
-export function decoratorNames(def: PyNode): string[] {
-  if (def.parent?.type !== 'decorated_definition') return [];
-  return def.parent.namedChildren.flatMap((decorator) => {
-    if (decorator?.type !== 'decorator') return [];
-    const expression = decorator.namedChildren[0];
-    const callee = expression?.type === 'call' ? expression.childForFieldName('function') : expression;
-    return [callee && (callee.type === 'identifier' || callee.type === 'attribute') ? callee.text : '*'];
-  });
-}
-
 /** Whether a class header passes a `metaclass=` keyword: its `__call__` may build a receiver that is not this class. */
 export function hasMetaclass(superclasses: PyNode | null): boolean {
   return (superclasses?.namedChildren ?? []).some((base) => base?.type === 'keyword_argument' && base.childForFieldName('name')?.text === 'metaclass');

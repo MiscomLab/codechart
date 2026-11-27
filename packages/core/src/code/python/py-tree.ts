@@ -84,6 +84,7 @@ class MirrorNode implements PyNode {
     if (named) this.namedChildren.push(child);
   }
 
+  // The mirror differs from web-tree-sitter only on `match_statement.childForFieldName('alternative')`, which core does not use.
   childForFieldName(field: string): MirrorNode | null {
     // An ERROR node has no field map, so tree-sitter finds no single child by field in it, though its children carry fields.
     if (this.type === 'ERROR') return null;
