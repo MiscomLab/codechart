@@ -27,7 +27,7 @@ const LINE_BREAKS = new Set(['\n', '\r', '\u2028', '\u2029']);
 
 /** Decodes `\xHH`, `\uHHHH` or `\u{H…}` after the backslash at `i`: the character and where the text goes on. */
 function decodeHex(body: string, i: number): [string, number] | undefined {
-  const braced = body[i + 1] === 'u' && body[i + 2] === '{' ? /^\{([0-9a-fA-F]{1,6})\}/.exec(body.slice(i + 2)) : undefined;
+  const braced = body[i + 1] === 'u' && body[i + 2] === '{' ? /^\{([0-9a-fA-F]+)\}/.exec(body.slice(i + 2)) : undefined;
   const length = HEX_DIGITS[body[i + 1] as 'x' | 'u'];
   const digits = braced ? braced[1]! : body.slice(i + 2, i + 2 + length);
   if (!braced && !new RegExp(`^[0-9a-fA-F]{${length}}$`).test(digits)) return undefined;

@@ -74,12 +74,12 @@ function canonicalBase(name: string, at: Node, scopes: JsScopeReader, imports: r
 
 /**
  * A computed member's recorded name: the string a key proves (a literal, a template without substitutions, a `const`
- * bound to one), nothing for a key proved a symbol (a well-known `Symbol.x`, a `const` bound to `Symbol()`), and `*`
+ * bound to one), nothing for a key proved a symbol (a well-known `Symbol.x`, a `const` bound to `Symbol()`), and unknown
  * for any other key, which may be any name.
  */
-function computedName(key: Node | undefined, scopes: JsScopeReader): string | undefined {
+function computedName(key: Node | undefined, scopes: JsScopeReader): string | undefined | null {
   const expr = inner(key);
-  if (!expr) return '*';
+  if (!expr) return null;
   const literal = literalKey(expr);
   if (literal !== undefined) return literal;
   if (expr.type === 'identifier') {
@@ -87,20 +87,22 @@ function computedName(key: Node | undefined, scopes: JsScopeReader): string | un
     if (constant) return constant.kind === 'string' ? constant.value : undefined;
   }
   const global = expr.type === 'member_expression' && expr.childForFieldName('object')?.text === 'Symbol' && scopes.meaningAt(expr, 'Symbol').kind === 'none';
-  return global && WELL_KNOWN_SYMBOLS.has(expr.childForFieldName('property')?.text ?? '') ? undefined : '*';
+  return global && WELL_KNOWN_SYMBOLS.has(expr.childForFieldName('property')?.text ?? '') ? undefined : null;
 }
 
 /**
  * A member's declared name: a quoted name unquoted with its escapes decoded (`*` when one cannot be), a private name
- * with its `#`; undefined for a computed key proved a symbol and for the constructor spelled as a string.
+ * with its `#`; undefined for a computed key proved a symbol and for the constructor spelled as a string; null for a
+ * key no parse can read, which is no name (a member may really be named `*`).
  */
-function memberName(member: Node, scopes: JsScopeReader): string | undefined {
+function memberName(member: Node, scopes: JsScopeReader): string | undefined | null {
   const name = member.childForFieldName('name') ?? member.childForFieldName('property');
   if (!name) return undefined;
   if (name.type === 'computed_property_name') return computedName(name.namedChildren[0] ?? undefined, scopes);
   if (name.type !== 'string') return propertyKey(name);
   const value = stringValue(name);
-  return value === 'constructor' && member.type === 'method_definition' && !isStatic(member) ? undefined : (value ?? '*');
+  if (value === undefined) return null;
+  return value === 'constructor' && member.type === 'method_definition' && !isStatic(member) ? undefined : value;
 }
 
 /** Whether a member declares a body `this.f()` can call: a getter's value or an abstract/signature is not one. */
@@ -122,21 +124,23 @@ const isStatic = (member: Node): boolean => member.children.some((child) => chil
 const staticContext = (member: Node): boolean => member.type === 'class_static_block' || ((FIELD_TYPES.has(member.type) || member.type === 'method_definition') && isStatic(member));
 
 /** What a class body declares: the member names, its statics, the members without a callable body, and the ranges where `this` is the constructor. */
-function classMembers(body: Node, scopes: JsScopeReader): Pick<ClassInfo, 'members' | 'statics' | 'nonCallable' | 'staticRanges'> {
+function classMembers(body: Node, scopes: JsScopeReader): Pick<ClassInfo, 'members' | 'statics' | 'nonCallable' | 'staticRanges' | 'unknownMember'> {
   const members: string[] = [];
   const statics: string[] = [];
   const nonCallable: string[] = [];
   const staticRanges: CodeRange[] = [];
+  let unknownMember = false;
   for (const member of body.namedChildren) {
     if (!member) continue;
     if (staticContext(member)) staticRanges.push(nodeRange(member));
     const name = memberName(member, scopes);
+    if (name === null) unknownMember = true;
     if (!name) continue;
     members.push(name);
     if (isStatic(member)) statics.push(name);
     if (!callableMember(member)) nonCallable.push(name);
   }
-  return { members, ...(statics.length && { statics }), ...(nonCallable.length && { nonCallable }), ...(staticRanges.length && { staticRanges }) };
+  return { members, ...(statics.length && { statics }), ...(nonCallable.length && { nonCallable }), ...(staticRanges.length && { staticRanges }), ...(unknownMember && { unknownMember }) };
 }
 
 /** The member methods of a class body, each with the symbol the file's symbol table holds for it. */
@@ -146,7 +150,7 @@ function classMethods(body: Node, symbols: ReadonlyMap<string, CodeSymbol>, scop
     const name = member ? memberName(member, scopes) : undefined;
     const start = member ? nodeRange(member).start : undefined;
     const symbol = start ? symbols.get(`${start.line}:${start.column}`) : undefined;
-    if (member && name && name !== '*' && symbol) out.push({ name, id: symbol.id, ...(isStatic(member) && { static: true }) });
+    if (member && name && symbol) out.push({ name, id: symbol.id, ...(isStatic(member) && { static: true }) });
   }
   return out;
 }

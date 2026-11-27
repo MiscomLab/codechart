@@ -21,7 +21,7 @@ export type SymbolKind = (typeof SYMBOL_KINDS)[number];
 
 /**
  * What a class says about the names its instances dispatch on: the classes it extends (the last identifier of each
- * base expression, an alias followed to the class it names), the names its body declares (`*` for a computed key no parse can prove a string or a symbol) and
+ * base expression, an alias followed to the class it names), the names its body declares and
  * the names its methods write through `this`/`self`/`cls`. Call linking reads it to see that a subclass or an instance
  * write can replace a method.
  */
@@ -40,6 +40,8 @@ export interface ClassInfo {
   statics?: string[];
   /** JS/TS: members whose body is not a callable method (a getter/setter, `abstract`, or a signature). */
   nonCallable?: string[];
+  /** JS/TS: a computed member key no parse can prove a string or a symbol: it may be any name. */
+  unknownMember?: boolean;
   /** JS/TS: the class node's range, which a call's `this` owner is matched against. */
   range?: CodeRange;
   /** JS/TS: the member methods and function-valued fields with a symbol, by name, so `this.name()` finds its target. */
