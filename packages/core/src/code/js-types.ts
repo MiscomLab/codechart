@@ -44,6 +44,71 @@ function objectKinds(node: Node): ExemptKind[] {
   return signatures.every((signature) => !anyType(typeNode(signature!.childForFieldName('type')))) ? ['record'] : [];
 }
 
+/** Members a `this.x` slot can be declared by: a class field, or a constructor parameter property. */
+const FIELD_TYPES = new Set(['public_field_definition', 'field_definition']);
+const PARAMETER_TYPES = new Set(['required_parameter', 'optional_parameter']);
+
+/** Function nodes whose `this` does not inherit from an enclosing class member, so a `this.x` inside them names nothing. */
+const OWN_FUNCTIONS = new Set(['function_declaration', 'function_expression', 'generator_function', 'generator_function_declaration', 'function_signature']);
+
+/** Whether a class member carries the `static` keyword. */
+const staticMember = (node: Node): boolean => node.children.some((child) => child?.type === 'static');
+
+/** The class member the `this` at `node` runs in, walking out through arrows, or undefined when it runs in no class body. */
+function thisMember(node: Node): Node | undefined {
+  for (let current: Node | null = node.parent; current; current = current.parent) {
+    if (current.type === 'arrow_function') continue;
+    const member = current.type === 'method_definition' || FIELD_TYPES.has(current.type) || current.type === 'class_static_block';
+    if (member) return current.parent?.type === 'class_body' ? current : undefined;
+    if (OWN_FUNCTIONS.has(current.type)) return undefined;
+  }
+  return undefined;
+}
+
+/** Whether a constructor parameter declares a property: it has an accessibility modifier or `readonly`. */
+const parameterProperty = (node: Node): boolean =>
+  node.namedChildren.some((child) => child?.type === 'accessibility_modifier') || node.children.some((child) => child?.type === 'readonly');
+
+/** The constructor parameter properties a class body declares named `name`; a static class has none. */
+function parameterProperties(body: Node, name: string): Node[] {
+  const out: Node[] = [];
+  for (const member of body.namedChildren) {
+    if (member?.type !== 'method_definition' || member.childForFieldName('name')?.text !== 'constructor' || staticMember(member)) continue;
+    for (const parameter of member.childForFieldName('parameters')?.namedChildren ?? []) {
+      if (!parameter || !PARAMETER_TYPES.has(parameter.type) || !parameterProperty(parameter)) continue;
+      if (parameter.childForFieldName('name')?.text === name) out.push(parameter);
+    }
+  }
+  return out;
+}
+
+/** The members a class body declares named `name` with the same static-ness: fields, methods, instance parameter properties. */
+function classDeclarations(body: Node, name: string, staticSide: boolean): Node[] {
+  const fields = body.namedChildren.filter((member): member is Node => {
+    if (!member || staticMember(member) !== staticSide) return false;
+    if (member.type !== 'method_definition' && !FIELD_TYPES.has(member.type)) return false;
+    return member.childForFieldName('name')?.text === name;
+  });
+  return staticSide ? fields : [...fields, ...parameterProperties(body, name)];
+}
+
+/**
+ * The exemptions a `this.x[k]` write gets from the class body's declaration of `x` (COD-59 option B): the body must
+ * declare exactly one member named `x` of that static-ness, a field or constructor parameter property, whose type
+ * `exemptKinds` accepts. A method, a second declaration or no annotation gives nothing.
+ */
+export function thisFieldKinds(receiver: Node, at: Node): ExemptKind[] {
+  const property = receiver.childForFieldName('property');
+  if (receiver.type !== 'member_expression' || receiver.childForFieldName('object')?.type !== 'this') return [];
+  if (property?.type !== 'property_identifier' && property?.type !== 'private_property_identifier') return [];
+  const member = thisMember(at);
+  const body = member?.parent;
+  if (!member || body?.type !== 'class_body') return [];
+  const declarations = classDeclarations(body, property.text, member.type === 'class_static_block' || staticMember(member));
+  if (declarations.length !== 1 || declarations[0]!.type === 'method_definition') return [];
+  return exemptKinds(declarations[0]!.childForFieldName('type'));
+}
+
 /**
  * The computed-write exemptions a declared type gives (COD-59 option B): `Record<K, V>` with a `string`/`number`/`symbol`
  * key (or a union of those) and a value not exactly `any`, an object type with a non-`any` index signature,

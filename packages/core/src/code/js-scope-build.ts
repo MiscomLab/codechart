@@ -20,7 +20,7 @@ type Handler = (node: Node, scope: Scope, strict: boolean) => void;
 export class Scopes {
   private readonly byNode = new Map<number, Scope>();
   /** Only a TypeScript file's annotations declare a type tsc checks: a `.js` file's JSDoc never counts. */
-  private readonly typescript: boolean;
+  readonly typescript: boolean;
 
   private readonly handlers: Record<string, Handler> = {
     function_declaration: (node, scope, strict) => this.declaredFunction(node, scope, strict),

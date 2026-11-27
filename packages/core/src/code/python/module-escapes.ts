@@ -1,7 +1,7 @@
 import type { Node } from 'web-tree-sitter';
 import type { CodeSymbol } from '../model.js';
 import type { ImportIndex, PyBinding } from './module-scope.js';
-import { type Context, type ModuleValue, TARGET_PATTERNS, dynamicSysModules, inImportStatement, inTarget, isImportFunction, isSetattrCall, outerParent, resolveValues, scopesOf, targetName, targetValues, unwrap } from './module-values.js';
+import { type Context, type ModuleValue, TARGET_PATTERNS, dynamicSysModules, inImport, inTarget, isImportFunction, isSetattrCall, outerParent, resolveValues, scopesOf, targetName, targetValues, unwrap } from './module-values.js';
 import { argsOf, stringConstant } from './write-nodes.js';
 
 /**
@@ -28,8 +28,7 @@ export interface ModuleEscape {
 const NAMESPACE = new Set(['__setattr__', '__delattr__', '__dict__']);
 
 /** Whether a node is the first argument of a `setattr`/`delattr` call, which writes rather than escaping. */
-function setattrOperand(node: Node): boolean {
-  const parent = outerParent(node);
+function setattrOperand(node: Node, parent: Node | undefined): boolean {
   return parent?.type === 'call' && isSetattrCall(parent) && unwrap(argsOf(parent)[0])?.id === node.id;
 }
 
@@ -40,20 +39,21 @@ function namespaceWrite(node: Node): boolean {
 }
 
 /** Whether an import call's result is handed on: not a plain `name = …` (that name is itself an import binding) nor a write. */
-function escapesCall(node: Node): boolean {
-  const parent = outerParent(node);
+function escapesCall(node: Node, parent: Node | undefined): boolean {
   return !(parent?.type === 'assignment' && unwrap(parent.childForFieldName('right'))?.id === node.id && parent.childForFieldName('left')?.type === 'identifier');
 }
 
+/** Node types a module value can be read from: an import binding, an attribute chain, a subscript or a call. */
+const VALUE_TYPES = new Set(['identifier', 'attribute', 'subscript', 'call']);
+
 /** Whether a node is used as a value: not a write target, an attribute's object or name, a subscripted value, or an import. */
-function readAsValue(node: Node): boolean {
-  if (inTarget(node)) return false;
-  const parent = outerParent(node);
-  if (parent?.type === 'attribute') return false;
+function readAsValue(node: Node, parent: Node | undefined, insideImport: boolean): boolean {
+  // The parent checks come first: they skip the write-target walk for an attribute's object, the commonest node.
+  if (insideImport || parent?.type === 'attribute') return false;
   // `X[k]`'s key is read; the subscripted value is the object an attribute chain continues from.
   if (parent?.type === 'subscript' && parent.childForFieldName('value')?.id === node.id) return false;
   if (parent?.type === 'keyword_argument' && parent.childForFieldName('name')?.id === node.id) return false;
-  return !inImportStatement(node);
+  return !inTarget(node);
 }
 
 /** Records one module write from a module value; a value naming no module counts for the whole any-module set. */
@@ -97,34 +97,37 @@ function collectWrites(root: Node, context: Context, out: Map<string, ModuleEsca
 }
 
 /** The escapes a namespace access makes: `a.__setattr__`, `a.__dict__.update`, `d = a.__dict__`, `vars(a)`. */
-function namespaceEscape(node: Node, context: Context, out: Map<string, ModuleEscape>): void {
+function namespaceEscape(node: Node, type: string, context: Context, out: Map<string, ModuleEscape>): void {
   // `sys.modules[<computed>]` can name any module, so any module may be written through it.
-  if (dynamicSysModules(node, context)) addEscape(out, { receiver: '', any: true }, '*');
-  const attribute = node.type === 'attribute' ? node.childForFieldName('attribute')?.text : undefined;
+  if (type === 'subscript' && dynamicSysModules(node, context)) addEscape(out, { receiver: '', any: true }, '*');
+  const attribute = type === 'attribute' ? node.childForFieldName('attribute')?.text : undefined;
   if (attribute && NAMESPACE.has(attribute) && !namespaceWrite(node)) {
     for (const value of resolveValues(node.childForFieldName('object'), context)) addEscape(out, value, '*');
   }
-  const fn = node.type === 'call' ? node.childForFieldName('function') : undefined;
+  const fn = type === 'call' ? node.childForFieldName('function') : undefined;
   if (fn?.type === 'identifier' && fn.text === 'vars' && argsOf(node).length === 1 && !namespaceWrite(node)) {
     for (const value of resolveValues(argsOf(node)[0], context)) addEscape(out, value, '*');
   }
 }
 
 /** The escape one value use makes: a module value handed on, other than a plain `name = import_module(…)`. */
-function valueEscape(node: Node, context: Context, out: Map<string, ModuleEscape>): void {
-  const boundImport = node.type === 'call' && isImportFunction(node.childForFieldName('function'), context) && !escapesCall(node);
-  if (boundImport || !readAsValue(node) || setattrOperand(node)) return;
+function valueEscape(node: Node, type: string, context: Context, out: Map<string, ModuleEscape>, insideImport: boolean): void {
+  const parent = outerParent(node);
+  const boundImport = type === 'call' && isImportFunction(node.childForFieldName('function'), context) && !escapesCall(node, parent);
+  if (boundImport || !readAsValue(node, parent, insideImport) || setattrOperand(node, parent)) return;
   for (const value of resolveValues(node, context)) addEscape(out, value, '*');
 }
 
 /** Every module value of the file that escapes as a value: bindings, attribute chains, `sys.modules` entries, calls. */
 function collectEscapes(root: Node, context: Context, out: Map<string, ModuleEscape>): void {
-  const visit = (node: Node): void => {
-    namespaceEscape(node, context, out);
-    valueEscape(node, context, out);
-    for (const child of node.namedChildren) if (child) visit(child);
+  const visit = (node: Node, insideImport: boolean): void => {
+    const type = node.type;
+    if (type === 'attribute' || type === 'subscript' || type === 'call') namespaceEscape(node, type, context, out);
+    if (VALUE_TYPES.has(type)) valueEscape(node, type, context, out, insideImport);
+    const nested = insideImport || inImport(type);
+    for (const child of node.namedChildren) if (child) visit(child, nested);
   };
-  visit(root);
+  visit(root, false);
 }
 
 /**

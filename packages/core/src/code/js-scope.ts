@@ -23,6 +23,8 @@ export interface JsCallScope {
 
 /** Reads what a name means at any node of a JS/TS tree, from the file's scopes. */
 export interface JsScopeReader {
+  /** Whether the file is TypeScript, where an annotation is a type tsc checks: a `.js` file's JSDoc never counts. */
+  readonly typescript: boolean;
   meaningAt: (node: Node, name: string) => JsMeaning;
   /** Whether `name` at `node` is one `const` binding of an object/array literal or `Object.create(null)`. */
   isLocalLiteral: (node: Node, name: string) => boolean;
@@ -34,6 +36,7 @@ export interface JsScopeReader {
 export function jsScopes(root: Node, path: string, imports: readonly Import[]): JsScopeReader {
   const scopes = new Scopes(root, path, imports);
   return {
+    typescript: scopes.typescript,
     meaningAt: (node, name) => scopes.meaningAt(node, name),
     isLocalLiteral: (node, name) => scopes.isLocalLiteral(node, name),
     computedExempt: (node, name) => scopes.computedExempt(node, name),

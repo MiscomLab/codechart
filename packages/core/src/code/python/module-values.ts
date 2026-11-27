@@ -1,6 +1,5 @@
 import type { Node } from 'web-tree-sitter';
 import type { CodeRange, CodeSymbol, Import } from '../model.js';
-import { nodeRange } from '../tree.js';
 import type { ImportIndex, PyBinding } from './module-scope.js';
 import { argsOf, stringConstant } from './write-nodes.js';
 
@@ -31,11 +30,17 @@ export interface Context {
 
 const IMPORT_STATEMENTS = new Set(['import_statement', 'import_from_statement', 'future_import_statement']);
 
+/** Whether a node type is an import statement, whose bindings are declared rather than read as values. */
+export const inImport = (type: string): boolean => IMPORT_STATEMENTS.has(type);
+
 /** Destructuring a write target may sit in: `a, b = …`, `[a, *b] = …`. */
 export const TARGET_PATTERNS = new Set(['pattern_list', 'tuple_pattern', 'list_pattern', 'tuple', 'list', 'list_splat_pattern', 'as_pattern_target', 'parenthesized_expression']);
 
 const before = (a: CodeRange['start'], b: CodeRange['start']): boolean => a.line < b.line || (a.line === b.line && a.column < b.column);
 const inside = (at: CodeRange['start'], range: CodeRange): boolean => !before(at, range.start) && before(at, range.end);
+
+/** A node's start point, for a scope lookup: its row and column, which need no walk of the tree. */
+const startOf = (node: Node): CodeRange['start'] => ({ line: node.startPosition.row + 1, column: node.startPosition.column });
 
 /** A node with the parentheses around it removed. */
 export function unwrap(node: Node | null | undefined): Node | undefined {
@@ -46,9 +51,9 @@ export function unwrap(node: Node | null | undefined): Node | undefined {
 
 /** The parent of `node`, after any parentheses around it. */
 export function outerParent(node: Node): Node | undefined {
-  let child: Node = node;
-  for (let parent = node.parent; parent?.type === 'parenthesized_expression'; parent = parent.parent) child = parent;
-  return child.parent ?? undefined;
+  let parent = node.parent;
+  while (parent?.type === 'parenthesized_expression') parent = parent.parent;
+  return parent ?? undefined;
 }
 
 /** Whether a node is a write target rather than a read: `x = …`, `for x in …`, `del x`, `x := …`. */
@@ -65,9 +70,9 @@ export function inTarget(node: Node): boolean {
   return false;
 }
 
-/** The scopes a name is looked up in at `at`, innermost first; an enclosing class body is skipped as Python skips it. */
+/** The scopes a name is looked up in at `at`, innermost first, from symbols sorted longest path first; a class body is skipped. */
 function scopesAtIn(symbols: readonly CodeSymbol[], at: CodeRange['start']): string[] {
-  const holders = symbols.filter((symbol) => inside(at, symbol.range)).sort((a, b) => b.path.length - a.path.length);
+  const holders = symbols.filter((symbol) => inside(at, symbol.range));
   return [...holders.flatMap((holder, index) => (index === 0 || holder.kind !== 'class' ? [holder.id] : [])), ''];
 }
 
@@ -97,12 +102,6 @@ function importedAs(context: Context, at: CodeRange['start'], name: string, spec
   return dottedRoot ? imp.spec.split('.')[0] === spec : imp.spec === spec;
 }
 
-/** Whether an import statement binds the identifier rather than reading its value. */
-export function inImportStatement(node: Node): boolean {
-  for (let up = node.parent; up; up = up.parent) if (IMPORT_STATEMENTS.has(up.type)) return true;
-  return false;
-}
-
 /** The `a.b.c` chain a node is: its root identifier and the attribute names below it. */
 function chainOf(node: Node): { root: Node; parts: string[] } | undefined {
   const parts: string[] = [];
@@ -120,7 +119,7 @@ function chainOf(node: Node): { root: Node; parts: string[] } | undefined {
 function isSysModules(node: Node | null | undefined, context: Context): boolean {
   if (node?.type !== 'attribute') return false;
   const object = node.childForFieldName('object');
-  return object?.type === 'identifier' && object.text === 'sys' && node.childForFieldName('attribute')?.text === 'modules' && importedAs(context, nodeRange(object).start, 'sys', 'sys');
+  return object?.type === 'identifier' && object.text === 'sys' && node.childForFieldName('attribute')?.text === 'modules' && importedAs(context, startOf(object), 'sys', 'sys');
 }
 
 /** Whether `name` is bound once by `from importlib import import_module [as name]`. */
@@ -136,7 +135,7 @@ function fromImportlib(context: Context, at: CodeRange['start'], name: string): 
 /** Whether a call is the builtin `__import__` or resolves to `importlib.import_module`, through aliases and from-imports. */
 export function isImportFunction(fn: Node | null | undefined, context: Context): boolean {
   if (!fn) return false;
-  const at = nodeRange(fn).start;
+  const at = startOf(fn);
   if (fn.type === 'identifier') {
     // A name the scopes bind is not the builtin `__import__`; a from-import of `import_module` names the importlib one.
     if (fn.text === '__import__') return !scopeBindings(context.bindings, context.scopesAt(at), fn.text)?.length;
@@ -174,7 +173,7 @@ export function resolveValues(node: Node | null | undefined, context: Context): 
   const target = unwrap(node);
   if (!target) return [];
   if (target.type === 'identifier') {
-    return importBindingsAt(context, nodeRange(target).start, target.text).map((binding) => ({
+    return importBindingsAt(context, startOf(target), target.text).map((binding) => ({
       receiver: binding.name,
       import: binding.import!,
       ...(binding.dotted && { dotted: true }),
@@ -183,7 +182,7 @@ export function resolveValues(node: Node | null | undefined, context: Context): 
   if (target.type === 'attribute') {
     const chain = chainOf(target);
     if (!chain?.parts.length) return [];
-    return importBindingsAt(context, nodeRange(chain.root).start, chain.root.text).map((binding) => ({
+    return importBindingsAt(context, startOf(chain.root), chain.root.text).map((binding) => ({
       receiver: binding.name,
       import: binding.import!,
       ...(binding.dotted && { dotted: true }),
@@ -240,5 +239,8 @@ export function isSetattrCall(node: Node): boolean {
   return fn?.type === 'identifier' && (fn.text === 'setattr' || fn.text === 'delattr');
 }
 
-/** The scope lookup of a file's names, as `moduleEscapes` reads them. */
-export const scopesOf = (symbols: readonly CodeSymbol[]): Context['scopesAt'] => (at) => scopesAtIn(symbols, at);
+/** The scope lookup of a file's names, as `moduleEscapes` reads them; the symbols stay sorted once, longest path first. */
+export const scopesOf = (symbols: readonly CodeSymbol[]): Context['scopesAt'] => {
+  const sorted = [...symbols].sort((a, b) => b.path.length - a.path.length);
+  return (at) => scopesAtIn(sorted, at);
+};

@@ -1,6 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { JsScopeReader } from './js-scope.js';
-import type { ExemptKind } from './js-types.js';
+import { thisFieldKinds, type ExemptKind } from './js-types.js';
 import type { ClassInfo, CodeRange, CodeSymbol, Import } from './model.js';
 import { nodeRange } from './tree.js';
 
@@ -76,6 +76,12 @@ function builtinCall(node: Node): [string, string] | undefined {
   return [object.text, property];
 }
 
+/** The member names `Object.assign` rebinds: its sources' keys, unless its target is a fresh literal that owns them. */
+function assignedNames(args: readonly Node[]): string[] {
+  const target = inner(args[0]);
+  return target?.type === 'object' || target?.type === 'array' ? [] : args.slice(1).flatMap((arg) => objectKeys(arg) ?? ['*']);
+}
+
 /** The member names a call rebinds through `Object.defineProperty`/`assign`/`defineProperties` or a `Reflect` write. */
 function reflectiveNames(node: Node): string[] {
   const parts = builtinCall(node);
@@ -85,9 +91,19 @@ function reflectiveNames(node: Node): string[] {
   const key = args[1] ? (stringValue(args[1]) ?? '*') : '*';
   if (builtin === 'Object' && fn === 'defineProperty') return [key];
   if (builtin === 'Object' && fn === 'defineProperties') return args[1] ? (objectKeys(args[1]) ?? ['*']) : ['*'];
-  if (builtin === 'Object' && fn === 'assign') return args.slice(1).flatMap((arg) => objectKeys(arg) ?? ['*']);
+  if (builtin === 'Object' && fn === 'assign') return assignedNames(args);
   if (builtin === 'Reflect' && (fn === 'defineProperty' || fn === 'set' || fn === 'deleteProperty')) return [key];
   return [];
+}
+
+/**
+ * What a computed write's receiver proves: `literal` when it is the write target's own object/array literal,
+ * the exemptions a declared type gives, or undefined when the key may name a member.
+ */
+function computedReceiver(node: Node, literal: LiteralReceiver, typed?: TypedReceiver, typescript = false): readonly ExemptKind[] | 'literal' | undefined {
+  const object = inner(node.childForFieldName('object'));
+  if (object?.type === 'identifier') return literal(object, object.text) ? 'literal' : typed?.(object, object.text);
+  return object?.type === 'member_expression' && typescript ? thisFieldKinds(object, node) : undefined;
 }
 
 /**
@@ -95,10 +111,11 @@ function reflectiveNames(node: Node): string[] {
  * inside a destructuring pattern and through a cast; `delete x.f`, `delete x[k]`, and the reflective
  * `Object.defineProperty`/`assign`/`defineProperties` and `Reflect` writes. `onlyThis` keeps the ones written on `this`.
  * A computed subscript on a const object or array literal writes that literal's own elements, never a class member;
- * one on a receiver whose declared TypeScript type cannot hold a class instance is a `*record`/`*container` marker,
- * which dispatch turns back into `*` only when its repo-wide guard trips.
+ * one on a receiver whose declared TypeScript type — a binding's annotation, or the class field behind `this.x` —
+ * cannot hold a class instance is a `*record`/`*container` marker, which dispatch turns back into `*` only when its
+ * repo-wide guard trips.
  */
-function writeNames(root: Node, onlyThis: boolean, literal: LiteralReceiver, typed?: TypedReceiver): string[] {
+function writeNames(root: Node, onlyThis: boolean, literal: LiteralReceiver, typed?: TypedReceiver, typescript = false): string[] {
   const names: string[] = [];
   const add = (target: Node | null | undefined): void => {
     const node = inner(target);
@@ -108,9 +125,8 @@ function writeNames(root: Node, onlyThis: boolean, literal: LiteralReceiver, typ
       return;
     }
     if (node.type === 'subscript_expression' && stringValue(node.childForFieldName('index')) === undefined) {
-      const object = inner(node.childForFieldName('object'));
-      if (object?.type === 'identifier' && literal(object, object.text)) return;
-      const exempt = object?.type === 'identifier' ? typed?.(object, object.text) : undefined;
+      const exempt = computedReceiver(node, literal, typed, typescript);
+      if (exempt === 'literal') return;
       if (exempt?.length) {
         if (!onlyThis) for (const kind of exempt) names.push(`*${kind}`);
         return;
@@ -132,8 +148,8 @@ function writeNames(root: Node, onlyThis: boolean, literal: LiteralReceiver, typ
 }
 
 /** Every member name any write of the file rebinds, through `this` or any other object. */
-export function javascriptMemberWrites(root: Node, literal: LiteralReceiver = () => false, typed?: TypedReceiver): string[] {
-  return writeNames(root, false, literal, typed);
+export function javascriptMemberWrites(root: Node, literal: LiteralReceiver = () => false, typed?: TypedReceiver, typescript = false): string[] {
+  return writeNames(root, false, literal, typed, typescript);
 }
 
 /** The identifiers an `extends` expression names: a plain one through the scopes, the last one of `a.B`, all of `M(B)`. */
@@ -305,7 +321,7 @@ export function javascriptClasses(root: Node, symbols: readonly CodeSymbol[], im
       bases: baseNames(value, (base) => (value ? canonicalBase(base.text, value, scopes, imports) : base.text)),
       ...classMembers(body),
       ...(value && opaqueBase(value) && { opaqueBase: true }),
-      writes: writeNames(body, true, (at, name) => scopes.isLocalLiteral(at, name)),
+      writes: writeNames(body, true, (at, name) => scopes.isLocalLiteral(at, name), undefined, scopes.typescript),
     });
   }
   return classes;
