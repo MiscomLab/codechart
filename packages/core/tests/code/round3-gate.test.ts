@@ -223,6 +223,29 @@ describe('round 3: option B, a computed write on a receiver typed as no class in
     expect(await targets({ 'a.ts': src }, 'a.ts')).toEqual([undefined]);
   });
 
+  it.each([
+    // Precision: sound refinement, COD-59 round 3 (option B on declared field types)
+    // node 25: prints "K.f"; tsc --strict accepts it and rejects a K in a Record<string, number> slot (TS2322).
+    ['a field typed Record<string, number>', `${TS_K}class C {\n  cache: Record<string, number> = {};\n  put(k: string) { this.cache[k] = 1; }\n}\nnew C().put("f");\nconsole.log(new K().m());\n`],
+    // node 25: prints "K.f"; tsc --strict accepts it and rejects a K in a string[] slot (TS2740).
+    ['a field typed string[]', `${TS_K}class C {\n  private items: string[] = [];\n  put(i: number) { this.items[i] = "x"; }\n}\nnew C().put(0);\nconsole.log(new K().m());\n`],
+    // Precision: sound refinement, COD-59 round 3 (Object.assign onto a fresh literal writes no class instance)
+    // node 25: prints "K.f"; tsc --strict accepts it.
+    ['Object.assign onto an object literal', `${TS_K}function merge(a: object, b: object) { return Object.assign({}, a, b); }\nmerge(new K(), { f: 1 });\nconsole.log(new K().m());\n`],
+  ])('TS-B exempt: %s', async (_form, src) => {
+    expect(await targets({ 'a.ts': src }, 'a.ts')).toEqual(['a.ts::K.f::method']);
+  });
+
+  it.each([
+    // Each form: tsc --strict accepts the program; node 25 prints "g".
+    ['a field typed as the class', `${TS_K}class C {\n  k: K = new K();\n  put(key: keyof K, v: any) { this.k[key] = v; }\n}\nconst c = new C();\nc.put("f", () => "g");\nconsole.log(c.k.m());\n`],
+    ['a field typed any', `${TS_K}class C {\n  t: any;\n  constructor(t: any) { this.t = t; }\n  put(key: string, v: any) { this.t[key] = v; }\n}\nconst k = new K();\nnew C(k).put("f", () => "g");\nconsole.log(k.m());\n`],
+    ['a field typed unknown', `${TS_K}class C {\n  t: unknown;\n  constructor(t: unknown) { this.t = t; }\n  put(key: string, v: any) { (this.t as any)[key] = v; }\n}\nconst k = new K();\nnew C(k).put("f", () => "g");\nconsole.log(k.m());\n`],
+    ['Object.assign onto a parameter', `${TS_K}function mix(t: object, s: object) { Object.assign(t, s); }\nconst k = new K();\nmix(k, { f: () => "g" });\nconsole.log(k.m());\n`],
+  ])('TS-B not exempt: %s', async (_form, src) => {
+    expect(await targets({ 'a.ts': src }, 'a.ts')).toEqual([undefined]);
+  });
+
   it('TS-B untyped JS stays strict even with a JSDoc type', async () => {
     // node 25: prints "g"; JSDoc is not checked, so put may receive a K.
     const src = 'class K {\n  f() { return "K.f"; }\n  m() { return this.f(); }\n}\n/** @param {Record<string, number>} x */\nfunction put(x, k, v) { x[k] = v; }\nconst k = new K();\nput(k, "f", () => "g");\nconsole.log(k.m());\n';
