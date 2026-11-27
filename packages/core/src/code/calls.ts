@@ -35,6 +35,23 @@ const attrs = (node: Node | null | undefined): string[] | undefined => {
   return object && name ? [...object, name] : undefined;
 };
 
+const OWN_THIS = new Set(['function_expression', 'function_declaration', 'generator_function', 'generator_function_declaration']);
+
+/**
+ * Whether the `this` at `node` is the enclosing class's: the nearest function that binds `this` (arrows keep the outer
+ * one) is a class method, a field initializer or a static block. A `function`, or an object-literal method, getter or
+ * setter, has a `this` of its own.
+ */
+function classThis(node: Node): boolean {
+  for (let current: Node | null = node.parent; current; current = current.parent) {
+    if (OWN_THIS.has(current.type)) return false;
+    if (current.type === 'method_definition') return current.parent?.type === 'class_body';
+    if (current.type === 'class_static_block') return true;
+    if (current.type === 'field_definition' || current.type === 'public_field_definition') return current.parent?.type === 'class_body';
+  }
+  return false;
+}
+
 /** How the callee is written, so linking can tell a bare name from `this.name` and from `receiver.name`. */
 function calleeOf(call: Node, python: boolean): Callee {
   const fn = call.childForFieldName('function');
@@ -48,7 +65,7 @@ function calleeOf(call: Node, python: boolean): Callee {
   }
   if (fn?.type === 'member_expression') {
     const object = fn.childForFieldName('object');
-    if (object?.type === 'this') return { via: 'this' };
+    if (object?.type === 'this') return classThis(call) ? { via: 'this' } : { via: 'member' };
     if (object?.type === 'identifier') return { via: 'member', receiver: object.text };
   }
   return { via: 'member' };

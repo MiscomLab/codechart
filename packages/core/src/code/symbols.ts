@@ -51,7 +51,9 @@ function definitions(tree: Tree, tags: Query, grammar: Grammar | 'bash'): Omit<D
       continue;
     }
     seen.add(def.node.id);
-    defs.push({ node: def.node, name: name.node.text, kind: kind as SymbolKind });
+    // A quoted method name (`"f"() {}`) names the member `f`.
+    const quoted = kind === 'method' && name.node.type === 'string';
+    defs.push({ node: def.node, name: quoted ? name.node.text.slice(1, -1) : name.node.text, kind: kind as SymbolKind });
   }
   return defs.sort((a, b) => a.node.startIndex - b.node.startIndex || b.node.endIndex - a.node.endIndex);
 }

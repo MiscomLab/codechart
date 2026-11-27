@@ -1,6 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { JsScopeReader } from './js-scope.js';
-import { inner, literalKey, WRAPPERS, writeSites } from './js-writes.js';
+import { inner, literalKey, propertyKey, WRAPPERS, writeSites } from './js-writes.js';
 import type { ClassInfo, CodeRange, CodeSymbol, Import } from './model.js';
 import { nodeRange } from './tree.js';
 
@@ -90,11 +90,11 @@ function computedName(key: Node | undefined, scopes: JsScopeReader): string | un
   return global && WELL_KNOWN_SYMBOLS.has(expr.childForFieldName('property')?.text ?? '') ? undefined : '*';
 }
 
-/** A member's declared name; undefined when it is a computed key proved a symbol. */
+/** A member's declared name, unquoted; undefined when it is a computed key proved a symbol. */
 function memberName(member: Node, scopes: JsScopeReader): string | undefined {
   const name = member.childForFieldName('name') ?? member.childForFieldName('property');
   if (!name) return undefined;
-  return name.type === 'computed_property_name' ? computedName(name.namedChildren[0] ?? undefined, scopes) : name.text.replace(/^#/, '');
+  return name.type === 'computed_property_name' ? computedName(name.namedChildren[0] ?? undefined, scopes) : propertyKey(name);
 }
 
 /** Whether a member declares a body `this.f()` can call: a getter's value or an abstract/signature is not one. */

@@ -83,17 +83,20 @@ function importedTarget(call: CallRef, parsed: ParsedFile, trace: Tracer, lookup
   return unique.size === 1 ? [...unique.values()][0] : undefined;
 }
 
-/** The class whose method holds this call; a class body call (constructor, field initializer) belongs to the class. */
-function classOwner(file: string, from: CodeSymbol, lookup: SymbolLookup): CodeSymbol | undefined {
-  if (from.kind === 'class') return from;
-  const classes = lookup.all(file).filter((s) => s.kind === 'class' && isPrefix(s.path, from.path) && from.path.length === s.path.length + 1);
+/**
+ * The innermost class whose range holds the call, whichever callback or arrow the call sits in: the extractor only
+ * makes a `this` call of one whose nearest `this`-binding function is a member of that class.
+ */
+function classOwner(file: string, call: CallRef, lookup: SymbolLookup): CodeSymbol | undefined {
+  const classes = lookup.all(file).filter((s) => s.kind === 'class' && inside(call.range.start, s.range));
   return classes.sort((a, b) => b.path.length - a.path.length)[0];
 }
 
 /** Whether the call sits where `this` is the constructor: a static method, a static block or a static field initializer. */
-function inStaticContext(info: ClassInfo, from: CodeSymbol, call: CallRef): boolean {
-  if (from.kind === 'method') return info.statics?.includes(from.path.at(-1)!) ?? false;
-  return from.kind === 'class' && (info.staticRanges?.some((range) => inside(call.range.start, range)) ?? false);
+function inStaticContext(info: ClassInfo, owner: CodeSymbol, call: CallRef, lookup: SymbolLookup): boolean {
+  const method = lookup.all(owner.file).find((s) => s.kind === 'method' && s.path.length === owner.path.length + 1 && isPrefix(owner.path, s.path) && inside(call.range.start, s.range));
+  if (method) return info.statics?.includes(method.path.at(-1)!) ?? false;
+  return info.staticRanges?.some((range) => inside(call.range.start, range)) ?? false;
 }
 
 /**
@@ -116,12 +119,12 @@ function callableThrough(info: ClassInfo, fromStatic: boolean, call: CallRef): b
  */
 function thisTarget(files: Files, call: CallRef, from: CodeSymbol, lookup: SymbolLookup): FoundTarget {
   const file = from.file;
-  const owner = classOwner(file, from, lookup);
+  const owner = classOwner(file, call, lookup);
   if (!owner) return undefined;
   const dispatch = dispatchOf(files);
   const info = files.get(file)?.classes?.find((c) => c.id === owner.id);
   if (!info || info.writes.includes(call.name) || dispatch.jsBaseWrites(info, call.name)) return undefined;
-  const fromStatic = inStaticContext(info, from, call);
+  const fromStatic = inStaticContext(info, owner, call, lookup);
   if (!callableThrough(info, fromStatic, call)) return undefined;
   if (fromStatic ? dispatch.js.staticWritten(call.name) : dispatch.js.instanceWritten(call.name)) return undefined;
   const methods = lookup

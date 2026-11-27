@@ -36,10 +36,12 @@ export function literalKey(node: Node | null | undefined): string | undefined {
 export function builtinCall(node: Node): [string, string] | undefined {
   const fn = node.childForFieldName('function');
   if (fn?.type !== 'member_expression') return undefined;
-  const object = fn.childForFieldName('object');
+  const object = inner(fn.childForFieldName('object'));
   const property = fn.childForFieldName('property')?.text;
-  if (object?.type !== 'identifier' || (object.text !== 'Object' && object.text !== 'Reflect') || !property) return undefined;
-  return [object.text, property];
+  const builtin = object?.type === 'member_expression' && inner(object.childForFieldName('object'))?.text === 'globalThis' ? object.childForFieldName('property') : object;
+  const name = builtin?.type === 'identifier' || builtin?.type === 'property_identifier' ? builtin.text : undefined;
+  if ((name !== 'Object' && name !== 'Reflect') || !property) return undefined;
+  return [name, property];
 }
 
 /** A property key's name when it is stated: a plain or literal-computed key; undefined for any other computed key. */
