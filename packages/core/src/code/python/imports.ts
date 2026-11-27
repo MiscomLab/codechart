@@ -4,7 +4,7 @@ import type { ClassInfo, CodeRange, CodeSymbol, Import } from '../model.js';
 import { nodeRange } from '../tree.js';
 import { collectBindings, type PyBinding, type PyDefinition } from './module-scope.js';
 import { moduleExports, settleGuards } from './exports.js';
-import { moduleEscapes } from './module-escapes.js';
+import { moduleEscapes, type ModuleEscape } from './module-escapes.js';
 import { editsSysPath, statedModules, typeGuarded } from './nodes.js';
 import { escapedAttributes } from './scope-nodes.js';
 import { attributeWrites } from './write-nodes.js';
@@ -44,7 +44,7 @@ export interface PythonFile {
   /** Every attribute name the file writes on any object. */
   attrWrites: string[];
   /** Attribute writes on a module the file imported: the local module name and the attribute, which redbind that module. */
-  moduleWrites: { receiver: string; name: string }[];
+  moduleWrites: ModuleEscape[];
   /** Attribute names whose function object is read as a value, so a `self` call inside the method proves nothing. */
   escapes: string[];
   /** The file's classes: what each extends, binds in its body and writes through `self`. */
@@ -91,13 +91,17 @@ function resolveClassBases(classes: readonly ClassInfo[], bindings: readonly PyB
  * The attribute writes that land on a module the file imported: `import a; a.f = …`, `setattr(a, 'f', …)`,
  * `del a.f`, `delattr(a, 'f')`. Only those can replace a module function another file calls by name.
  */
-function moduleAttributeWrites(root: Node, bindings: readonly PyBinding[], imports: readonly ImportSpec[]): { receiver: string; name: string }[] {
-  const bound = new Set(
-    bindings
-      .filter((b) => b.scope === '' && b.kind === 'import' && (b.dotted || imports[b.import!]?.names?.some((n) => n.local === b.name && n.imported === '*')))
-      .map((b) => b.name),
-  );
-  return [...bound].flatMap((receiver) => attributeWrites(root, receiver).map((name) => ({ receiver, name })));
+function moduleAttributeWrites(root: Node, bindings: readonly PyBinding[], imports: readonly ImportSpec[]): ModuleEscape[] {
+  const bound = new Map<string, number | null>();
+  for (const b of bindings) {
+    if (b.scope !== '' || b.kind !== 'import' || b.import === undefined) continue;
+    const wildcard = imports[b.import]?.names?.some((n) => n.local === b.name && n.imported === '*');
+    if (!b.dotted && !wildcard) continue;
+    const known = bound.get(b.name);
+    // Two bindings of the name by different imports leave the module unprovable, as they may name different modules.
+    bound.set(b.name, known === undefined ? b.import : known === b.import ? known : null);
+  }
+  return [...bound].flatMap(([receiver, index]) => attributeWrites(root, receiver).map((name) => ({ receiver, name, ...(index !== null && { import: index }) })));
 }
 
 /**
@@ -145,7 +149,7 @@ export function extractPythonImports(file: string, tree: Tree, query: Query, sym
     deferred,
     lambdas,
     attrWrites,
-    moduleWrites: [...moduleAttributeWrites(tree.rootNode, bindings, imports), ...moduleEscapes(tree.rootNode, symbols, bindings, index)],
+    moduleWrites: [...moduleAttributeWrites(tree.rootNode, bindings, imports), ...moduleEscapes(tree.rootNode, symbols, bindings, index, imports)],
     escapes: escapedAttributes(tree.rootNode),
     classes,
     sysPathEdited: editsSysPath(tree.rootNode),

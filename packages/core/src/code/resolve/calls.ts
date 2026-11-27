@@ -114,7 +114,7 @@ function thisTarget(files: Files, call: CallRef, from: CodeSymbol, lookup: Symbo
   if (!owner) return undefined;
   const dispatch = dispatchOf(files);
   const info = files.get(file)?.classes?.find((c) => c.id === owner.id);
-  if (!info || dispatch.jsMemberWritten(call.name) || dispatch.jsOpaqueBound(call.name)) return undefined;
+  if (!info || dispatch.jsMemberWritten(call.name, info) || dispatch.jsOpaqueBound(call.name)) return undefined;
   // A method object read as a value elsewhere may be called with another `this`, so nothing in it is provable.
   if (dispatch.jsEscaped('*') || (from.kind === 'method' && dispatch.jsEscaped(from.path.at(-1)!))) return undefined;
   if (dispatch.baseWrites(info, call.name) || dispatch.subclassBinds(owner.path.at(-1)!, call.name)) return undefined;

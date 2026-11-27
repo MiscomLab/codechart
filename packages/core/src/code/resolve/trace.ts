@@ -106,3 +106,95 @@ export function createTracer(files: Files): Tracer {
     return found;
   };
 }
+
+/** A module binding whose import is known to sit outside the repo: writing to it cannot rebind a module here. */
+export const EXTERNAL_MODULE = '\0external';
+
+/** The module a dotted chain names from its root module: each further part must be a submodule of a package. */
+export function submoduleFile(files: Files, file: string, parts: readonly string[]): string | undefined {
+  let current = file;
+  for (const part of parts) {
+    const folder = current.endsWith('/__init__.py') ? current.slice(0, -'/__init__.py'.length) : undefined;
+    const next = folder === undefined ? undefined : submoduleIn(files, folder, part);
+    if (!next) return undefined;
+    current = next;
+  }
+  return current;
+}
+
+/**
+ * The module file an import binding names: the imported module, a submodule a from-import binds, EXTERNAL outside the
+ * repo, undefined when the binding holds a value, or null when the parse cannot prove which.
+ */
+export function importModule(files: Files, parsed: ParsedFile, index: number, name: string, dotted: boolean): string | null | undefined {
+  const imp = parsed.imports[index];
+  // Only a proven repo module can be written through a value: an external or unknown import names none.
+  if (!imp || imp.status !== 'resolved' || !imp.resolved) return undefined;
+  if (dotted) return dottedPackage(files, imp);
+  const entry = imp.names?.find((n) => n.local === name);
+  if (!entry) return imp.resolved;
+  if (entry.imported === '*') return imp.resolved;
+  const folder = imp.resolved.endsWith('/__init__.py') ? imp.resolved.slice(0, -'/__init__.py'.length) : undefined;
+  const pkg = files.get(imp.resolved);
+  // A plain module's attribute is a value, never a module; a package's name may be a submodule.
+  if (!folder || !pkg) return undefined;
+  // A package whose own names are not provable may bind the name itself, so the submodule is not certain.
+  if (!pkg.exports.complete) return null;
+  if (pkg.exports.names.some((n) => n.name === entry.imported)) return undefined;
+  // The package binds neither: the from-import raises unless the name is one of its submodules.
+  return submoduleIn(files, folder, entry.imported);
+}
+
+/** The package `import a.b` binds (`a`), found from the resolved submodule path; undefined for a namespace package. */
+function dottedPackage(files: Files, imp: Import): string | undefined {
+  const resolved = imp.resolved;
+  if (!resolved) return undefined;
+  const parts = imp.spec.split('.');
+  const module = `${parts.join('/')}.py`;
+  const init = `${parts.join('/')}/__init__.py`;
+  const root = resolved.endsWith(module) ? resolved.slice(0, -module.length) : resolved.endsWith(init) ? resolved.slice(0, -init.length) : undefined;
+  if (root === undefined) return undefined;
+  const file = `${root}${parts[0]}/__init__.py`;
+  return files.has(file) ? file : undefined;
+}
+
+/** The module file each module-scope import binding names, EXTERNAL for one outside the repo, null when unprovable. */
+export function moduleBindings(parsed: ParsedFile): Map<string, string | null> {
+  const out = new Map<string, string | null>();
+  for (const b of parsed.bindings ?? []) {
+    if (b.scope !== '' || b.kind !== 'import' || b.import === undefined) continue;
+    const imp = parsed.imports[b.import];
+    const module = b.dotted || !imp ? null : imp.status === 'resolved' && imp.resolved ? imp.resolved : imp.status === 'external' ? EXTERNAL_MODULE : null;
+    const known = out.get(b.name);
+    if (known === undefined) out.set(b.name, module);
+    else if (known !== module) out.set(b.name, null);
+  }
+  return out;
+}
+
+/** Every repo module CPython could load under a dotted name: a file whose path ends with `<name>.py` or `<name>/__init__.py`. */
+export function modulesNamed(files: Files, name: string): string[] {
+  const path = name.split('.').join('/');
+  if (!path) return [];
+  return [...files.keys()].filter((file) => file === `${path}.py` || file === `${path}/__init__.py` || file.endsWith(`/${path}.py`) || file.endsWith(`/${path}/__init__.py`));
+}
+
+/** The dotted module names an unresolved import could load, or null when it is a relative one above its package. */
+export function unresolvedNames(imp: Import, file: string, receiver: string, dotted: boolean): string[] | null {
+  if (imp.spec.startsWith('.')) return relativeNames(file, imp.spec);
+  // `import a.b` binds the package a; any other binding names the module itself, or the submodule a from-import may bind.
+  if (dotted) return [imp.spec.split('.')[0]!];
+  const entry = imp.names?.find((n) => n.local === receiver);
+  if (!entry || entry.imported === '*') return [imp.spec];
+  return [`${imp.spec}.${entry.imported}`];
+}
+
+/** A relative spec (`.f`, `..pkg.f`) as an absolute dotted name from the importing file's own folder; over-approximated. */
+function relativeNames(file: string, spec: string): string[] | null {
+  const level = spec.length - spec.replace(/^\.+/, '').length;
+  const rest = spec.slice(level).split('.').filter(Boolean);
+  const dir = file.split('/').slice(0, -1);
+  if (level - 1 > dir.length) return null;
+  const name = [...dir.slice(0, dir.length - (level - 1)), ...rest].join('.');
+  return name ? [name] : null;
+}

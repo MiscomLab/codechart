@@ -51,12 +51,6 @@ export function nameUsers(index: ReverseIndex, names: Iterable<string>): Set<str
   return files;
 }
 
-/** The last name of an import's module part (`pkg.f` → `f`); an empty one (`from . import f`) names no module. */
-const moduleName = (spec: string): string => {
-  const parts = spec.replace(/^\.+/, '').split('.').filter(Boolean);
-  return parts[parts.length - 1] ?? '';
-};
-
 /** The `*record`/`*container` markers a class can turn back into `*`, reaching every file with a computed write. */
 function guardNames(info: ClassInfo, lang: Lang | undefined): string[] {
   if (lang === 'python') return [];
@@ -64,9 +58,18 @@ function guardNames(info: ClassInfo, lang: Lang | undefined): string[] {
   return info.opaqueBase || info.bases.some((base) => CONTAINER_BASES.has(base)) ? [...record, '*container'] : record;
 }
 
-/** The last name of each Python import's module part, which an import of a submodule elsewhere can shadow. */
+/**
+ * Every component of each Python import's module path after the first: importing `pkg.sub.mod` rebinds `pkg.sub` and
+ * `pkg.sub.mod` on their packages, so files binding `sub` or `mod` must relink. A relative spec names the components
+ * below the importing package, so all of them count; an anchored `importlib` name is absolute.
+ */
 function importedNames(parsed: ParsedFile): string[] {
-  return parsed.file.lang === 'python' ? parsed.imports.map((imp) => moduleName(imp.anchored ?? imp.spec)).filter(Boolean) : [];
+  if (parsed.file.lang !== 'python') return [];
+  return parsed.imports.flatMap((imp) => {
+    const spec = imp.anchored ?? imp.spec;
+    const parts = spec.replace(/^\.+/, '').split('.').filter(Boolean);
+    return parts.slice(spec.startsWith('.') && !imp.anchored ? 0 : 1);
+  });
 }
 
 /**

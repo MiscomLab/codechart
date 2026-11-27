@@ -13,6 +13,7 @@ import type { CallRef, ClassInfo, CodeEntity, CodeRef, CodeSymbol, FileInfo, Cod
 import { matchPatterns } from './pattern-run.js';
 import type { PatternLimit, PatternSets } from './patterns.js';
 import { extractPythonImports } from './python/imports.js';
+import type { ModuleEscape } from './python/module-escapes.js';
 import type { PyBinding, PyDefinition } from './python/module-scope.js';
 import { extractSymbols } from './symbols.js';
 import type { Node } from 'web-tree-sitter';
@@ -51,7 +52,7 @@ export interface ParsedFile {
    * Attribute writes on a module the file imported: the local module name and the attribute they rebind, Python only.
    * `import` names the file's import the receiver is bound by (an escaping module value), `dotted` an `import a.b`.
    */
-  moduleWrites?: { receiver: string; name: string; import?: number; dotted?: boolean }[];
+  moduleWrites?: ModuleEscape[];
   /** Attribute or member names read as values that could run with another receiver (`*` for any), either language. */
   escapes?: string[];
   /** Every member name any write of the file rebinds (`x.f =`, `x['f'] =`, `x.f++`), JS/TS only. */

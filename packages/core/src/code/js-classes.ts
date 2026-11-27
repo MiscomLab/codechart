@@ -152,12 +152,16 @@ function opaqueBase(value: Node | null | undefined): boolean {
   return node.type !== 'identifier' && node.type !== 'type_identifier' && node.type !== 'member_expression';
 }
 
-/** The expression a class extends: TypeScript wraps it in an `extends_clause`, JavaScript does not. */
+/**
+ * The expression a class extends: TypeScript wraps it in an `extends_clause`, JavaScript does not. An `implements`
+ * clause is erased at run time, so it is no base: `class K implements I` extends nothing, `extends X implements I` X.
+ */
 function heritage(node: Node): Node | undefined {
   const clause = node.namedChildren.find((child) => child?.type === 'class_heritage');
   if (!clause) return undefined;
   const first = clause.namedChildren[0];
-  return first?.type === 'extends_clause' ? (first.childForFieldName('value') ?? undefined) : (first ?? undefined);
+  if (!first || first.type === 'implements_clause') return undefined;
+  return first.type === 'extends_clause' ? (first.childForFieldName('value') ?? undefined) : first;
 }
 
 /** A base name followed through a value import or a local alias to the class it names, from the scopes at `at`. */
