@@ -61,6 +61,8 @@ export function namesOf(parsed: ParsedFile | undefined): Set<string> {
   for (const info of parsed.classes ?? []) for (const name of [...info.members, ...info.writes]) names.add(name);
   for (const name of parsed.attrWrites ?? []) names.add(name);
   for (const name of parsed.memberWrites ?? []) names.add(name);
+  for (const write of parsed.moduleWrites ?? []) names.add(write.name);
+  for (const name of parsed.escapes ?? []) names.add(name);
   return names;
 }
 

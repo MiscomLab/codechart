@@ -71,10 +71,23 @@ export function importNames(node: Node): string[] {
   return identifier ? [identifier.text] : [];
 }
 
+/** Expressions that wrap a value without changing it: casts, parentheses and a non-null assertion. */
+const WRAPPERS = new Set(['parenthesized_expression', 'as_expression', 'satisfies_expression', 'non_null_expression', 'type_assertion']);
+
+/** A value expression with the casts and parentheses around it removed. */
+export function unwrapExpression(value: Node | null | undefined): Node | undefined {
+  let current: Node | undefined = value ?? undefined;
+  while (current && WRAPPERS.has(current.type)) {
+    current = (current.type === 'type_assertion' ? current.namedChildren.find((child) => child?.type !== 'type_arguments') : current.namedChildren[0]) ?? undefined;
+  }
+  return current;
+}
+
 /** A variable initializer that names another binding: `const Base = K` and `const Base = ns.K` both name `K`. */
 export function aliasName(value: Node | null | undefined): string | undefined {
-  if (value?.type === 'identifier' || value?.type === 'type_identifier') return value.text;
-  return value?.type === 'member_expression' ? value.childForFieldName('property')?.text : undefined;
+  const node = unwrapExpression(value);
+  if (node?.type === 'identifier' || node?.type === 'type_identifier') return node.text;
+  return node?.type === 'member_expression' ? node.childForFieldName('property')?.text : undefined;
 }
 
 /** Whether a statement list opens with a `"use strict"` directive, in its directive prologue. */

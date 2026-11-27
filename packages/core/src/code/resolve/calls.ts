@@ -105,7 +105,8 @@ function callableThrough(info: ClassInfo, from: CodeSymbol, call: CallRef): bool
 
 /**
  * `this.name()` to the one method that name in the enclosing class, unless an instance can reach something else: any
- * file of the repo writes the member, a class in the receiver's chain declares or writes it, or a base is unresolved.
+ * file of the repo writes the member, a class in the receiver's chain declares or writes it, a class with an opaque
+ * base binds it, the enclosing method object escapes, or a base is unresolved.
  */
 function thisTarget(files: Files, call: CallRef, from: CodeSymbol, lookup: SymbolLookup): FoundTarget {
   const file = from.file;
@@ -113,7 +114,9 @@ function thisTarget(files: Files, call: CallRef, from: CodeSymbol, lookup: Symbo
   if (!owner) return undefined;
   const dispatch = dispatchOf(files);
   const info = files.get(file)?.classes?.find((c) => c.id === owner.id);
-  if (!info || dispatch.jsMemberWritten(call.name)) return undefined;
+  if (!info || dispatch.jsMemberWritten(call.name) || dispatch.jsOpaqueBound(call.name)) return undefined;
+  // A method object read as a value elsewhere may be called with another `this`, so nothing in it is provable.
+  if (dispatch.jsEscaped('*') || (from.kind === 'method' && dispatch.jsEscaped(from.path.at(-1)!))) return undefined;
   if (dispatch.baseWrites(info, call.name) || dispatch.subclassBinds(owner.path.at(-1)!, call.name)) return undefined;
   if (!callableThrough(info, from, call)) return undefined;
   const methods = lookup

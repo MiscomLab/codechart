@@ -12,6 +12,8 @@ export interface Binding {
   written?: boolean;
   /** For `const x = other`: the name whose value `x` holds, followed when a class extends `x`. */
   alias?: string;
+  /** A `const` bound to an object literal, array literal or `Object.create(null)`: its computed writes stay its own. */
+  literal?: boolean;
 }
 
 export type ScopeKind = 'program' | 'function' | 'params' | 'name' | 'block';
@@ -26,5 +28,7 @@ export interface Scope {
   namespace: boolean;
   /** A class static block or namespace body: `var` declarations stay here, as their own var scope. */
   varBoundary?: boolean;
+  /** A sloppy direct `eval` here may rebind any name this scope (or an enclosing one) binds. */
+  evalTainted?: boolean;
   decls: Map<string, Binding[]>;
 }

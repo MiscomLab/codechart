@@ -34,6 +34,8 @@ export interface ClassInfo {
   writes: string[];
   /** Python: a `metaclass=` keyword, so a constructed receiver is not provably an instance of the class. */
   metaclass?: boolean;
+  /** A base the syntax cannot read as a (dotted) name, so the class's real ancestors are unknown. */
+  opaqueBase?: boolean;
   /** JS/TS: the members declared `static`; a `this` call in a static method reaches only these. */
   statics?: string[];
   /** JS/TS: members whose body is not a callable method (a getter/setter, `abstract`, or a signature). */

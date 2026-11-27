@@ -8,7 +8,7 @@ import { entityGrammarOf, grammarOf, langOf, type EntityGrammar, type PatternGra
 import { extractImports, type ExportName, type ImportSpec, type ModuleExports } from './imports.js';
 import type { JsCallScope, JsScopeReader } from './js-scope.js';
 import { jsScopes } from './js-scope.js';
-import { javascriptClasses, javascriptMemberWrites } from './js-classes.js';
+import { javascriptClasses, javascriptEscapes, javascriptMemberWrites } from './js-classes.js';
 import type { CallRef, ClassInfo, CodeEntity, CodeRef, CodeSymbol, FileInfo, CodeRange, Import, PatternMatch } from './model.js';
 import { matchPatterns } from './pattern-run.js';
 import type { PatternLimit, PatternSets } from './patterns.js';
@@ -47,6 +47,10 @@ export interface ParsedFile {
   lambdas?: CodeRange[];
   /** Every attribute name written anywhere in the file (`x.f = …`, `del x.f`, `x.f += …`), Python only. */
   attrWrites?: string[];
+  /** Attribute writes on a module the file imported: the local module name and the attribute they rebind, Python only. */
+  moduleWrites?: { receiver: string; name: string }[];
+  /** Attribute or member names read as values that could run with another receiver (`*` for any), either language. */
+  escapes?: string[];
   /** Every member name any write of the file rebinds (`x.f =`, `x['f'] =`, `x.f++`), JS/TS only. */
   memberWrites?: string[];
   /** The classes the file defines and what they extend, declare and write, so a call knows what can override a method. */
@@ -245,8 +249,12 @@ function unlinked(imp: Import): Import {
 }
 
 /** JS/TS only: the classes and the member names its writes rebind, both read from the same tree and scopes. */
-function javascriptIndex(root: Node, symbols: readonly CodeSymbol[], imports: readonly Import[], scopes: JsScopeReader): Required<Pick<ParsedFile, 'classes' | 'memberWrites'>> {
-  return { classes: javascriptClasses(root, symbols, imports, scopes), memberWrites: javascriptMemberWrites(root) };
+function javascriptIndex(root: Node, symbols: readonly CodeSymbol[], imports: readonly Import[], scopes: JsScopeReader): Required<Pick<ParsedFile, 'classes' | 'memberWrites' | 'escapes'>> {
+  return {
+    classes: javascriptClasses(root, symbols, imports, scopes),
+    memberWrites: javascriptMemberWrites(root, (at, name) => scopes.isLocalLiteral(at, name)),
+    escapes: javascriptEscapes(root),
+  };
 }
 
 /**
@@ -284,7 +292,7 @@ export async function parseCode(path: string, text: string, lastGood?: LastGood,
       ...(calls.scopes && { scopes: calls.scopes }),
       entities: [],
       refs: [],
-      ...(python && { bindings: python.bindings, defs: python.defs, deferred: python.deferred, lambdas: python.lambdas, attrWrites: python.attrWrites, classes: python.classes }),
+      ...(python && { bindings: python.bindings, defs: python.defs, deferred: python.deferred, lambdas: python.lambdas, attrWrites: python.attrWrites, moduleWrites: python.moduleWrites, escapes: python.escapes, classes: python.classes }),
       ...(python?.sysPathEdited && { sysPathEdited: true }),
       ...js,
       ...patternsIn(opts, grammar, tree.rootNode, errors, previous),

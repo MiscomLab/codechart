@@ -57,9 +57,13 @@ function binding(parsed: ParsedFile, kind: Import['kind'], local: string): { imp
 
 /**
  * A Python module's own name, from the one module-scope binding its exports were built from: a function-local,
- * type-alias type-parameter or type-checking-only import of the same name binds nothing at module scope.
+ * type-alias type-parameter or type-checking-only import of the same name binds nothing at module scope. When a package
+ * `__init__.py` imports one of its own submodules, that import replaces the same-named attribute with the module.
  */
 function pythonOwn(files: Files, parsed: ParsedFile, file: string, name: string, seen: Set<string>): Found {
+  const dir = packageDir(file);
+  const submodule = dir === undefined ? undefined : submoduleIn(files, dir, name);
+  if (submodule !== undefined && parsed.imports.some((imp) => imp.resolved === submodule)) return 'unknown';
   const bound = parsed.bindings!.find((b) => b.scope === '' && b.name === name && !b.alias);
   const imp = bound?.kind === 'import' && !bound.dotted ? parsed.imports[bound.import!] : undefined;
   const entry = imp?.names?.find((n) => n.local === name);

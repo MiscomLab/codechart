@@ -136,15 +136,31 @@ function defIn(parsed: ParsedFile, scope: string, name: string): CodeSymbol | un
   return found.length === 1 ? found[0] : undefined;
 }
 
-/** The top-level function or class a proven export binding points at. */
+/**
+ * The top-level function or class a proven export binding points at. The file must bind the name exactly once, and the
+ * binding must be a definition: a decorated name is the decorator's result, and one under `if False:` never ran, so an
+ * import of it fails before any call. A module attribute call (`strict`) also needs the binding to have run at all: an
+ * attribute read of one that never ran raises rather than calling anything.
+ */
 function topLevel(files: Files, found: Found, kinds: readonly string[] = ['function', 'class'], strict = false): CodeSymbol | undefined {
   if (typeof found !== 'object' || found.binding === '*') return undefined;
-  // A decorated definition binds the decorator's result, not the definition.
-  const bound = files.get(found.file)?.bindings?.find((b) => b.scope === '' && b.name === found.binding && !b.alias);
-  // A module attribute call needs the binding to have run: an import of the name fails otherwise, an attribute read does not.
-  if (bound && (bound.kind !== 'def' || (strict && bound.conditional))) return undefined;
-  const symbols = (files.get(found.file)?.symbols ?? []).filter((s) => s.path.length === 1 && s.path[0] === found.binding && kinds.includes(s.kind));
+  const parsed = files.get(found.file);
+  const bindings = (parsed?.bindings ?? []).filter((b) => b.scope === '' && b.name === found.binding && !b.alias);
+  if (bindings.length !== 1) return undefined;
+  const bound = bindings[0]!;
+  if (bound.kind !== 'def' || bound.never || (strict && bound.conditional)) return undefined;
+  const symbols = (parsed?.symbols ?? []).filter((s) => s.path.length === 1 && s.path[0] === found.binding && kinds.includes(s.kind));
   return symbols.length === 1 ? symbols[0] : undefined;
+}
+
+/** The package folder a `__init__` module sits in, or undefined for a file that cannot own submodules. */
+const packageFolder = (file: string): string | undefined => (file.endsWith('/__init__.py') ? file.slice(0, -'/__init__.py'.length) : undefined);
+
+/** Whether the package's `__init__.py` imports a submodule of `name`, replacing the same-named attribute with it. */
+function submoduleShadows(files: Files, parsed: ParsedFile, name: string): boolean {
+  const folder = packageFolder(parsed.file.path);
+  const submodule = folder === undefined ? undefined : submoduleIn(files, folder, name);
+  return submodule !== undefined && parsed.imports.some((imp) => imp.resolved === submodule);
 }
 
 /** The module file an import binding stands for, when the bound name is a module. */
@@ -190,9 +206,11 @@ function builtMethod(parsed: ParsedFile, files: Files, m: Meaning, name: string,
   return methods.length === 1 && undisturbed(files, classFile, cls, name) ? methods[0] : undefined;
 }
 
-/** Whether constructing the class provably runs its own `__init__`: no `metaclass=` and no `__new__` in its chain. */
+/** Whether constructing the class provably runs its own `__init__`: no `metaclass=`, no `__new__`, and no outside write. */
 function plainConstructor(files: Files, info: ClassInfo): boolean {
-  return !dispatchOf(files).chainSatisfies(info, (found) => !!found.metaclass || found.members.includes('__new__'));
+  const dispatch = dispatchOf(files);
+  if (dispatch.pythonMemberWritten('__new__')) return false;
+  return !dispatch.chainSatisfies(info, (found) => !!found.metaclass || found.members.includes('__new__'));
 }
 
 /** The class whose method holds this call; a call in a class body belongs to the class. */
@@ -210,13 +228,16 @@ function plainMethod(parsed: ParsedFile | undefined, cls: CodeSymbol, name: stri
 
 /**
  * Whether `name` on an instance of `cls` is that class's plain method: also not written on any object in the repo
- * (`K.f = …`, `k.f = …`, `setattr(k, 'f', …)`), not bound by a class extending it by name, not written through `self`
- * by a base class, and not intercepted by a `__getattribute__` in its chain. A base the repo does not hold may bind
+ * (`K.f = …`, `k.f = …`, `setattr(k, 'f', …)`), not bound by a class extending it by name or sitting before it in a
+ * subclass's MRO, not written through `self` by a base class, not taken from another class with an opaque base, and not
+ * intercepted by a `__getattribute__`, `__new__` or `__class__` written anywhere. A base the repo does not hold may bind
  * or intercept it, so an unresolved base leaves the call name-only.
  */
 function undisturbed(files: Files, parsed: ParsedFile | undefined, cls: CodeSymbol, name: string): boolean {
   const dispatch = dispatchOf(files);
   if (!parsed || !plainMethod(parsed, cls, name) || dispatch.pythonMemberWritten(name)) return false;
+  if (dispatch.pythonMemberWritten('__getattribute__') || dispatch.pythonMemberWritten('__class__') || dispatch.pythonMemberWritten('__new__')) return false;
+  if (dispatch.pythonOpaqueBound(name)) return false;
   const info = parsed.classes?.find((c) => c.id === cls.id);
   if (!info || dispatch.chainSatisfies(info, (found) => found.members.includes('__getattribute__'))) return false;
   return !dispatch.subclassBinds(info.name, name) && !dispatch.baseWrites(info, name);
@@ -240,7 +261,8 @@ function thisTarget(parsed: ParsedFile, files: Files, call: CallRef, from: CodeS
   const body = parsed.defs?.find((def) => def.id === from.id)?.body;
   if (from.kind !== 'method' || (body && before(call.range.start, body))) return undefined;
   const owner = classOwner(parsed, from);
-  if (!owner || !undisturbed(files, parsed, owner, call.name)) return undefined;
+  // A method object read as a value elsewhere may be called with another `self`, so nothing in it is provable.
+  if (!owner || dispatchOf(files).pythonEscaped(from.path.at(-1)!) || !undisturbed(files, parsed, owner, call.name)) return undefined;
   const methods = parsed.symbols.filter((s) => s.kind === 'method' && s.path.length === owner.path.length + 1 && isPrefix(owner.path, s.path) && s.path.at(-1) === call.name && holds(owner, s));
   return methods.length === 1 ? methods[0] : undefined;
 }
@@ -263,10 +285,16 @@ function bareTarget(parsed: ParsedFile, files: Files, name: string, chain: reado
   const m = meaning(parsed, name, chain, site);
   if (m?.kind === 'def') {
     const def = defIn(parsed, m.scope, name);
-    return def && (def.kind === 'function' || def.kind === 'class') ? def : undefined;
+    if (!def || (def.kind !== 'function' && def.kind !== 'class')) return undefined;
+    // A top-level name of a package `__init__.py` is not what `import pkg.name` leaves on the package.
+    if (def.path.length !== 1) return def;
+    if (submoduleShadows(files, parsed, name)) return undefined;
+    return def.kind === 'function' && dispatchOf(files).pythonModuleWritten(parsed.file.path, name) ? undefined : def;
   }
   if (m?.kind !== 'import' || m.name.imported === '*' || m.imp.status !== 'resolved' || !m.imp.resolved) return undefined;
-  return topLevel(files, trace(m.imp.resolved, m.name.imported));
+  const target = topLevel(files, trace(m.imp.resolved, m.name.imported));
+  // `from b import f` reaches a module function only if no file rebinds a module's attribute f.
+  return target && target.kind === 'function' && dispatchOf(files).pythonModuleWritten(target.file, name) ? undefined : target;
 }
 
 function memberTarget(parsed: ParsedFile, files: Files, call: CallRef, chain: readonly string[], site: Site, trace: Tracer): CodeSymbol | undefined {
@@ -284,5 +312,8 @@ function memberTarget(parsed: ParsedFile, files: Files, call: CallRef, chain: re
     module = moduleOf(m, trace);
     if (!module) return builtMethod(parsed, files, m, call.name, site, trace);
   }
-  return module ? topLevel(files, trace(module, call.name), undefined, true) : undefined;
+  if (!module) return undefined;
+  const target = topLevel(files, trace(module, call.name), undefined, true);
+  // A module attribute call reaches the function only if no file rebinds that module's attribute of that name.
+  return target && target.kind === 'function' && dispatchOf(files).pythonModuleWritten(module, call.name) ? undefined : target;
 }

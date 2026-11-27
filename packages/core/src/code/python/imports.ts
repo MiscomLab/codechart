@@ -2,9 +2,11 @@ import type { Node, Query, Tree } from 'web-tree-sitter';
 import type { ModuleExports } from '../imports.js';
 import type { ClassInfo, CodeRange, CodeSymbol, Import } from '../model.js';
 import { nodeRange } from '../tree.js';
-import { collectBindings, moduleExports, settleGuards, type PyBinding, type PyDefinition } from './module-scope.js';
+import { collectBindings, type PyBinding, type PyDefinition } from './module-scope.js';
+import { moduleExports, settleGuards } from './exports.js';
 import { editsSysPath, statedModules, typeGuarded } from './nodes.js';
-import { attributeWrites } from './scope-nodes.js';
+import { escapedAttributes } from './scope-nodes.js';
+import { attributeWrites } from './write-nodes.js';
 
 /**
  * Finds Python imports and the calls that name a module at run time: `import`, `from … import`, and
@@ -40,6 +42,10 @@ export interface PythonFile {
   lambdas: CodeRange[];
   /** Every attribute name the file writes on any object. */
   attrWrites: string[];
+  /** Attribute writes on a module the file imported: the local module name and the attribute, which redbind that module. */
+  moduleWrites: { receiver: string; name: string }[];
+  /** Attribute names whose function object is read as a value, so a `self` call inside the method proves nothing. */
+  escapes: string[];
   /** The file's classes: what each extends, binds in its body and writes through `self`. */
   classes: ClassInfo[];
   /** The file edits `sys.path`, so no absolute import's target is provable. */
@@ -81,6 +87,19 @@ function resolveClassBases(classes: readonly ClassInfo[], bindings: readonly PyB
 }
 
 /**
+ * The attribute writes that land on a module the file imported: `import a; a.f = …`, `setattr(a, 'f', …)`,
+ * `del a.f`, `delattr(a, 'f')`. Only those can replace a module function another file calls by name.
+ */
+function moduleAttributeWrites(root: Node, bindings: readonly PyBinding[], imports: readonly ImportSpec[]): { receiver: string; name: string }[] {
+  const bound = new Set(
+    bindings
+      .filter((b) => b.scope === '' && b.kind === 'import' && (b.dotted || imports[b.import!]?.names?.some((n) => n.local === b.name && n.imported === '*')))
+      .map((b) => b.name),
+  );
+  return [...bound].flatMap((receiver) => attributeWrites(root, receiver).map((name) => ({ receiver, name })));
+}
+
+/**
  * The imports, scope bindings and own exports of a parsed Python file. `symbols` are the file's symbols, which give each
  * function and class scope its id. A module's exports are the names its own scope binds exactly once, imports
  * included, which is how a package's `__init__.py` re-exports through the shared tracer.
@@ -116,5 +135,18 @@ export function extractPythonImports(file: string, tree: Tree, query: Query, sym
   resolveClassBases(classes, bindings, imports);
   const attrWrites = attributeWrites(tree.rootNode, null);
   settleGuards(bindings, imports, new Set(attrWrites));
-  return { imports, exports: moduleExports(bindings, hasWildcard(tree.rootNode)), hidden, bindings, defs, deferred, lambdas, attrWrites, classes, sysPathEdited: editsSysPath(tree.rootNode) };
+  return {
+    imports,
+    exports: moduleExports(bindings, hasWildcard(tree.rootNode)),
+    hidden,
+    bindings,
+    defs,
+    deferred,
+    lambdas,
+    attrWrites,
+    moduleWrites: moduleAttributeWrites(tree.rootNode, bindings, imports),
+    escapes: escapedAttributes(tree.rootNode),
+    classes,
+    sysPathEdited: editsSysPath(tree.rootNode),
+  };
 }

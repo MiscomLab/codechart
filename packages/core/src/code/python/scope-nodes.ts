@@ -1,6 +1,7 @@
 import type { Node } from 'web-tree-sitter';
-import type { CodeRange } from '../model.js';
+import type { ClassInfo, CodeRange } from '../model.js';
 import { nodeRange } from '../tree.js';
+import { argsOf, stringConstant } from './write-nodes.js';
 
 /** Pure readers of Python syntax nodes: write targets, parameters, annotations, type parameters and deferred ranges. */
 
@@ -109,157 +110,6 @@ export function declared(body: Node, statement: 'global_statement' | 'nonlocal_s
 }
 
 /**
- * The attribute names written through `owner` (`self.f = …`, `cls.f += …`, `del self.f`, `for self.f in …`,
- * `setattr(self, 'f', …)`, `self.__dict__['f'] = …`), or through any object when `owner` is null. A name that is not a
- * constant string is `*`, since it may be any attribute. A method with no first parameter (`undefined`) writes none.
- */
-export function attributeWrites(body: Node, owner: string | null | undefined): string[] {
-  const names: string[] = [];
-  if (owner === undefined || owner === '') return names;
-  const collect = (target: Node | null | undefined): void => {
-    if (!target) return;
-    if (target.type === 'attribute') {
-      const object = target.childForFieldName('object');
-      const attribute = target.childForFieldName('attribute');
-      if (attribute && (owner === null || (object?.type === 'identifier' && object.text === owner))) names.push(attribute.text);
-    } else if (target.type === 'subscript') {
-      const name = dictName(target, owner);
-      if (name) names.push(name);
-    } else if (PATTERNS.has(target.type)) for (const child of target.namedChildren) collect(child);
-  };
-  const stack: Node[] = [body];
-  while (stack.length) {
-    const node = stack.pop()!;
-    if (node.type === 'delete_statement') for (const child of node.namedChildren) collect(child);
-    else if (node.type === 'as_pattern') collect(node.childForFieldName('alias'));
-    else if (WRITE_FIELDS[node.type]) collect(node.childForFieldName(WRITE_FIELDS[node.type]!));
-    else if (node.type === 'call') {
-      const name = setattrName(node, owner);
-      if (name) names.push(name);
-    }
-    for (const child of node.namedChildren) if (child) stack.push(child);
-  }
-  return names;
-}
-
-const WRITE_FIELDS: Record<string, string> = { assignment: 'left', augmented_assignment: 'left', for_statement: 'left', for_in_clause: 'left' };
-
-/** The text of a plain string literal, or undefined for a computed one (an f-string, a name, a call). */
-function stringConstant(node: Node | null | undefined): string | undefined {
-  if (node?.type !== 'string' || node.namedChildren.some((child) => child?.type === 'interpolation')) return undefined;
-  return node.namedChildren.find((child) => child?.type === 'string_content')?.text ?? '';
-}
-
-const argsOf = (call: Node): Node[] => (call.childForFieldName('arguments')?.namedChildren ?? []).filter((a): a is Node => !!a);
-
-/** The name a `setattr(x, 'f', …)` or `object.__setattr__(x, 'f', …)` call writes on `owner`; `*` when not constant. */
-function setattrName(node: Node, owner: string | null): string | undefined {
-  const fn = node.childForFieldName('function');
-  const attribute = fn?.type === 'attribute' ? fn : undefined;
-  const setattr = fn?.type === 'identifier' && fn.text === 'setattr';
-  const objectSetattr = attribute?.childForFieldName('object')?.text === 'object' && attribute.childForFieldName('attribute')?.text === '__setattr__';
-  if (!setattr && !objectSetattr) return undefined;
-  const args = argsOf(node);
-  const target = args[0];
-  if (!target || (owner !== null && (target.type !== 'identifier' || target.text !== owner))) return undefined;
-  return args[1] ? (stringConstant(args[1]) ?? '*') : '*';
-}
-
-/** The name `x.__dict__['f'] = …` or `vars(x)['f'] = …` writes on `owner`; `*` when the key is not a constant string. */
-function dictName(node: Node, owner: string | null): string | undefined {
-  const value = node.childForFieldName('value');
-  const key = node.childForFieldName('subscript');
-  if (!key) return undefined;
-  const attribute = value?.type === 'attribute' ? value : undefined;
-  const dict = attribute?.childForFieldName('attribute')?.text === '__dict__' ? attribute.childForFieldName('object') : undefined;
-  const vars = value?.type === 'call' && value.childForFieldName('function')?.text === 'vars' && value.childForFieldName('function')?.type === 'identifier' ? argsOf(value)[0] : undefined;
-  const target = dict ?? vars;
-  if (target?.type !== 'identifier' || (owner !== null && target.text !== owner)) return undefined;
-  return stringConstant(key) ?? '*';
-}
-
-/** A call to the builtin `name` with no arguments. */
-const emptyCall = (node: Node | null | undefined, name: string): boolean =>
-  node?.type === 'call' && node.childForFieldName('function')?.type === 'identifier' && node.childForFieldName('function')?.text === name && argsOf(node).length === 0;
-
-/** `sys.modules[__name__]`: the module's own namespace, which `setattr` and an attribute write rebind. */
-function sysModule(node: Node | null | undefined): boolean {
-  if (node?.type !== 'subscript') return false;
-  const modules = node.childForFieldName('value');
-  const self = node.childForFieldName('subscript');
-  return (
-    modules?.type === 'attribute' &&
-    modules.childForFieldName('object')?.type === 'identifier' &&
-    modules.childForFieldName('object')?.text === 'sys' &&
-    modules.childForFieldName('attribute')?.text === 'modules' &&
-    self?.type === 'identifier' &&
-    self.text === '__name__'
-  );
-}
-
-/** The name a `globals()['f'] = …`-style target rebinds in the module, `*` for a computed key, or undefined. */
-function moduleTargetNames(target: Node, nested: boolean): string[] | undefined {
-  const key = target.type === 'subscript' ? target.childForFieldName('subscript') : undefined;
-  const value = target.type === 'subscript' ? target.childForFieldName('value') : undefined;
-  if (target.type === 'attribute' && sysModule(target.childForFieldName('object'))) {
-    const attribute = target.childForFieldName('attribute')?.text;
-    return attribute ? [attribute] : undefined;
-  }
-  if (!key) return undefined;
-  // `vars()` reads the module namespace only at module level; inside a function it is the function's locals.
-  if (!emptyCall(value, 'globals') && (nested || !emptyCall(value, 'vars'))) return undefined;
-  return [stringConstant(key) ?? '*'];
-}
-
-/** The names `globals().update(f=…)` rebinds: its keyword names, or `*` when it takes a mapping or expands a dict. */
-function updateNames(node: Node): string[] | undefined {
-  const fn = node.childForFieldName('function');
-  if (fn?.type !== 'attribute' || fn.childForFieldName('attribute')?.text !== 'update' || !emptyCall(fn.childForFieldName('object'), 'globals')) return undefined;
-  const names = argsOf(node).map((arg) => (arg.type === 'keyword_argument' ? arg.childForFieldName('name')?.text : undefined));
-  return names.some((name) => !name) ? ['*'] : (names as string[]);
-}
-
-/** The name `setattr(sys.modules[__name__], 'f', …)` rebinds, `*` when the name is not a constant, or undefined. */
-function moduleSetattrName(node: Node): string[] | undefined {
-  if (!(node.childForFieldName('function')?.type === 'identifier' && node.childForFieldName('function')?.text === 'setattr')) return undefined;
-  const args = argsOf(node);
-  if (!args[0] || !sysModule(args[0])) return undefined;
-  return [args[1] ? (stringConstant(args[1]) ?? '*') : '*'];
-}
-
-function dynamicNames(node: Node, nested: boolean): string[] | undefined {
-  if (node.type === 'assignment' || node.type === 'augmented_assignment') {
-    const target = node.childForFieldName('left');
-    return target ? moduleTargetNames(target, nested) : undefined;
-  }
-  if (node.type !== 'call') return undefined;
-  if (node.childForFieldName('function')?.type === 'identifier' && node.childForFieldName('function')?.text === 'exec') return ['*'];
-  return updateNames(node) ?? moduleSetattrName(node);
-}
-
-const FUNCTION_SCOPES = new Set(['function_definition', 'lambda', 'class_definition']);
-
-/**
- * The module names statements rebind at run time, wherever they sit: `globals()[…]`, `globals().update(…)`,
- * `sys.modules[__name__]`, module-level `vars()` and any `exec(…)`. The resolver then finds two bindings (or a `*`)
- * and refuses to prove a target, which the syntax alone cannot show.
- */
-export function dynamicModuleBindings(root: Node): { name: string; start: CodeRange['start'] }[] {
-  const out: { name: string; start: CodeRange['start'] }[] = [];
-  const visit = (node: Node, nested: boolean): void => {
-    const names = dynamicNames(node, nested);
-    if (names) {
-      const start = nodeRange(node).start;
-      for (const name of names) out.push({ name, start });
-    }
-    const inside = nested || FUNCTION_SCOPES.has(node.type);
-    for (const child of node.namedChildren) if (child) visit(child, inside);
-  };
-  visit(root, false);
-  return out;
-}
-
-/**
  * `if not TYPE_CHECKING:` (or `not typing.TYPE_CHECKING`) with no other branch: the text of the guard. It always runs only
  * if the name is typing's constant, which a whole-file view of the bindings decides.
  */
@@ -281,6 +131,79 @@ export function baseNames(superclasses: Node | null): string[] {
     return node.namedChildren.flatMap((c) => (c ? names(c) : []));
   };
   return (superclasses?.namedChildren ?? []).flatMap((base) => (base && base.type !== 'keyword_argument' ? names(base) : []));
+}
+
+/** The node of a base expression with parentheses removed. */
+const unparenthesized = (node: Node): Node => (node.type === 'parenthesized_expression' && node.namedChildren[0] ? unparenthesized(node.namedChildren[0]!) : node);
+
+/**
+ * Whether a class's bases include one the syntax cannot read as a (dotted) name: a subscript, call, starred expression or
+ * keyword splat may evaluate to any class, so the class's real ancestors — and every name it binds — are unprovable.
+ */
+export function opaqueBase(superclasses: Node | null): boolean {
+  return (superclasses?.namedChildren ?? []).some((base) => {
+    if (!base || base.type === 'keyword_argument') return false;
+    const node = unparenthesized(base);
+    return node.type !== 'identifier' && node.type !== 'attribute';
+  });
+}
+
+/** The keys a class-creation dict binds: its constant string keys, `*` for one the parse cannot name. */
+function dictKeys(dict: Node): string[] {
+  return dict.namedChildren.flatMap((entry) => (entry?.type === 'pair' ? [stringConstant(entry.childForFieldName('key')) ?? '*'] : entry?.type === 'dictionary_splat' ? ['*'] : []));
+}
+
+/**
+ * The classes a three-argument `type(name, bases, ns)` call creates: it binds the dict's literal keys, and its bases are
+ * opaque, so nothing about its ancestors is provable. A namespace that is not a literal dict binds `*`.
+ */
+export function typeClasses(root: Node): ClassInfo[] {
+  const out: ClassInfo[] = [];
+  const visit = (node: Node): void => {
+    if (node.type === 'call' && node.childForFieldName('function')?.type === 'identifier' && node.childForFieldName('function')?.text === 'type') {
+      const args = argsOf(node);
+      if (args.length === 3) {
+        const ns = args[2]!;
+        out.push({ name: stringConstant(args[0]) ?? '', bases: [], members: ns.type === 'dictionary' ? dictKeys(ns) : ['*'], writes: [], opaqueBase: true });
+      }
+    }
+    for (const child of node.namedChildren) if (child) visit(child);
+  };
+  visit(root);
+  return out;
+}
+
+/** Whether a node sits in a write target, so an attribute in it is written rather than read as a value. */
+function inWriteTarget(node: Node): boolean {
+  let child = node;
+  for (let parent = node.parent; parent; child = parent, parent = parent.parent) {
+    if (parent.type === 'assignment' || parent.type === 'augmented_assignment') return parent.childForFieldName('left')?.id === child.id;
+    if (parent.type === 'delete_statement' || parent.type === 'for_statement' || parent.type === 'for_in_clause') return parent.namedChildren.some((c) => c?.id === child.id);
+    if (parent.type === 'named_expression') return parent.childForFieldName('name')?.id === child.id;
+  }
+  return false;
+}
+
+/**
+ * The attribute names whose function object is read as a value anywhere in the file: `X.m` outside call position, a
+ * class body's `m = K.m`. Such a method may run with another `self`, so calls through `self` inside it prove nothing.
+ * Reading a class's namespace (`vars(K)`, `K.__dict__`) may take any method object, which is `*`.
+ */
+export function escapedAttributes(root: Node): string[] {
+  const names: string[] = [];
+  const visit = (node: Node): void => {
+    if (node.type === 'attribute' && node.parent?.type !== 'call' && !inWriteTarget(node)) {
+      const attribute = node.childForFieldName('attribute')?.text;
+      if (attribute === '__dict__') names.push('*');
+      else if (attribute) names.push(attribute);
+    }
+    if (node.type === 'call' && !inWriteTarget(node) && node.childForFieldName('function')?.type === 'identifier' && node.childForFieldName('function')?.text === 'vars' && argsOf(node).length) {
+      names.push('*');
+    }
+    for (const child of node.namedChildren) if (child) visit(child);
+  };
+  visit(root);
+  return names;
 }
 
 /** Whether a class header passes a `metaclass=` keyword: its `__call__` may build a receiver that is not this class. */

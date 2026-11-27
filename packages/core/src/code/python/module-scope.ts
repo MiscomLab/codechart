@@ -1,8 +1,8 @@
 import type { Node } from 'web-tree-sitter';
-import type { ModuleExports } from '../imports.js';
-import type { ClassInfo, CodeRange, CodeSymbol, Import } from '../model.js';
+import type { ClassInfo, CodeRange, CodeSymbol } from '../model.js';
 import { nodeRange } from '../tree.js';
-import { annotationExpressions, attributeWrites, baseNames, declared, defaultRanges, defaultValues, deferredRanges, dynamicModuleBindings, hasMetaclass, identifiers, parameterNames, targets, typeParameterNames, typeCheckingGuard, typeParametersIn } from './scope-nodes.js';
+import { annotationExpressions, baseNames, declared, defaultRanges, defaultValues, deferredRanges, hasMetaclass, identifiers, opaqueBase, parameterNames, targets, typeClasses, typeParameterNames, typeCheckingGuard, typeParametersIn } from './scope-nodes.js';
+import { attributeWrites, dynamicModuleBindings } from './write-nodes.js';
 
 /**
  * One name a Python scope binds. `scope` is the id of the function or class whose body binds it, `''` for the module.
@@ -25,6 +25,8 @@ export interface PyBinding {
   alias?: boolean;
   /** A class- or function-body binding made inside an `if`, `try`, loop, `with` or `match`, or after a jump: it may never have run. */
   conditional?: boolean;
+  /** A binding under a statement that provably never runs (`if False:`), so it does not exist at runtime. */
+  never?: boolean;
   /** The `if not TYPE_CHECKING` guards this binding sits under; they run only if the name is typing's constant. */
   guards?: string[];
   /** A write `self.name = …` in a method of the class this scope is: the class attribute may be replaced per instance. */
@@ -69,6 +71,8 @@ export function collectBindings(root: Node, symbols: readonly CodeSymbol[], impo
     info.members = out.filter((b) => b.scope === info.id && !b.attr).map((b) => b.name);
     info.writes = out.filter((b) => b.scope === info.id && b.attr).map((b) => b.name);
   }
+  // `type("L", (K,), {"f": …})` creates a class the class statements do not; its dict keys are what it binds.
+  classes.push(...typeClasses(root));
   return { bindings: out, defs, deferred, lambdas, classes };
 }
 
@@ -98,6 +102,8 @@ interface Scope {
   dead?: boolean;
   /** The `if not TYPE_CHECKING:` guards around this statement, which count as running if each guard is provably typing's. */
   guards?: readonly string[];
+  /** Inside a statement that never runs (`if False:`): a binding here does not exist at runtime. */
+  never?: boolean;
 }
 
 const JUMPS = new Set(['raise_statement', 'break_statement', 'continue_statement', 'return_statement']);
@@ -114,15 +120,22 @@ function binder(w: Walker, at: Scope): Bind {
     if (at.globals.has(name)) w.out.push({ scope: '', name, kind, ...extra });
     // `nonlocal f` writes an enclosing function's f; which one is not tracked, so every enclosing scope loses its proof.
     else if (at.nonlocals.has(name)) for (const outer of at.outer) w.out.push({ scope: outer, name, kind: 'other' });
-    else w.out.push({ scope: at.scope, name, kind, ...(unsure && { conditional: true }), ...(!unsure && at.guards && { guards: [...at.guards] }), ...extra });
+    else w.out.push({ scope: at.scope, name, kind, ...(unsure && { conditional: true }), ...(unsure && at.never && { never: true }), ...(!unsure && at.guards && { guards: [...at.guards] }), ...extra });
   };
+}
+
+/** Whether a compound statement's test is a literal that is always falsy: its body never runs. */
+function neverRuns(node: Node): boolean {
+  if (node.type !== 'if_statement' && node.type !== 'while_statement') return false;
+  const test = node.childForFieldName('condition');
+  return test?.type === 'false' || test?.type === 'none' || (test?.type === 'integer' && test.text === '0');
 }
 
 /** The scope a statement runs in: inside a compound statement or after a jump, its bindings are conditional or dead. */
 function childScope(scope: Scope, child: Node, dead: boolean): Scope {
   const guard = COMPOUND.has(child.type) && !scope.conditional ? typeCheckingGuard(child) : undefined;
   if (guard) return { ...scope, guards: [...(scope.guards ?? []), guard], dead };
-  if (COMPOUND.has(child.type) && !scope.conditional) return { ...scope, conditional: true, dead };
+  if (COMPOUND.has(child.type) && !scope.conditional) return { ...scope, conditional: true, dead, ...(neverRuns(child) && { never: true }) };
   return dead === !!scope.dead ? scope : { ...scope, dead };
 }
 
@@ -208,7 +221,15 @@ function bindTypeParameters(w: Walker, own: string, inherited: readonly string[]
 function recordClass(w: Walker, def: Node, id: string): void {
   if (def.type !== 'class_definition') return;
   const superclasses = def.childForFieldName('superclasses');
-  w.classes.push({ id, name: def.childForFieldName('name')?.text ?? '', bases: baseNames(superclasses), members: [], writes: [], ...(hasMetaclass(superclasses) && { metaclass: true }) });
+  w.classes.push({
+    id,
+    name: def.childForFieldName('name')?.text ?? '',
+    bases: baseNames(superclasses),
+    members: [],
+    writes: [],
+    ...(hasMetaclass(superclasses) && { metaclass: true }),
+    ...(opaqueBase(superclasses) && { opaqueBase: true }),
+  });
 }
 
 /** A method's `self.f = …` writes poison the class attribute `f` for member calls, though not for a bare name. */
@@ -216,30 +237,6 @@ function bindAttributeWrites(w: Walker, def: Node, at: Scope): void {
   const body = def.childForFieldName('body');
   if (def.type !== 'function_definition' || !body || at.isFunction || !at.scope) return;
   for (const attr of attributeWrites(body, parameterNames(def.childForFieldName('parameters'))[0])) w.out.push({ scope: at.scope, name: attr, kind: 'other', attr: true });
-}
-
-const TYPING = new Set(['typing', 'typing_extensions']);
-
-/** Whether a guard's `TYPE_CHECKING` is typing's constant: its one binding is the import, and nothing rewrites it. */
-function typingConstant(guard: string, bindings: readonly PyBinding[], imports: readonly Pick<Import, 'spec' | 'names'>[], attrWrites: ReadonlySet<string>): boolean {
-  const [name, attribute] = guard.split('.') as [string, string | undefined];
-  const bound = bindings.filter((b) => b.name === name && !b.attr);
-  const imp = bound.length === 1 && bound[0]!.kind === 'import' && !bound[0]!.dotted && !bound[0]!.scope ? imports[bound[0]!.import!] : undefined;
-  const entry = imp?.names?.find((n) => n.local === name);
-  if (!imp || !entry || !TYPING.has(imp.spec)) return false;
-  return attribute ? entry.imported === '*' && !attrWrites.has('TYPE_CHECKING') : entry.imported === 'TYPE_CHECKING';
-}
-
-/**
- * Settles the `if not TYPE_CHECKING:` guards once the whole file is bound: the body always runs only if every guard names
- * typing's constant. Otherwise `TYPE_CHECKING` is any value, so the bindings under it may never have run.
- */
-export function settleGuards(bindings: PyBinding[], imports: readonly Pick<Import, 'spec' | 'names'>[], attrWrites: ReadonlySet<string>): void {
-  for (const b of bindings) {
-    if (!b.guards) continue;
-    if (!b.guards.every((g) => typingConstant(g, bindings, imports, attrWrites))) b.conditional = true;
-    delete b.guards;
-  }
 }
 
 /** A decorator's return value is what a decorated definition's name binds, so it proves no target. */
@@ -319,28 +316,3 @@ const WRITES: Record<string, string> = {
   as_pattern: 'alias',
   named_expression: 'name',
 };
-
-/**
- * The names a module exports: each name bound once at module scope. A name bound more than once (two branches, an
- * import and a definition, a reassignment) has no provable binding, so it is left out and the list is not complete.
- * A wildcard import, a module `__getattr__` or a run-time module write (`exec`, `globals()[…]`) can add names nobody
- * lists, so `*` makes the list incomplete too and is never an export.
- */
-export function moduleExports(bindings: readonly PyBinding[], wildcard: boolean): ModuleExports {
-  const byName = new Map<string, PyBinding[]>();
-  // A star import, or a write through `globals()`/`exec`, can rebind any module name after the line that defines it:
-  // no name is provable.
-  if (wildcard || bindings.some((b) => b.scope === '' && b.name === '*')) return { names: [], complete: false };
-  for (const b of bindings) if (b.scope === '' && !b.alias && b.name !== '*') byName.set(b.name, [...(byName.get(b.name) ?? []), b]);
-  const names: ModuleExports['names'] = [];
-  let complete = !byName.has('__getattr__');
-  for (const [name, list] of byName) {
-    if (list.length > 1 && !list.every((b) => b.dotted)) {
-      complete = false;
-      continue;
-    }
-    // An import binding names its own local, which the tracer follows through the import that binds it.
-    names.push(list[0]!.kind === 'import' && !list[0]!.dotted ? { name, local: name } : { name });
-  }
-  return { names, complete };
-}

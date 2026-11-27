@@ -1,4 +1,5 @@
 import type { Node } from 'web-tree-sitter';
+import { declareEnum, declareModule, isLocalLiteral, literalValue, markEvals, namespaceBlock, walkCatch, walkFor, type ScopeApi } from './js-scope-extra.js';
 import { aliasName, importNames, isUsing, parameterNames, patternNames, pointOf, startsWithUseStrict, strictFile, writeTargets } from './js-scope-decl.js';
 import { meaningIn, NONE_MEANING, OTHER_MEANING } from './js-scope-mean.js';
 import type { Binding, Scope, ScopeKind } from './js-scope-model.js';
@@ -36,10 +37,7 @@ export class Scopes {
     variable_declaration: (node, scope, strict) => this.declareList(node, scope, 'var', strict),
     internal_module: (node, scope, strict) => this.declareModule(node, scope, strict),
     module: (node, scope, strict) => this.declareModule(node, scope, strict),
-    enum_declaration: (node, scope, strict) => {
-      if (node.childForFieldName('name')) this.add(scope, node.childForFieldName('name')!.text, OTHER);
-      this.children(node, scope, strict);
-    },
+    enum_declaration: (node, scope, strict) => this.declareEnum(node, scope, strict),
     catch_clause: (node, scope, strict) => this.walkCatch(node, scope, strict),
     for_statement: (node, scope, strict) => this.walkFor(node, scope, strict), for_in_statement: (node, scope, strict) => this.walkFor(node, scope, strict),
     switch_body: (node, scope, strict) => this.walkBlock(node, scope, strict),
@@ -53,8 +51,21 @@ export class Scopes {
     const program = this.make('program', root, undefined, strictFile(path, root));
     this.declareValueImports(program, imports);
     this.children(root, program, program.strict);
+    // A sloppy direct `eval` may rebind any name its variable scope and the scopes around it bind.
+    markEvals(root, (node) => this.nearestScope(node), (scope) => this.varScope(scope));
     // Declarations are complete now, so each write can be resolved to the one binding it actually reaches.
     for (const target of writes) this.markWritten(target);
+  }
+
+  /** The three scope-building operations the extracted helpers need. */
+  private scopeApi(): ScopeApi {
+    return {
+      make: (kind, node, parent, strict) => this.make(kind, node, parent, strict),
+      add: (scope, name, binding) => this.add(scope, name, binding),
+      children: (node, scope, strict) => this.children(node, scope, strict),
+      walk: (node, scope, strict) => this.walk(node, scope, strict),
+      varScope: (scope) => this.varScope(scope),
+    };
   }
 
   /** Marks the first binding outward from a write as written; a write to a global marks nothing. */
@@ -79,12 +90,19 @@ export class Scopes {
   meaningAt(node: Node, name: string): JsMeaning {
     if (this.insideWith(node)) return OTHER_MEANING;
     for (let scope = this.nearestScope(node); scope; scope = scope.parent) {
+      // A sloppy eval can rewrite any name this scope binds, or create one in it; its enclosing scopes are as unsafe.
+      if (scope.evalTainted && (scope.decls.has(name) || scope.kind === 'program')) return OTHER_MEANING;
       const meaning = meaningIn(scope, name);
       if (meaning) return meaning;
       if (scope.namespace) return OTHER_MEANING;
       if (scope.kind === 'program') return NONE_MEANING;
     }
     return NONE_MEANING;
+  }
+
+  /** Whether `name` at `node` is one `const` binding of an object literal, array literal or `Object.create(null)`. */
+  isLocalLiteral(node: Node, name: string): boolean {
+    return isLocalLiteral(node, name, (at) => this.nearestScope(at));
   }
 
   /** Whether the node runs in the object environment record of a `with` body, which sits in front of every scope. */
@@ -199,20 +217,16 @@ export class Scopes {
 
   /** A namespace or ambient module body: its members are a scope, and an unbound name there is `other`. */
   private declareModule(node: Node, scope: Scope, strict: boolean): void {
-    const name = node.childForFieldName('name');
-    if (name && name.type !== 'string') {
-      const first = name.type === 'nested_identifier' ? name.namedChildren[0] : name;
-      if (first) this.add(scope, first.text, OTHER);
-    }
-    const body = node.childForFieldName('body');
-    if (body) this.namespaceBlock(body, scope, strict);
+    declareModule(this.scopeApi(), node, scope, strict);
   }
 
   private namespaceBlock(node: Node, scope: Scope, strict: boolean): void {
-    const inner = this.make('block', node, scope, strict);
-    inner.namespace = true;
-    inner.varBoundary = true;
-    this.children(node, inner, strict);
+    namespaceBlock(this.scopeApi(), node, scope, strict);
+  }
+
+  /** An enum body: every member name is bound there for the initializers, and a member is no callable function. */
+  private declareEnum(node: Node, scope: Scope, strict: boolean): void {
+    declareEnum(this.scopeApi(), node, scope, strict);
   }
 
   private walkExport(node: Node, scope: Scope, strict: boolean): void {
@@ -260,7 +274,8 @@ export class Scopes {
       for (const bound of patternNames(name)) this.add(target, bound, OTHER);
     } else if (this.isParameterBinding(target, name.text) || !value || !FUNCTION_VALUES.has(value.type)) {
       const alias = value && !this.isParameterBinding(target, name.text) ? aliasName(value) : undefined;
-      this.add(target, name.text, alias ? { kind: 'other', alias } : OTHER);
+      const literal = kind === 'const' && literalValue(value);
+      this.add(target, name.text, literal ? { kind: 'other', literal: true } : alias ? { kind: 'other', alias } : OTHER);
     } else {
       this.add(target, name.text, { kind: 'def', start: pointOf(node), func: true });
     }
@@ -269,25 +284,11 @@ export class Scopes {
   }
 
   private walkCatch(node: Node, scope: Scope, strict: boolean): void {
-    const inner = this.make('block', node, scope, strict);
-    const parameter = node.childForFieldName('parameter');
-    for (const name of patternNames(parameter)) this.add(inner, name, OTHER);
-    if (parameter) this.children(parameter, inner, strict);
-    const body = node.childForFieldName('body');
-    // The body is an ordinary nested block: a function declared in it is one for Annex B too.
-    if (body) this.walk(body, inner, strict);
+    walkCatch(this.scopeApi(), node, scope, strict);
   }
 
-  /** The head of a `for` is a block scope; `let`/`const` bind there, `var` in the enclosing function. */
   private walkFor(node: Node, scope: Scope, strict: boolean): void {
-    const inner = this.make('block', node, scope, strict);
-    const left = node.childForFieldName('left');
-    const kind = node.childForFieldName('kind');
-    if (left && kind) {
-      const target = kind.type === 'var' ? this.varScope(inner) : inner;
-      for (const name of patternNames(left)) this.add(target, name, OTHER);
-    }
-    this.children(node, inner, strict);
+    walkFor(this.scopeApi(), node, scope, strict);
   }
 
   private walkBlock(node: Node, scope: Scope, strict: boolean, varBoundary = false): void {
