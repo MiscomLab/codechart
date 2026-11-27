@@ -539,3 +539,66 @@ describe('G6/G8: incremental re-index of one file', () => {
     expect(fCall(index)).toMatchObject({ to: 'a.ts::K.f::method', evidence: 'resolved' });
   });
 });
+
+describe('gate 2', () => {
+  // The lines are tsc's declarations of f, written out per case: a duplicate member is listed once per spelling.
+  const dup = (lines: number[]) => () => ({ declLines: lines });
+
+  describe('B1: a quoted member name is the same member (a duplicate stays name-only)', () => {
+    const rows: Row[] = [
+      ['a "f"() next to f()', one('class K {\n  f() { return 1; }\n  "f"() { return 2; }\n  m() { return this.f(); }\n}\n'), ALL, dup([2, 3])],
+      ["a 'f'() next to f()", one("class K {\n  f() { return 1; }\n  'f'() { return 2; }\n  m() { return this.f(); }\n}\n"), ALL, dup([2, 3])],
+      ['a field "f" = () => 2 next to f()', one('class K {\n  f() { return 1; }\n  "f" = () => 2;\n  m() { return this.f(); }\n}\n'), ALL, dup([2, 3])],
+      ['"f"() declared before f()', one('class K {\n  "f"() { return 2; }\n  f() { return 1; }\n  m() { return this.f(); }\n}\n'), ALL, dup([2, 3])],
+      ['get "f"() next to f()', one('class K {\n  f() { return 1; }\n  get "f"() { return 2; }\n  m() { return this.f(); }\n}\n'), ALL, dup([2])],
+    ];
+    it.each(expand(rows))('name-only: %s', async (_label, tree, ext, spec) => {
+      await expectNameOnly(tree, ext, spec);
+    });
+
+    // A quoted name alone is an ordinary member: tsc lists one declaration and core resolves to it.
+    it.each(expand([['a quoted "f"() alone', one('class K {\n  "f"() { return 1; }\n  m() { return this.f(); }\n}\n'), ALL, () => ({ declLine: 2 })]]))('arrow: %s', async (_label, tree, ext) => {
+      await expectArrow(tree, ext, { declLine: 2, target: `a.${ext}::K.f::method` });
+    });
+    // Numeric keys (`1() {} [1]() {}` called as `this[1]()`) are not expressed: the oracle and CallRef name only
+    // identifiers and `a.b` property names, never an element access.
+  });
+
+  describe('B2: a this that is not the class this stays name-only', () => {
+    const noThis: Row[] = [
+      ['a function expression in a method', one('class K {\n  f() {}\n  m() { return [1].map(function () { return this.f(); }); }\n}\n'), ALL, () => ({ caller: '', declarations: 0 })],
+      ['a field function expression', one('class K {\n  f() {}\n  x = function () { return this.f(); };\n}\n'), ALL, () => ({ caller: '', declarations: 0 })],
+      ['a function passed to setTimeout in the constructor', one('class K {\n  f() {}\n  constructor() { setTimeout(function () { this.f(); }); }\n}\n'), ALL, () => ({ caller: '', declarations: 0 })],
+      ['a function in a static block', one('class K {\n  f() {}\n  static { (function () { this.f(); })(); }\n}\n'), ALL, () => ({ caller: '', declarations: 0 })],
+      ['.map(function () { … }, this)', one('class K {\n  f() {}\n  m() { return [1].map(function () { return this.f(); }, this); }\n}\n'), ['js', 'mjs'], () => ({ caller: '', declarations: 0 })],
+      ['an object-literal getter in a method', one('class K {\n  f() {}\n  m() { return { get v() { return this.f(); } }; }\n}\n'), ALL, () => ({ caller: '', declarations: 0 })],
+      ['an object-literal function property in a method', one('class K {\n  f() {}\n  m() { return { run: function () { return this.f(); } }; }\n}\n'), ALL, () => ({ caller: '', declarations: 0 })],
+      // tsc: `this` in an object-literal method is the literal in JS (its own `f: 2`, line 3, not K.f) and implicit any in TS (no symbol).
+      // A getter next to f() lists one declaration (line 2): tsc keeps the method and drops the accessor.
+      ['an object-literal method in a field, the literal has its own f', one('class K {\n  f() { return 1; }\n  g = { f: 2, run() { return this.f(); } };\n}\n'), ALL, (ext) => (ext === 'ts' ? { caller: '', declarations: 0 } : { caller: '', declLines: [3] })],
+    ];
+    it.each(expand(noThis))('name-only: %s', async (_label, tree, ext, spec) => {
+      await expectNameOnly(tree, ext, spec);
+    });
+
+    const arrows: Row[] = [
+      ['an arrow in a method', one('class K {\n  f() {}\n  m() { const h = () => this.f(); return h(); }\n}\n')],
+      ['an arrow inside an arrow in a method', one('class K {\n  f() {}\n  m() { const h = () => () => this.f(); return h; }\n}\n')],
+      ['an arrow in a field initializer', one('class K {\n  f() {}\n  x = () => this.f();\n}\n')],
+    ];
+    it.each(expand(arrows))('arrow: %s', async (_label, tree, ext) => {
+      await expectArrow(tree, ext, { caller: '' });
+    });
+  });
+
+  describe('B3: a write through globalThis names the prototype too', () => {
+    const rows: Row[] = [
+      ["globalThis.Object.defineProperty(K.prototype, 'f', …)", one(`${G}${K}globalThis.Object.defineProperty(K.prototype, 'f', { value: g });\n`)],
+      ["globalThis.Reflect.set(K.prototype, 'f', g)", one(`${G}${K}globalThis.Reflect.set(K.prototype, 'f', g);\n`)],
+      ['globalThis.Object.assign(K.prototype, { f: g })', one(`${G}${K}globalThis.Object.assign(K.prototype, { f: g });\n`)],
+    ];
+    it.each(expand(rows))('name-only: %s', async (_label, tree, ext, spec) => {
+      await expectNameOnly(tree, ext, spec);
+    });
+  });
+});

@@ -67,6 +67,11 @@ describe('generated Python sweep: every resolved call is checked against CPython
     expect(result.harnessErrors, 'site errors outside the scoping set, or core targets that are not symbols').toEqual([]);
   });
 
+  it('pins the printed counts: core resolved calls and the precision cost', () => {
+    expect(result.resolved, 'calls core resolves, all of them checked against CPython').toBe(3024);
+    expect(result.precisionTotal, 'name-only calls although CPython reached a symbol core has').toBe(4004);
+  });
+
   it('resolves only where CPython reaches that symbol', () => {
     const others = result.disagreements.filter((d) => !importTimeLimit(d));
     expect(others.map(describeDisagreement), 'resolved calls CPython does not reach').toEqual([]);
