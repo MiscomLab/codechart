@@ -64,13 +64,13 @@ function definitions(tree: Tree, tags: Query, grammar: Grammar | 'bash'): Omit<D
 
 /**
  * The names of the field initializers a definition sits in below its parent definition: a class expression's method in
- * `x = class { f() {} }` is `K.x.f`, so it never shares an identity with `K.f`; a static block is the segment `static`.
+ * `x = class { f() {} }` is `K.x.f`, so it never shares an identity with `K.f`; a static block is the segment `static{}`, which no identifier or non-literal key can spell.
  */
 function initializerNames(node: Node, parent: Node | undefined): string[] {
   const names: string[] = [];
   for (let current = node.parent; current && current.id !== parent?.id; current = current.parent) {
     if (current.type === 'class_static_block') {
-      names.unshift('static');
+      names.unshift('static{}');
       continue;
     }
     if (current.type !== 'field_definition' && current.type !== 'public_field_definition') continue;

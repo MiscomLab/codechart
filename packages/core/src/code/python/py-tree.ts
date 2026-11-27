@@ -105,12 +105,10 @@ export function mirrorTree(tree: Tree, source: string): { root: PyNode; byId: Re
   // Each cursor read is a call into WASM, so what a node type fixes is read once per type, and a MISSING node (always zero-width) only where one could be.
   const types = new Map<number, { type: string; named: boolean }>();
   const fieldNames = new Map<number, string | null>();
-  let named = true;
   const make = (parent: MirrorNode | null): MirrorNode => {
     const typeId = cursor.nodeTypeId;
     let kind = types.get(typeId);
     if (!kind) types.set(typeId, (kind = { type: cursor.nodeType, named: cursor.nodeIsNamed }));
-    named = kind.named;
     const start = cursor.startIndex;
     const end = cursor.endIndex;
     const node = new MirrorNode(cursor.nodeId, kind.type, start === end && cursor.nodeIsMissing, text, { start, end }, parent);
@@ -130,8 +128,8 @@ export function mirrorTree(tree: Tree, source: string): { root: PyNode; byId: Re
     for (;;) {
       if (down) {
         node = make(node);
-        // An anonymous node is a token, so it has no children to enter.
-        down = named && cursor.gotoFirstChild();
+        // An anonymous node can have children too (`not in` holds an ERROR or a MISSING token), so every node is entered.
+        down = cursor.gotoFirstChild();
         continue;
       }
       // On a leaf: the next sibling, or the next sibling of the nearest ancestor that has one.
