@@ -1,6 +1,6 @@
-import { CONTAINER_BASES } from '../js-types.js';
 import type { ClassInfo } from '../model.js';
 import type { ParsedFile } from '../parse.js';
+import { JsWrites, resolvedBaseWrites } from './js-dispatch.js';
 import { bindingModules, escapeClosure } from './python-escapes.js';
 import { EXTERNAL_MODULE, createTracer, importModule, moduleBindings, modulesNamed, submoduleFile, unresolvedNames, type Tracer } from './trace.js';
 
@@ -25,13 +25,10 @@ export class Dispatch {
   private readonly pythonImportedModules = new Set<string>();
   private readonly pythonImportedFolders = new Set<string>();
   private readonly pythonEscapes = new Set<string>();
-  private readonly jsWrites = new Set<string>();
-  private readonly jsEscapes = new Set<string>();
   private readonly pythonOpaque = new Set<string>();
-  private readonly jsOpaque = new Set<string>();
   private readonly subclassCache = new Map<string, boolean>();
-  /** A class declares an index signature: a `Record`-typed slot can hold one. */
-  private jsRecordUnsafe = false;
+  /** The JS/TS member writes of the repo, by what they can reach. */
+  readonly js: JsWrites;
 
   constructor(private readonly files: Files) {
     for (const parsed of files.values()) if (parsed.file.lang === 'python') this.addSubmoduleImports(parsed);
@@ -41,10 +38,10 @@ export class Dispatch {
     for (const file of escapeClosure(files, this.pythonEscapedModules, trace)) this.addModuleWrite(file, '*');
     for (const infos of this.named.values()) for (const info of infos) this.addExtending(info, trace);
     this.markOpaque();
-    this.markExemptions();
+    this.js = new JsWrites(files);
   }
 
-  /** Indexes one file's classes, writes, module writes and escaped names. */
+  /** Indexes one file's classes and, for Python, its writes, module writes and escaped names. */
   private addFile(parsed: ParsedFile): void {
     const python = parsed.file.lang === 'python';
     for (const info of parsed.classes ?? []) {
@@ -52,12 +49,12 @@ export class Dispatch {
       this.langOf.set(info, parsed.file.lang);
       push(this.named, info.name, info);
     }
-    // A write anywhere rebinds the member on objects of any class: the resolver may only prove a method no code of the
+    if (!python) return;
+    // A write anywhere rebinds the attribute on objects of any class: the resolver may only prove a method no code of the
     // repo replaces. `*` stands for a name no parse could read (a computed one).
-    const written = python ? parsed.attrWrites : parsed.memberWrites;
-    for (const name of written ?? []) (python ? this.pythonWrites : this.jsWrites).add(name);
-    if (python) this.addModuleWrites(parsed);
-    for (const name of parsed.escapes ?? []) (python ? this.pythonEscapes : this.jsEscapes).add(name);
+    for (const name of parsed.attrWrites ?? []) this.pythonWrites.add(name);
+    this.addModuleWrites(parsed);
+    for (const name of parsed.escapes ?? []) this.pythonEscapes.add(name);
   }
 
   /** Puts each class under every base name it extends, resolved through its file's imports and re-exports. */
@@ -82,30 +79,12 @@ export class Dispatch {
     return folder !== undefined && this.pythonImportedFolders.has(folder);
   }
 
-  /** Whether a JS/TS class can sit in a `Record`-typed slot, so that the record exemption proves nothing. */
-  private markExemptions(): void {
-    for (const infos of this.named.values()) {
-      for (const info of infos) {
-        if (this.langOf.get(info) === 'python') continue;
-        if (info.indexSignature) this.jsRecordUnsafe = true;
-      }
-    }
-  }
-
-  /** Whether a container-typed slot can hold an instance of `info`: its own chain names a container or an unknown base. */
-  private containerUnsafe(info: ClassInfo): boolean {
-    // A JS instance has one chain, so only the dispatched class's own ancestors can sit in its container-typed slot.
-    return this.chainSatisfies(info, (found) => !!found.opaqueBase || found.bases.some((base) => CONTAINER_BASES.has(base)));
-  }
-
-  /** Records the names an opaque-base class binds, so any instance could sit in front of a same-named method. */
+  /** Records the names a Python opaque-base class binds, so any instance could sit in front of a same-named method. */
   private markOpaque(): void {
     for (const infos of this.named.values()) {
       for (const info of infos) {
-        const opaque = info.opaqueBase || (this.langOf.get(info) !== 'python' && this.unresolvedBase(info));
-        if (!opaque) continue;
-        const target = this.langOf.get(info) === 'python' ? this.pythonOpaque : this.jsOpaque;
-        for (const member of [...info.members, ...info.writes]) target.add(member);
+        if (this.langOf.get(info) !== 'python' || !info.opaqueBase) continue;
+        for (const member of [...info.members, ...info.writes]) this.pythonOpaque.add(member);
       }
     }
   }
@@ -203,29 +182,6 @@ export class Dispatch {
   }
 
   /**
-   * Whether any JS/TS file of the repo writes the member `member`, or writes a member it cannot name. A typed computed
-   * write (`*record`, `*container`) counts as `*` only when its guard trips: the record one repo-wide, the container
-   * one only when the dispatched class's own chain can hold a container instance. An `*assign` marker counts as `*`
-   * only while a file can give an object an own `__proto__` property (`*ownproto`), which `Object.assign` copies.
-   */
-  jsMemberWritten(member: string, info: ClassInfo): boolean {
-    if (this.jsWrites.has(member) || this.jsWrites.has('*')) return true;
-    if (this.jsWrites.has('*assign') && this.jsWrites.has('*ownproto')) return true;
-    if (this.jsRecordUnsafe && this.jsWrites.has('*record')) return true;
-    return this.jsWrites.has('*container') && this.containerUnsafe(info);
-  }
-
-  /** Whether any JS/TS file reads the method object `member` as a value, or any method object at all (`*`). */
-  jsEscaped(member: string): boolean {
-    return this.jsEscapes.has(member) || this.jsEscapes.has('*');
-  }
-
-  /** Whether any JS/TS class with an opaque base binds `member`: it may sit in front of any class in a prototype chain. */
-  jsOpaqueBound(member: string): boolean {
-    return this.jsOpaque.has(member) || this.jsOpaque.has('*');
-  }
-
-  /**
    * Whether a class that extends `name`, directly or through others, binds `member`; also whether any class in such a
    * subclass's whole base chain, other than `name` and its own ancestors, does. An earlier base in the MRO wins.
    */
@@ -292,9 +248,9 @@ export class Dispatch {
     return typeof found === 'object' && found.binding !== '*' ? found.binding : base;
   }
 
-  /** Whether a JS/TS class's base names no class of the repo, so its real ancestors are unknown. */
-  private unresolvedBase(info: ClassInfo): boolean {
-    return info.bases.some((base) => base && base !== 'object' && !this.classesNamed(base).length);
+  /** Whether a resolved base chain of a JS/TS class writes `member` through `this`; an unresolved base counts for nothing. */
+  jsBaseWrites(info: ClassInfo, member: string): boolean {
+    return resolvedBaseWrites(info, member, (name) => this.classesNamed(name));
   }
 
   /** Whether a class named `name` or one it extends, directly or through others, writes `member`; unresolved bases count. */

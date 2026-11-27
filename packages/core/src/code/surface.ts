@@ -29,7 +29,7 @@ function submodulesOf(file: string, files: ReadonlySet<string>): string[] {
 
 /**
  * What other files can observe: the symbol identities, export bindings, whether the export list is complete, the
- * top-level bindings `from … import` reads, and the class, member-write, escaped-name and submodule indexes call
+ * top-level bindings `from … import` reads, and the class, member-write, prototype-binding, escaped-name and submodule indexes call
  * resolution reads across files. A body or line edit changes none of these.
  */
 export function surface(parsed: ParsedFile, files: ReadonlySet<string>): string {
@@ -37,8 +37,8 @@ export function surface(parsed: ParsedFile, files: ReadonlySet<string>): string 
     parsed.symbols.map((s) => [s.id, s.kind]),
     [parsed.exports.names.map((n) => [n.name, n.local ?? '']), parsed.exports.complete],
     (parsed.bindings ?? []).filter((b) => b.scope === '').map((b) => [b.name, b.kind, !!b.conditional, !!b.dotted, !!b.alias, !!b.never]),
-    (parsed.classes ?? []).map((c) => [c.id ?? '', c.name, c.bases, c.members, c.writes, c.metaclass ?? false, c.opaqueBase ?? false, c.statics ?? [], c.nonCallable ?? [], c.indexSignature ?? false]),
-    [parsed.attrWrites ?? [], parsed.memberWrites ?? [], parsed.moduleWrites ?? [], parsed.escapes ?? []],
+    (parsed.classes ?? []).map((c) => [c.id ?? '', c.name, c.bases, c.members, c.writes, c.metaclass ?? false, c.opaqueBase ?? false, c.statics ?? [], c.nonCallable ?? []]),
+    [parsed.attrWrites ?? [], parsed.memberWrites ?? [], parsed.protoBinds ?? [], parsed.moduleWrites ?? [], parsed.escapes ?? []],
     submodulesOf(parsed.file.path, files),
   ]);
 }

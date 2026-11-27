@@ -90,23 +90,29 @@ function classOwner(file: string, from: CodeSymbol, lookup: SymbolLookup): CodeS
   return classes.sort((a, b) => b.path.length - a.path.length)[0];
 }
 
+/** Whether the call sits where `this` is the constructor: a static method, a static block or a static field initializer. */
+function inStaticContext(info: ClassInfo, from: CodeSymbol, call: CallRef): boolean {
+  if (from.kind === 'method') return info.statics?.includes(from.path.at(-1)!) ?? false;
+  return from.kind === 'class' && (info.staticRanges?.some((range) => inside(call.range.start, range)) ?? false);
+}
+
 /**
  * Whether a `this.name()` in `call` reaches a callable member of the enclosing class: an instance method in an
  * instance context (a constructor, a field, an instance method), a `static` one in a static method, static block or
- * static field. A getter, an abstract member or a signature has no body, and a computed member may be the name, so
- * none of those proves a target.
+ * static field. A getter, an abstract member or a signature has no body, and a computed member whose key is no proven
+ * string or symbol may be the name, so none of those proves a target. A name declared twice is no single target.
  */
-function callableThrough(info: ClassInfo, from: CodeSymbol, call: CallRef): boolean {
-  if (info.members.includes('*') || !info.members.includes(call.name) || info.nonCallable?.includes(call.name)) return false;
-  const fromStatic =
-    from.kind === 'method' ? (info.statics?.includes(from.path.at(-1)!) ?? false) : from.kind === 'class' && (info.staticRanges?.some((range) => inside(call.range.start, range)) ?? false);
+function callableThrough(info: ClassInfo, fromStatic: boolean, call: CallRef): boolean {
+  if (info.members.includes('*') || info.nonCallable?.includes(call.name)) return false;
+  if (info.members.filter((member) => member === call.name).length !== 1) return false;
   return (info.statics?.includes(call.name) ?? false) === fromStatic;
 }
 
 /**
- * `this.name()` to the one method that name in the enclosing class, unless an instance can reach something else: any
- * file of the repo writes the member, a class in the receiver's chain declares or writes it, a class with an opaque
- * base binds it, the enclosing method object escapes, or a base is unresolved.
+ * `this.name()` to the one method of that name in the enclosing class (COD-59 compiler line: what the TypeScript
+ * checker resolves), unless a rebind the source states keeps it name-only: the class or a resolved base writes the
+ * member through `this`, a prototype write anywhere in the repo names it (an instance call), a write on a constructor
+ * or another object names it (a static call), or the member is declared twice or under a computed key.
  */
 function thisTarget(files: Files, call: CallRef, from: CodeSymbol, lookup: SymbolLookup): FoundTarget {
   const file = from.file;
@@ -114,11 +120,10 @@ function thisTarget(files: Files, call: CallRef, from: CodeSymbol, lookup: Symbo
   if (!owner) return undefined;
   const dispatch = dispatchOf(files);
   const info = files.get(file)?.classes?.find((c) => c.id === owner.id);
-  if (!info || dispatch.jsMemberWritten(call.name, info) || dispatch.jsOpaqueBound(call.name)) return undefined;
-  // A method object read as a value elsewhere may be called with another `this`, so nothing in it is provable.
-  if (dispatch.jsEscaped('*') || (from.kind === 'method' && dispatch.jsEscaped(from.path.at(-1)!))) return undefined;
-  if (dispatch.baseWrites(info, call.name) || dispatch.subclassBinds(owner.path.at(-1)!, call.name)) return undefined;
-  if (!callableThrough(info, from, call)) return undefined;
+  if (!info || info.writes.includes(call.name) || dispatch.jsBaseWrites(info, call.name)) return undefined;
+  const fromStatic = inStaticContext(info, from, call);
+  if (!callableThrough(info, fromStatic, call)) return undefined;
+  if (fromStatic ? dispatch.js.staticWritten(call.name) : dispatch.js.instanceWritten(call.name)) return undefined;
   const methods = lookup
     .byName(file, call.name)
     .filter((s) => s.kind === 'method' && s.path.length === owner.path.length + 1 && isPrefix(owner.path, s.path));

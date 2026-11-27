@@ -8,7 +8,8 @@ import { entityGrammarOf, grammarOf, langOf, type EntityGrammar, type PatternGra
 import { extractImports, type ExportName, type ImportSpec, type ModuleExports } from './imports.js';
 import type { JsCallScope, JsScopeReader } from './js-scope.js';
 import { jsScopes } from './js-scope.js';
-import { javascriptClasses, javascriptEscapes, javascriptMemberWrites } from './js-classes.js';
+import { javascriptClasses } from './js-classes.js';
+import { javascriptMemberWrites, javascriptProtoBinds, type MemberWrite, type ProtoBind } from './js-protos.js';
 import type { CallRef, ClassInfo, CodeEntity, CodeRef, CodeSymbol, FileInfo, CodeRange, Import, PatternMatch } from './model.js';
 import { matchPatterns } from './pattern-run.js';
 import type { PatternLimit, PatternSets } from './patterns.js';
@@ -55,8 +56,10 @@ export interface ParsedFile {
   moduleWrites?: ModuleEscape[];
   /** Attribute or member names read as values that could run with another receiver (`*` for any), either language. */
   escapes?: string[];
-  /** Every member name any write of the file rebinds (`x.f =`, `x['f'] =`, `x.f++`), JS/TS only. */
-  memberWrites?: string[];
+  /** Every named member write of the file whose receiver is not `this` (`x.f =`, `x['f'] =`, `x.f++`), JS/TS only. */
+  memberWrites?: MemberWrite[];
+  /** The names the file binds, assigns, exports or keys to a prototype expression or another name, JS/TS only. */
+  protoBinds?: ProtoBind[];
   /** The classes the file defines and what they extend, declare and write, so a call knows what can override a method. */
   classes?: ClassInfo[];
   /** The file edits `sys.path`, so its absolute Python imports have no provable target. Absent for other files. */
@@ -252,19 +255,9 @@ function unlinked(imp: Import): Import {
   return copy;
 }
 
-/** JS/TS only: the classes and the member names its writes rebind, both read from the same tree and scopes. */
-function javascriptIndex(root: Node, symbols: readonly CodeSymbol[], imports: readonly Import[], scopes: JsScopeReader): Required<Pick<ParsedFile, 'classes' | 'memberWrites' | 'escapes'>> {
-  return {
-    classes: javascriptClasses(root, symbols, imports, scopes),
-    memberWrites: javascriptMemberWrites(
-      root,
-      (at, name) => scopes.freshLocal(at, name),
-      (at, name) => scopes.computedExempt(at, name),
-      scopes.typescript,
-      scopes.typeNames,
-    ),
-    escapes: javascriptEscapes(root),
-  };
+/** JS/TS only: the classes, the member writes and the prototype bindings, all read from the same tree and scopes. */
+function javascriptIndex(root: Node, symbols: readonly CodeSymbol[], imports: readonly Import[], scopes: JsScopeReader): Required<Pick<ParsedFile, 'classes' | 'memberWrites' | 'protoBinds'>> {
+  return { classes: javascriptClasses(root, symbols, imports, scopes), memberWrites: javascriptMemberWrites(root), protoBinds: javascriptProtoBinds(root) };
 }
 
 /**

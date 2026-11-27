@@ -1,9 +1,9 @@
 import type { Node } from 'web-tree-sitter';
 import { aliasName, patternNames, unwrapExpression } from './js-scope-decl.js';
-import type { Binding, FreshInit, Scope } from './js-scope-model.js';
-import { exemptKinds, type ExemptKind } from './js-types.js';
+import type { Binding, Scope } from './js-scope-model.js';
+import { literalKey } from './js-writes.js';
 
-/** The scope work that is not a handler: enum bodies, sloppy `eval` taints and fresh locals. */
+/** The scope work that is not a handler: enum bodies, namespaces, `catch` and `for` heads and constant keys. */
 
 const OTHER: Binding = { kind: 'other' };
 
@@ -16,57 +16,24 @@ export interface ScopeApi {
   varScope: (scope: Scope) => Scope;
 }
 
-/** The builtins whose instances start with their own elements and no class in their prototype chain. */
-const FRESH_CONSTRUCTORS = new Set(['Map', 'Set', 'WeakMap', 'WeakSet']);
-
-/** A plain property key's name: the string a quoted key states, else the key's own text. */
-const plainKey = (key: Node | null | undefined): string | undefined =>
-  key?.type === 'string' ? (key.namedChildren.find((child) => child?.type === 'string_fragment')?.text ?? '') : key?.text;
-
-/** Whether an object literal sets its own prototype through a plain `__proto__` key. */
-const setsPrototype = (node: Node): boolean =>
-  node.namedChildren.some((entry) => !!entry && entry.type === 'pair' && entry.childForFieldName('key')?.type !== 'computed_property_name' && plainKey(entry.childForFieldName('key')) === '__proto__');
-
-/** Whether an object or array literal target gives a binding its own elements. */
-const ownsElements = (node: Node | undefined): boolean => node?.type === 'array' || (node?.type === 'object' && !setsPrototype(node));
-
-/** The fresh kind a `new Map`/`Set`/`WeakMap`/`WeakSet` initializer gives, or undefined. */
-function freshNew(node: Node): { kind: FreshInit['kind']; globals: string[] } | undefined {
-  const constructor = node.childForFieldName('constructor');
-  return constructor?.type === 'identifier' && FRESH_CONSTRUCTORS.has(constructor.text) ? { kind: 'literal', globals: [constructor.text] } : undefined;
+/** The constant a `const` initializer proves: a string literal, or a `Symbol()` / `Symbol.for(…)` call. */
+function constantOf(value: Node, declarator: Node): Binding['constant'] {
+  const literal = literalKey(value);
+  if (literal !== undefined) return { key: { kind: 'string', value: literal }, at: declarator };
+  const call = unwrapExpression(value);
+  const fn = call?.type === 'call_expression' ? call.childForFieldName('function') : undefined;
+  const symbol = fn?.type === 'identifier' ? fn.text === 'Symbol' : fn?.type === 'member_expression' && fn.text === 'Symbol.for';
+  return symbol ? { key: { kind: 'symbol' }, at: declarator } : undefined;
 }
 
-/** The fresh kind an `Object.create(null)` or `Object.assign(<fresh literal>, …)` call gives, or undefined. */
-function freshCall(node: Node): { kind: FreshInit['kind']; globals: string[] } | undefined {
-  const fn = node.childForFieldName('function');
-  if (fn?.type !== 'member_expression' || fn.childForFieldName('object')?.text !== 'Object') return undefined;
-  const args = node.childForFieldName('arguments')?.namedChildren ?? [];
-  const property = fn.childForFieldName('property')?.text;
-  if (property === 'create') return args.length === 1 && args[0]?.type === 'null' ? { kind: 'literal', globals: ['Object'] } : undefined;
-  return property === 'assign' && ownsElements(unwrapExpression(args[0])) ? { kind: 'assign', globals: ['Object'] } : undefined;
-}
-
-/** The fresh kind and the builtin names an initializer names, or undefined when the binding may not own its elements. */
-function freshInitializer(value: Node | null | undefined): { kind: FreshInit['kind']; globals: string[] } | undefined {
-  const node = unwrapExpression(value);
-  if (node?.type === 'object') return setsPrototype(node) ? undefined : { kind: 'literal', globals: [] };
-  if (node?.type === 'array') return { kind: 'literal', globals: [] };
-  if (node?.type === 'new_expression') return freshNew(node);
-  return node?.type === 'call_expression' ? freshCall(node) : undefined;
-}
-
-/**
- * What a variable declarator binds: a function value is a `def`, a fresh initializer stays its own, and a TypeScript
- * type annotation records the computed-write exemptions it gives.
- */
-export function variableBinding(node: Node, typescript: boolean, parameter: boolean, declared: ReadonlySet<string>): Binding {
+/** What a variable declarator binds: a name another binding holds, or a `const` string or symbol key. */
+export function variableBinding(node: Node, parameter: boolean, constant: boolean): Binding {
   const value = node.childForFieldName('value');
-  const fresh = parameter ? undefined : freshInitializer(value);
-  const alias = !fresh && value && !parameter ? aliasName(value) : undefined;
-  const exempt = typescript && !fresh ? exemptKinds(node.childForFieldName('type'), declared) : [];
-  if (fresh) return { kind: 'other', fresh: { ...fresh, at: node } };
-  if (alias) return { kind: 'other', alias, ...(exempt.length && { exempt }) };
-  return exempt.length ? { kind: 'other', exempt } : OTHER;
+  if (!value || parameter) return OTHER;
+  const alias = aliasName(value);
+  if (alias) return { kind: 'other', alias };
+  const key = constant ? constantOf(value, node) : undefined;
+  return key ? { kind: 'other', constant: key } : OTHER;
 }
 
 /** An enum body: every member name is bound there for the initializers, and a member is no callable function. */
@@ -126,44 +93,4 @@ export function walkFor(api: ScopeApi, node: Node, scope: Scope, strict: boolean
     for (const name of patternNames(left)) api.add(target, name, OTHER);
   }
   api.children(node, inner, strict);
-}
-
-/** Marks the variable scope of each sloppy direct `eval`, and every scope around it, so their names prove nothing. */
-export function markEvals(root: Node, nearestScope: (node: Node) => Scope | undefined, varScope: (scope: Scope) => Scope): void {
-  const stack: Node[] = [root];
-  while (stack.length) {
-    const node = stack.pop()!;
-    const fn = node.type === 'call_expression' ? node.childForFieldName('function') : undefined;
-    if (fn?.type === 'identifier' && fn.text === 'eval') {
-      const scope = nearestScope(node);
-      if (scope && !scope.strict) for (let owner: Scope | undefined = varScope(scope); owner; owner = owner.parent) owner.evalTainted = true;
-    }
-    for (const child of node.namedChildren) if (child) stack.push(child);
-  }
-}
-
-/** The fresh kind of the one unwritten binding of `name` nearest `node`, when no eval or declaration shadows its builtins. */
-export function freshAt(node: Node, name: string, nearestScope: (node: Node) => Scope | undefined): FreshInit['kind'] | undefined {
-  for (let scope = nearestScope(node); scope; scope = scope.parent) {
-    const entries = scope.decls.get(name);
-    if (!entries) continue;
-    const fresh = entries.length === 1 && !entries[0]!.written ? entries[0]!.fresh : undefined;
-    if (!fresh) return undefined;
-    for (let owner = nearestScope(fresh.at); owner; owner = owner.parent) {
-      // A sloppy direct eval may rebind the name or declare one of the builtins the initializer relies on.
-      if (owner.evalTainted || fresh.globals.some((global) => owner.decls.has(global))) return undefined;
-    }
-    return fresh.kind;
-  }
-  return undefined;
-}
-
-/** The exemption the one binding of `name` nearest `node` declares, when its TypeScript annotation gives one. */
-export function exemptAt(node: Node, name: string, nearestScope: (node: Node) => Scope | undefined): readonly ExemptKind[] | undefined {
-  for (let scope = nearestScope(node); scope; scope = scope.parent) {
-    const entries = scope.decls.get(name);
-    if (!entries) continue;
-    return entries.length === 1 ? entries[0]!.exempt : undefined;
-  }
-  return undefined;
 }

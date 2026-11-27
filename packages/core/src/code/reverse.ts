@@ -1,5 +1,3 @@
-import { CONTAINER_BASES } from './js-types.js';
-import type { ClassInfo, Lang } from './model.js';
 import type { ParsedFile } from './parse.js';
 
 /** Reverse indexes for one snapshot of the code layer (Live map #8). */
@@ -51,13 +49,6 @@ export function nameUsers(index: ReverseIndex, names: Iterable<string>): Set<str
   return files;
 }
 
-/** The `*record`/`*container` markers a class can turn back into `*`, reaching every file with a computed write. */
-function guardNames(info: ClassInfo, lang: Lang | undefined): string[] {
-  if (lang === 'python') return [];
-  const record = info.indexSignature ? ['*record'] : [];
-  return info.opaqueBase || info.bases.some((base) => CONTAINER_BASES.has(base)) ? [...record, '*container'] : record;
-}
-
 /**
  * Every component of each Python import's module path after the first: importing `pkg.sub.mod` rebinds `pkg.sub` and
  * `pkg.sub.mod` on their packages, so files binding `sub` or `mod` must relink. A relative spec names the components
@@ -75,17 +66,18 @@ function importedNames(parsed: ParsedFile): string[] {
 /**
  * The definition, export and member names a file contributes to the name index: a class's members and the members its
  * code writes decide what a member call elsewhere reaches, like the class's own symbols. A Python import's last module
- * name reaches the callers a submodule import can shadow; a class that trips a computed-write guard reaches the files
- * whose `*record`/`*container` marker it can turn back into `*`.
+ * name reaches the callers a submodule import can shadow; a JS/TS file that binds a prototype name (`*proto`) can turn
+ * a plain write elsewhere into a prototype write, so it reaches every file.
  */
 export function namesOf(parsed: ParsedFile | undefined): Set<string> {
   const names = new Set<string>();
   if (!parsed) return names;
   for (const symbol of parsed.symbols) names.add(symbol.path[symbol.path.length - 1]!);
   for (const exported of parsed.exports.names) names.add(exported.name);
-  for (const info of parsed.classes ?? []) for (const name of [...info.members, ...info.writes, ...guardNames(info, parsed.file.lang)]) names.add(name);
+  for (const info of parsed.classes ?? []) for (const name of [...info.members, ...info.writes]) names.add(name);
   for (const name of parsed.attrWrites ?? []) names.add(name);
-  for (const name of parsed.memberWrites ?? []) names.add(name);
+  for (const write of parsed.memberWrites ?? []) names.add(write.name);
+  if (parsed.protoBinds?.length) names.add('*proto');
   for (const write of parsed.moduleWrites ?? []) names.add(write.name);
   for (const name of parsed.escapes ?? []) names.add(name);
   for (const name of importedNames(parsed)) names.add(name);

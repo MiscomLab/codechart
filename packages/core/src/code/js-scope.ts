@@ -1,6 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import { Scopes } from './js-scope-build.js';
-import { declaredTypeNames, type ExemptKind } from './js-types.js';
+import type { ConstantKey } from './js-scope-model.js';
 import type { CodeRange, Import } from './model.js';
 
 /**
@@ -23,25 +23,16 @@ export interface JsCallScope {
 
 /** Reads what a name means at any node of a JS/TS tree, from the file's scopes. */
 export interface JsScopeReader {
-  /** Whether the file is TypeScript, where an annotation is a type tsc checks: a `.js` file's JSDoc never counts. */
-  readonly typescript: boolean;
-  /** The type names the file declares anywhere, which shadow the global lib types of the same name. */
-  readonly typeNames: ReadonlySet<string>;
   meaningAt: (node: Node, name: string) => JsMeaning;
-  /** The fresh initializer the one unwritten binding of `name` nearest `node` has, if any: `literal` or `assign`. */
-  freshLocal: (node: Node, name: string) => 'literal' | 'assign' | undefined;
-  /** The computed-write exemptions the one binding of `name` nearest `node` declares, if any. */
-  computedExempt: (node: Node, name: string) => readonly ExemptKind[] | undefined;
+  /** The string or symbol the one unwritten `const` binding of `name` nearest `node` holds, when its initializer proves one. */
+  constantAt: (node: Node, name: string) => ConstantKey | undefined;
 }
 
 /** Reads what the callee and an identifier receiver mean at any call site of a JS/TS tree. */
 export function jsScopes(root: Node, path: string, imports: readonly Import[]): JsScopeReader {
-  const scopes = new Scopes(root, path, imports, declaredTypeNames(root));
+  const scopes = new Scopes(root, path, imports);
   return {
-    typescript: scopes.typescript,
-    typeNames: scopes.typeNames,
     meaningAt: (node, name) => scopes.meaningAt(node, name),
-    freshLocal: (node, name) => scopes.freshLocal(node, name),
-    computedExempt: (node, name) => scopes.computedExempt(node, name),
+    constantAt: (node, name) => scopes.constantAt(node, name),
   };
 }

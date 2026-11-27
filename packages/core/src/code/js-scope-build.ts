@@ -1,11 +1,9 @@
 import type { Node } from 'web-tree-sitter';
-import { langOf } from './languages.js';
-import { declareEnum, declareModule, exemptAt, freshAt, markEvals, namespaceBlock, variableBinding, walkCatch, walkFor, type ScopeApi } from './js-scope-extra.js';
+import { declareEnum, declareModule, namespaceBlock, variableBinding, walkCatch, walkFor, type ScopeApi } from './js-scope-extra.js';
 import { importNames, isUsing, parameterBindings, patternNames, pointOf, startsWithUseStrict, strictFile, writeTargets } from './js-scope-decl.js';
 import { meaningIn, NONE_MEANING, OTHER_MEANING } from './js-scope-mean.js';
-import type { Binding, FreshInit, Scope, ScopeKind } from './js-scope-model.js';
+import type { Binding, ConstantKey, Scope, ScopeKind } from './js-scope-model.js';
 import type { JsMeaning } from './js-scope.js';
-import type { ExemptKind } from './js-types.js';
 import type { Import } from './model.js';
 
 const OTHER: Binding = { kind: 'other' };
@@ -19,8 +17,6 @@ type Handler = (node: Node, scope: Scope, strict: boolean) => void;
 /** The scopes of one JS/TS file, built once and read per call site. */
 export class Scopes {
   private readonly byNode = new Map<number, Scope>();
-  /** Only a TypeScript file's annotations declare a type tsc checks: a `.js` file's JSDoc never counts. */
-  readonly typescript: boolean;
 
   private readonly handlers: Record<string, Handler> = {
     function_declaration: (node, scope, strict) => this.declaredFunction(node, scope, strict),
@@ -50,14 +46,11 @@ export class Scopes {
     using_declaration: (node, scope, strict) => this.declareList(node, scope, 'const', strict), assignment_expression: (node, scope, strict) => this.walkUsing(node, scope, strict),
   };
 
-  constructor(root: Node, path: string, imports: readonly Import[], readonly typeNames: ReadonlySet<string>) {
-    this.typescript = langOf(path) === 'typescript';
+  constructor(root: Node, path: string, imports: readonly Import[]) {
     const writes = writeTargets(root);
     const program = this.make('program', root, undefined, strictFile(path, root));
     this.declareValueImports(program, imports);
     this.children(root, program, program.strict);
-    // A sloppy direct `eval` may rebind any name its variable scope and the scopes around it bind.
-    markEvals(root, (node) => this.nearestScope(node), (scope) => this.varScope(scope));
     // Declarations are complete now, so each write can be resolved to the one binding it actually reaches.
     for (const target of writes) this.markWritten(target);
   }
@@ -95,8 +88,6 @@ export class Scopes {
   meaningAt(node: Node, name: string): JsMeaning {
     if (this.insideWith(node)) return OTHER_MEANING;
     for (let scope = this.nearestScope(node); scope; scope = scope.parent) {
-      // A sloppy eval can rewrite any name this scope binds, or create one in it; its enclosing scopes are as unsafe.
-      if (scope.evalTainted && (scope.decls.has(name) || scope.kind === 'program')) return OTHER_MEANING;
       const meaning = meaningIn(scope, name);
       if (meaning) return meaning;
       if (scope.namespace) return OTHER_MEANING;
@@ -105,14 +96,16 @@ export class Scopes {
     return NONE_MEANING;
   }
 
-  /** The fresh initializer the one unwritten binding of `name` nearest `node` has, when its builtins are unshadowed. */
-  freshLocal(node: Node, name: string): FreshInit['kind'] | undefined {
-    return freshAt(node, name, (at) => this.nearestScope(at));
-  }
-
-  /** The computed-write exemption the one binding of `name` nearest `node` declares, if any. */
-  computedExempt(node: Node, name: string): readonly ExemptKind[] | undefined {
-    return exemptAt(node, name, (at) => this.nearestScope(at));
+  /** The constant the one unwritten binding of `name` nearest `node` holds; a symbol only while `Symbol` is the global. */
+  constantAt(node: Node, name: string): ConstantKey | undefined {
+    for (let scope = this.nearestScope(node); scope; scope = scope.parent) {
+      const entries = scope.decls.get(name);
+      if (!entries) continue;
+      const constant = entries.length === 1 && !entries[0]!.written ? entries[0]!.constant : undefined;
+      if (!constant) return undefined;
+      return constant.key.kind === 'symbol' && this.meaningAt(constant.at, 'Symbol').kind !== 'none' ? undefined : constant.key;
+    }
+    return undefined;
   }
 
   /** Whether the node runs in the object environment record of a `with` body, which sits in front of every scope. */
@@ -191,7 +184,7 @@ export class Scopes {
     const name = FUNCTION_NAMES.has(node.type) ? node.childForFieldName('name') : undefined;
     const outer = name ? this.nameScope(node, scope, name.text, strict, { kind: 'def', start: pointOf(node), func: true }) : scope;
     const params = this.make('params', node, outer, strict);
-    for (const parameter of parameterBindings(node, this.typescript, this.typeNames)) this.add(params, parameter.name, parameter.exempt ? { kind: 'other', exempt: parameter.exempt } : OTHER);
+    for (const parameter of parameterBindings(node)) this.add(params, parameter, OTHER);
     const list = node.childForFieldName('parameters');
     if (list) this.children(list, params, strict);
     const single = node.childForFieldName('parameter');
@@ -283,7 +276,7 @@ export class Scopes {
     if (name.type !== 'identifier') {
       for (const bound of patternNames(name)) this.add(target, bound, OTHER);
     } else if (this.isParameterBinding(target, name.text) || !value || !FUNCTION_VALUES.has(value.type)) {
-      this.add(target, name.text, variableBinding(node, this.typescript, this.isParameterBinding(target, name.text), this.typeNames));
+      this.add(target, name.text, variableBinding(node, this.isParameterBinding(target, name.text), kind === 'const'));
     } else {
       this.add(target, name.text, { kind: 'def', start: pointOf(node), func: true });
     }
