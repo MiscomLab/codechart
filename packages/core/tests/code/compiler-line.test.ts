@@ -602,3 +602,124 @@ describe('gate 2', () => {
     });
   });
 });
+
+describe('gate 2 round 2', () => {
+  const to = (id: string, caller: string) => (ext: string): Spec => ({ caller, target: `a.${ext}::${id}::method` });
+  /** The expression's own `f` is indexed as `K.m.f` (read from the symbol table), tsc's one declaration is it: resolvedOne. */
+  const own = to('K.m.f', 'K.m.g');
+  const none = (caller: string, extra: Spec = {}) => (): Spec => ({ caller, declarations: 0, ...extra });
+
+  describe('C1: a class expression owns its this', () => {
+    // Core indexes the expression's own f as `K.m.f` (`K.s.f` for the static side): tsc's one declaration is that f.
+    const owned: Row[] = [
+      ['new (class { f() {} g() { this.f() } })()', one('class K {\n  f() {}\n  m() { return new (class { f() {} g() { return this.f(); } })(); }\n}\n'), ALL, own],
+      ['a class expression passed as an argument', one('function mix(c) { return c; }\nclass K {\n  f() {}\n  m() { return mix(class { f() {} g() { return this.f(); } }); }\n}\n'), ALL, own],
+      ['a class expression in an object literal', one('class K {\n  f() {}\n  m() { return { C: class { f() {} g() { return this.f(); } } }; }\n}\n'), ALL, own],
+      ['a const-bound class expression', one('class K {\n  f() {}\n  m() { const C = class { f() {} g() { return this.f(); } }; return C; }\n}\n'), ALL, own],
+      [
+        'the static side of a class expression',
+        one('class K {\n  static f() {}\n  static s() { return class { static f() {} static g() { return this.f(); } }; }\n}\n'),
+        ALL,
+        to('K.s.f', 'K.s.g'),
+      ],
+      // tsc: one declaration, the expression's own f on line 3; core indexes it under the field, `K.x.f`.
+      ['a class expression in a field initializer', one('class K {\n  f() {}\n  x = class { f() {} g() { return this.f(); } };\n}\n'), ALL, to('K.x.f', 'K.x.g')],
+    ];
+    it.each(expand(owned))('arrow to the expression own f: %s', async (_label, tree, ext, spec) => {
+      await expectArrow(tree, ext, spec);
+    });
+
+    // Name-only: the anonymous class has no f (tsc: no symbol).
+    const unindexed: Row[] = [
+      ['an anonymous class without an f', one('class K {\n  f() {}\n  m() { return class { g() { return this.f(); } }; }\n}\n'), ALL, none('K.m.g')],
+    ];
+    it.each(expand(unindexed))('name-only: %s', async (_label, tree, ext, spec) => {
+      await expectNameOnly(tree, ext, spec);
+    });
+  });
+
+  describe('C2: a quoted "constructor" is the constructor, not a method', () => {
+    it.each(['"constructor"', "'constructor'"].flatMap((q) => ALL.map((ext) => [q, ext] as const)))('name-only: this.constructor() with %s (%s)', async (q, ext) => {
+      const file = `a.${ext}`;
+      const repo = await link({ [file]: `class K {\n  ${q}() { return 2; }\n  m() { return this.constructor(); }\n}\n` });
+      const call = callOf(repo, 'constructor', 'K.m', file);
+      const found = tsDeclarationsAt({ ...repo.tree }, file, call.range.start.line, call.range.start.column, 'constructor');
+      expect(found, 'tsc sees the call').toBeDefined();
+      expect(found!.length, 'tsc binds this.constructor to a declaration').toBeGreaterThan(0);
+      expect(found!.map((d) => d.file).filter((f) => f === file), 'tsc declares it in lib, not in K').toEqual([]);
+      expect(call).toMatchObject({ name: 'constructor', evidence: 'name-only' });
+      expect(call).not.toHaveProperty('to');
+    });
+  });
+
+  describe('C3: heritage and class decorators of a nested class bind the enclosing this', () => {
+    it.each(ALL)('a nested class heritage this.f() is K.f (%s)', async (ext) => {
+      await expectArrow({ [`a.${ext}`]: 'class K {\n  f() { return Object; }\n  m() { class B extends (this.f()) { f() {} } return B; }\n}\n' }, ext, { caller: '' });
+    });
+    it('a nested class decorator this.f() is K.f (ts)', async () => {
+      const src = 'function dec(x: any) { return (c: any) => c; }\nclass K {\n  f() { return 1; }\n  m() { @dec(this.f()) class L { f() {} } return L; }\n}\n';
+      await expectArrow({ 'a.ts': src }, 'ts', { caller: '' });
+    });
+    // Safe pin: core keeps a nested class's computed key name-only; tsc binds no symbol for `this.f` in that key (0 declarations).
+    it.each(ALL)('a nested class computed key [this.f()] stays name-only (%s)', async (ext) => {
+      await expectNameOnly({ [`a.${ext}`]: "class K {\n  f() { return 'x'; }\n  m() { class B { [this.f()]() {} } return B; }\n}\n" }, ext, { caller: '', declarations: 0 });
+    });
+  });
+
+  describe('C4: member decorators evaluate in the class enclosing scope', () => {
+    const DEC = 'function dec(x: any) { return (t: any, c: any) => t; }\n';
+    it.each([
+      ['a method decorator', `${DEC}class K {\n  f() { return 1; }\n  @dec(this.f())\n  m() { return 2; }\n}\n`],
+      ['a field decorator', `${DEC}class K {\n  f() { return 1; }\n  @dec(this.f())\n  x = 1;\n}\n`],
+      ['an accessor decorator', `${DEC}class K {\n  f() { return 1; }\n  @dec(this.f())\n  accessor y = 1;\n}\n`],
+    ])('name-only (tsc: no symbol): top-level %s (ts)', async (_label, src) => {
+      await expectNameOnly({ 'a.ts': src }, 'ts', { caller: '', declarations: 0 });
+    });
+    it('a nested class method decorator inside K.m is K.f (ts)', async () => {
+      const src = `${DEC}class K {\n  f() { return 1; }\n  m() { class L { @dec(this.f()) n() {} } return L; }\n}\n`;
+      await expectArrow({ 'a.ts': src }, 'ts', { caller: '' });
+    });
+  });
+
+  describe('C5: escapes in quoted names unquote to the same member', () => {
+    const dupOf = (key: string, name = 'f') => `class K {\n  ${name}() { return 1; }\n  ${key}() { return 2; }\n  m() { return this.${name}(); }\n}\n`;
+    it.each(
+      [
+        ['"\\x66" (an escape of f)', dupOf('"\\x66"'), 'f'],
+        ['"\\u0066" (a unicode escape of f)', dupOf('"\\u0066"'), 'f'],
+        ['"f" (plain)', dupOf('"f"'), 'f'],
+        ['"fg" next to fg()', dupOf('"fg"', 'fg'), 'fg'],
+        ['"\\x66g" next to fg()', dupOf('"\\x66g"', 'fg'), 'fg'],
+      ].flatMap(([label, src, name]) => ALL.map((ext) => [`${label} (${ext})`, src, ext, name] as const)),
+    )('name-only, tsc lists 2: %s', async (_label, src, ext, name) => {
+      await expectNameOnly({ [`a.${ext}`]: src! }, ext, { name, declLines: [2, 3] });
+    });
+  });
+
+  describe('C6: a quoted method in an object literal is not a class member', () => {
+    it.each(ALL)('arrow to K.f (%s)', async (ext) => {
+      await expectArrow({ [`a.${ext}`]: 'class K {\n  f() { return 1; }\n  o = { "f"() { return 2; } };\n  m() { return this.f(); }\n}\n' }, ext, { declLine: 2, target: `a.${ext}::K.f::method` });
+    });
+  });
+
+  describe('C7: globalThis', () => {
+    // A module (export {}) so a local `globalThis` binding is legal.
+    it.each(ALL)('a local const globalThis shadows the global: the write names nothing (%s)', async (ext) => {
+      const src = `export {};\nconst globalThis = { Object: { defineProperty() {} } };\n${K}globalThis.Object.defineProperty(K.prototype, 'f', { value: 1 });\n`;
+      await expectArrow({ [`a.${ext}`]: src }, ext);
+    });
+    // computed-key access to a builtin: accepted blind spot
+    it.each(ALL)("globalThis['Object'].defineProperty(K.prototype, 'f', …) (%s)", async (ext) => {
+      await expectArrow({ [`a.${ext}`]: `${G}${K}globalThis['Object'].defineProperty(K.prototype, 'f', { value: g });\n` }, ext);
+    });
+  });
+
+  describe('C8: precision', () => {
+    it.each(ALL)('#f() next to f(): this.f() is K.f (%s)', async (ext) => {
+      await expectArrow({ [`a.${ext}`]: 'class K {\n  #f() {}\n  f() {}\n  m() { return this.f(); }\n}\n' }, ext, { declLine: 3, target: `a.${ext}::K.f::method` });
+    });
+    it.each(ALL)('static f = () => 1 next to an instance f(): this.f() is the instance method (%s)', async (ext) => {
+      await expectArrow({ [`a.${ext}`]: 'class K {\n  static f = () => 1;\n  f() {}\n  m() { return this.f(); }\n}\n' }, ext, { declLine: 3, target: `a.${ext}::K.f::method` });
+    });
+  });
+});
