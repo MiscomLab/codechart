@@ -36,6 +36,15 @@ const OPTIONS: ts.CompilerOptions = {
 
 const normalize = (path: string): string => path.replace(/\\/g, '/');
 
+/** Lib files are parsed once per run: a program per test would otherwise hold a copy of every lib each. */
+const libFiles = new Map<string, ts.SourceFile | undefined>();
+
+function libFile(base: ts.CompilerHost, fileName: string, languageVersion: ts.ScriptTarget | ts.CreateSourceFileOptions): ts.SourceFile | undefined {
+  const key = fileName;
+  if (!libFiles.has(key)) libFiles.set(key, base.getSourceFile(fileName, languageVersion));
+  return libFiles.get(key);
+}
+
 /** A CompilerHost serving the in-memory tree under `/repo/`, and the real host for lib files. */
 function createHost(tree: Record<string, string>): ts.CompilerHost {
   const base = ts.createCompilerHost(OPTIONS);
@@ -52,7 +61,7 @@ function createHost(tree: Record<string, string>): ts.CompilerHost {
     readFile: (fileName) => textOf(fileName) ?? base.readFile(fileName),
     getSourceFile: (fileName, languageVersion) => {
       const text = textOf(fileName);
-      return text === undefined ? base.getSourceFile(fileName, languageVersion) : ts.createSourceFile(fileName, text, languageVersion, true);
+      return text === undefined ? libFile(base, fileName, languageVersion) : ts.createSourceFile(fileName, text, languageVersion, true);
     },
     writeFile: () => {},
   };
@@ -156,6 +165,24 @@ export function tsCallAt(tree: Record<string, string>, file: string, line: numbe
   const declarations = target?.declarations ?? [];
   const declaration = declarations.find((d) => normalize(d.getSourceFile().fileName) === wanted) ?? declarations[0];
   return { found: true, declaration: declaration && describeDeclaration(declaration) };
+}
+
+/**
+ * EVERY declaration the checker gives the callee of the call at (`line`, `column`) whose written name is `name` (aliases
+ * followed): `[]` for a call with no symbol, `undefined` when no call starts there. A call with one declaration is the
+ * only kind core may resolve; an overload set, a duplicate member or a merged declaration lists several.
+ */
+export function tsDeclarationsAt(tree: Record<string, string>, file: string, line: number, column: number, name: string): TsDeclaration[] | undefined {
+  const program = programOf(tree);
+  const sourceFile = sourceFileOf(program, file);
+  if (!sourceFile) return undefined;
+  const call = callAt(sourceFile, line, column);
+  const node = call && calleeName(call);
+  if (!call || !node || node.text !== name) return undefined;
+  const checker = program.getTypeChecker();
+  const symbol = checker.getSymbolAtLocation(node);
+  const target = symbol && symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
+  return (target?.declarations ?? []).map(describeDeclaration);
 }
 
 /** The declaration the checker binds to the identifier written at (`line`, `column`): a receiver, for example. */
