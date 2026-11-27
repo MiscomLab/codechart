@@ -14,6 +14,8 @@ export interface ModuleValue {
   chain?: string[];
   module?: string;
   current?: boolean;
+  /** A `from`-import of a function: its module is the module it is imported from, or the submodule its name binds. */
+  binding?: boolean;
   /** The call's module name is not a literal: any module. */
   any?: boolean;
 }
@@ -26,6 +28,10 @@ export interface Context {
   imports: readonly StatedImport[];
   /** The scope ids a name at this position is looked up in. */
   scopesAt: (at: CodeRange['start']) => string[];
+  /** Names some scope binds from `from sys import modules`, checked before the per-position scope walk. */
+  sysModuleNames: ReadonlySet<string>;
+  /** Names some scope binds from `from importlib import import_module|__import__`, checked before the per-position scope walk. */
+  importFunctionNames: ReadonlySet<string>;
 }
 
 const IMPORT_STATEMENTS = new Set(['import_statement', 'import_from_statement', 'future_import_statement']);
@@ -40,7 +46,7 @@ const before = (a: CodeRange['start'], b: CodeRange['start']): boolean => a.line
 const inside = (at: CodeRange['start'], range: CodeRange): boolean => !before(at, range.start) && before(at, range.end);
 
 /** A node's start point, for a scope lookup: its row and column, which need no walk of the tree. */
-const startOf = (node: Node): CodeRange['start'] => ({ line: node.startPosition.row + 1, column: node.startPosition.column });
+export const startOf = (node: Node): CodeRange['start'] => ({ line: node.startPosition.row + 1, column: node.startPosition.column });
 
 /** A node with the parentheses around it removed. */
 export function unwrap(node: Node | null | undefined): Node | undefined {
@@ -77,7 +83,7 @@ function scopesAtIn(symbols: readonly CodeSymbol[], at: CodeRange['start']): str
 }
 
 /** Every binding of `name` in the nearest scope that binds it: several may exist (`import a` twice, a fallback assignment). */
-function scopeBindings(bindings: readonly PyBinding[], scopes: readonly string[], name: string): readonly PyBinding[] | undefined {
+export function scopeBindings(bindings: readonly PyBinding[], scopes: readonly string[], name: string): readonly PyBinding[] | undefined {
   for (const scope of scopes) {
     const scoped = bindings.filter((binding) => binding.scope === scope && binding.name === name && !binding.attr && !binding.alias && !binding.inherited);
     if (scoped.length) return scoped;
@@ -91,15 +97,13 @@ function importBindingsAt(context: Context, at: CodeRange['start'], name: string
   return (scoped ?? []).filter((binding) => binding.kind === 'import' && binding.import !== undefined);
 }
 
-/** Whether `name` is bound only by an import of the module `spec` at `at`, so it names that module through the scopes. */
+/** Whether any binding of `name` in scope is an import of the module `spec`: a repeated import or a try/except fallback still names it. */
 function importedAs(context: Context, at: CodeRange['start'], name: string, spec: string, dottedRoot = false): boolean {
-  const scoped = scopeBindings(context.bindings, context.scopesAt(at), name);
-  if (scoped?.length !== 1) return false;
-  const [binding] = scoped as [PyBinding];
-  if (binding.kind !== 'import' || binding.import === undefined) return false;
-  const imp = context.imports[binding.import];
-  if (!imp) return false;
-  return dottedRoot ? imp.spec.split('.')[0] === spec : imp.spec === spec;
+  return !!scopeBindings(context.bindings, context.scopesAt(at), name)?.some((binding) => {
+    if (binding.kind !== 'import' || binding.import === undefined) return false;
+    const imp = context.imports[binding.import];
+    return !!imp && (dottedRoot ? imp.spec.split('.')[0] === spec : imp.spec === spec);
+  });
 }
 
 /** The `a.b.c` chain a node is: its root identifier and the attribute names below it. */
@@ -115,35 +119,55 @@ function chainOf(node: Node): { root: Node; parts: string[] } | undefined {
   return current?.type === 'identifier' ? { root: current, parts } : undefined;
 }
 
-/** Whether a node is a `sys.modules` attribute, with `sys` resolved through the file's import bindings. */
-function isSysModules(node: Node | null | undefined, context: Context): boolean {
-  if (node?.type !== 'attribute') return false;
+/** Whether `name` is bound by a `from sys import modules [as name]` binding at `at`. */
+function fromSysModules(context: Context, at: CodeRange['start'], name: string): boolean {
+  if (!context.sysModuleNames.has(name)) return false;
+  return !!scopeBindings(context.bindings, context.scopesAt(at), name)?.some((binding) => {
+    if (binding.kind !== 'import' || binding.import === undefined) return false;
+    const imp = context.imports[binding.import];
+    return !!imp && imp.spec === 'sys' && (imp.names ?? []).some((n) => n.local === name && n.imported === 'modules');
+  });
+}
+
+/** Whether a node is `sys.modules`, under any binding of `sys`, or a name `from sys import modules` binds. */
+export function isSysModules(node: Node | null | undefined, context: Context): boolean {
+  if (!node) return false;
+  if (node.type === 'identifier') return fromSysModules(context, startOf(node), node.text);
+  if (node.type !== 'attribute') return false;
   const object = node.childForFieldName('object');
-  return object?.type === 'identifier' && object.text === 'sys' && node.childForFieldName('attribute')?.text === 'modules' && importedAs(context, startOf(object), 'sys', 'sys');
+  return object?.type === 'identifier' && node.childForFieldName('attribute')?.text === 'modules' && importedAs(context, startOf(object), object.text, 'sys');
 }
 
-/** Whether `name` is bound once by `from importlib import import_module [as name]`. */
+/** Whether `name` is bound by a `from importlib import import_module|__import__ [as name]` binding at `at`. */
 function fromImportlib(context: Context, at: CodeRange['start'], name: string): boolean {
-  const scoped = scopeBindings(context.bindings, context.scopesAt(at), name);
-  if (scoped?.length !== 1) return false;
-  const [binding] = scoped as [PyBinding];
-  if (binding.kind !== 'import' || binding.import === undefined) return false;
-  const imp = context.imports[binding.import];
-  return !!imp && imp.spec === 'importlib' && (imp.names ?? []).some((n) => n.local === name && n.imported === 'import_module');
+  if (!context.importFunctionNames.has(name)) return false;
+  return !!scopeBindings(context.bindings, context.scopesAt(at), name)?.some((binding) => {
+    if (binding.kind !== 'import' || binding.import === undefined) return false;
+    const imp = context.imports[binding.import];
+    return !!imp && imp.spec === 'importlib' && (imp.names ?? []).some((n) => n.local === name && (n.imported === 'import_module' || n.imported === '__import__'));
+  });
 }
 
-/** Whether a call is the builtin `__import__` or resolves to `importlib.import_module`, through aliases and from-imports. */
+/** Whether a call is the builtin `__import__` or resolves to `importlib.import_module`/`importlib.__import__`, through aliases and from-imports. */
 export function isImportFunction(fn: Node | null | undefined, context: Context): boolean {
   if (!fn) return false;
   const at = startOf(fn);
   if (fn.type === 'identifier') {
-    // A name the scopes bind is not the builtin `__import__`; a from-import of `import_module` names the importlib one.
+    // A name the scopes bind is not the builtin `__import__`; a from-import names the importlib one.
     if (fn.text === '__import__') return !scopeBindings(context.bindings, context.scopesAt(at), fn.text)?.length;
     return fromImportlib(context, at, fn.text);
   }
-  if (fn.type !== 'attribute' || fn.childForFieldName('attribute')?.text !== 'import_module') return false;
+  if (fn.type !== 'attribute') return false;
+  const attribute = fn.childForFieldName('attribute')?.text;
+  if (attribute !== 'import_module' && attribute !== '__import__') return false;
   const object = fn.childForFieldName('object');
   return object?.type === 'identifier' && importedAs(context, at, object.text, 'importlib', true);
+}
+
+/** Whether a node is the unshadowed builtin `name`: no scope binds that name where it is written. */
+export function isBuiltin(context: Context, node: Node | null | undefined, name: string): boolean {
+  const target = unwrap(node);
+  return target?.type === 'identifier' && target.text === name && !scopeBindings(context.bindings, context.scopesAt(startOf(target)), name)?.length;
 }
 
 /** Whether a call names a module at run time: a stated literal name, or a computed one no parse can resolve. */
@@ -172,6 +196,9 @@ function sysModulesValue(node: Node, context: Context): ModuleValue | undefined 
 export function resolveValues(node: Node | null | undefined, context: Context): ModuleValue[] {
   const target = unwrap(node);
   if (!target) return [];
+  // `sys.modules` is read before the attribute branch: it is a module value, not an attribute of the external `sys` import.
+  const named = sysModulesValue(target, context) ?? importCallValue(target, context);
+  if (named) return [named];
   if (target.type === 'identifier') {
     return importBindingsAt(context, startOf(target), target.text).map((binding) => ({
       receiver: binding.name,
@@ -189,8 +216,7 @@ export function resolveValues(node: Node | null | undefined, context: Context): 
       chain: chain.parts,
     }));
   }
-  const named = sysModulesValue(target, context) ?? importCallValue(target, context);
-  return named ? [named] : [];
+  return [];
 }
 
 /** Whether a subscript is `sys.modules[<computed>]`: it can name any module, so the whole any-module set is written. */

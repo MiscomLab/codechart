@@ -1,6 +1,7 @@
 import { CONTAINER_BASES } from '../js-types.js';
 import type { ClassInfo } from '../model.js';
 import type { ParsedFile } from '../parse.js';
+import { bindingModules, escapeClosure } from './python-escapes.js';
 import { EXTERNAL_MODULE, createTracer, importModule, moduleBindings, modulesNamed, submoduleFile, unresolvedNames, type Tracer } from './trace.js';
 
 type Files = ReadonlyMap<string, ParsedFile>;
@@ -18,6 +19,8 @@ export class Dispatch {
   private readonly pythonWrites = new Set<string>();
   private readonly pythonModuleWrites = new Map<string, Set<string>>();
   private readonly pythonAnyModuleWrites = new Set<string>();
+  /** Modules `'*'`-written because they escape, whose reachable modules are written too. */
+  private readonly pythonEscapedModules = new Set<string>();
   /** Every module a Python import anywhere names, and every folder above one, so a submodule a package gains is known. */
   private readonly pythonImportedModules = new Set<string>();
   private readonly pythonImportedFolders = new Set<string>();
@@ -34,6 +37,8 @@ export class Dispatch {
     for (const parsed of files.values()) if (parsed.file.lang === 'python') this.addSubmoduleImports(parsed);
     const trace = createTracer(files);
     for (const parsed of files.values()) this.addFile(parsed);
+    // Every module an escaped module reaches is written too, once every module write of the pass is known.
+    for (const file of escapeClosure(files, this.pythonEscapedModules, trace)) this.addModuleWrite(file, '*');
     for (const infos of this.named.values()) for (const info of infos) this.addExtending(info, trace);
     this.markOpaque();
     this.markExemptions();
@@ -131,13 +136,18 @@ export class Dispatch {
     const modules = moduleBindings(parsed);
     for (const write of parsed.moduleWrites) {
       const files = this.writtenModules(parsed, modules, write);
+      // A module's new `__class__` replaces every attribute, so it is a `*` write.
+      const name = write.name === '__class__' ? '*' : write.name;
       // A write on a module outside the repo (stdlib, site-packages) cannot touch a module here; a value binds no module.
       if (files === undefined) continue;
       if (files === null) {
-        this.pythonAnyModuleWrites.add(write.name);
+        this.pythonAnyModuleWrites.add(name);
         continue;
       }
-      for (const file of files) this.addModuleWrite(file, write.name);
+      for (const file of files) {
+        this.addModuleWrite(file, name);
+        if (write.escaped && name === '*') this.pythonEscapedModules.add(file);
+      }
     }
   }
 
@@ -150,10 +160,9 @@ export class Dispatch {
     // A literal `sys.modules` key names its module like an absolute import; `__name__` is this file.
     if (write.module !== undefined) return modulesNamed(this.files, write.module);
     if (write.current) return [parsed.file.path];
-    if (write.import === undefined) {
-      const file = modules.get(write.receiver);
-      return file === undefined || file === null ? null : file === EXTERNAL_MODULE ? undefined : [file];
-    }
+    // A from-import names the module it imports from, or the submodule its name binds.
+    if (write.binding) return bindingModules(this.files, parsed, write);
+    if (write.import === undefined) return this.boundModules(modules, write.receiver);
     const imp = parsed.imports[write.import];
     if (!imp || imp.status === 'external') return undefined;
     if (imp.status !== 'resolved' || !imp.resolved) {
@@ -169,6 +178,12 @@ export class Dispatch {
     if (!root) return null;
     const file = write.chain?.length ? submoduleFile(this.files, root, write.chain) : root;
     return file === undefined ? undefined : [file];
+  }
+
+  /** The files a module-scope binding names: its module, none for a value, `null` when the name is not provable. */
+  private boundModules(modules: ReadonlyMap<string, string | null>, receiver: string): string[] | null | undefined {
+    const file = modules.get(receiver);
+    return file === undefined || file === null ? null : file === EXTERNAL_MODULE ? undefined : [file];
   }
 
   private addModuleWrite(file: string, name: string): void {

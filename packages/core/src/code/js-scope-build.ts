@@ -50,7 +50,7 @@ export class Scopes {
     using_declaration: (node, scope, strict) => this.declareList(node, scope, 'const', strict), assignment_expression: (node, scope, strict) => this.walkUsing(node, scope, strict),
   };
 
-  constructor(root: Node, path: string, imports: readonly Import[]) {
+  constructor(root: Node, path: string, imports: readonly Import[], readonly typeNames: ReadonlySet<string>) {
     this.typescript = langOf(path) === 'typescript';
     const writes = writeTargets(root);
     const program = this.make('program', root, undefined, strictFile(path, root));
@@ -191,7 +191,7 @@ export class Scopes {
     const name = FUNCTION_NAMES.has(node.type) ? node.childForFieldName('name') : undefined;
     const outer = name ? this.nameScope(node, scope, name.text, strict, { kind: 'def', start: pointOf(node), func: true }) : scope;
     const params = this.make('params', node, outer, strict);
-    for (const parameter of parameterBindings(node, this.typescript)) this.add(params, parameter.name, parameter.exempt ? { kind: 'other', exempt: parameter.exempt } : OTHER);
+    for (const parameter of parameterBindings(node, this.typescript, this.typeNames)) this.add(params, parameter.name, parameter.exempt ? { kind: 'other', exempt: parameter.exempt } : OTHER);
     const list = node.childForFieldName('parameters');
     if (list) this.children(list, params, strict);
     const single = node.childForFieldName('parameter');
@@ -283,7 +283,7 @@ export class Scopes {
     if (name.type !== 'identifier') {
       for (const bound of patternNames(name)) this.add(target, bound, OTHER);
     } else if (this.isParameterBinding(target, name.text) || !value || !FUNCTION_VALUES.has(value.type)) {
-      this.add(target, name.text, variableBinding(kind, node, this.typescript, this.isParameterBinding(target, name.text)));
+      this.add(target, name.text, variableBinding(kind, node, this.typescript, this.isParameterBinding(target, name.text), this.typeNames));
     } else {
       this.add(target, name.text, { kind: 'def', start: pointOf(node), func: true });
     }

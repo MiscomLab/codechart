@@ -21,6 +21,10 @@ export const PYTHON_IMPORTS_QUERY = `
   function: (attribute object: (identifier) @mod attribute: (identifier) @fn)
   (#eq? @mod "importlib")
   (#eq? @fn "import_module")) @dynamic
+(call
+  function: (attribute object: (identifier) @mod attribute: (identifier) @fn)
+  (#eq? @mod "importlib")
+  (#eq? @fn "__import__")) @dynamic
 (call function: (identifier) @fn (#eq? @fn "__import__")) @dynamic
 `;
 

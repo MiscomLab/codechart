@@ -15,14 +15,14 @@ export function patternNames(node: Node | null | undefined): string[] {
 const PATTERNS = new Set(['array_pattern', 'object_pattern', 'rest_pattern', 'parenthesized_expression']);
 
 /** Every name a function-like node's parameters bind, from `formal_parameters` or a lone arrow parameter. */
-export function parameterBindings(node: Node, typescript: boolean): { name: string; exempt?: readonly ExemptKind[] }[] {
+export function parameterBindings(node: Node, typescript: boolean, declared: ReadonlySet<string>): { name: string; exempt?: readonly ExemptKind[] }[] {
   const out: { name: string; exempt?: readonly ExemptKind[] }[] = [];
   for (const parameter of node.childForFieldName('parameters')?.namedChildren ?? []) {
     if (!parameter) continue;
     const typed = parameter.type === 'required_parameter' || parameter.type === 'optional_parameter';
     const pattern = typed ? parameter.childForFieldName('pattern') : parameter;
     // Only a plain identifier's own annotation counts: a destructured parameter declares no single type.
-    const exempt = typed && typescript && pattern?.type === 'identifier' ? exemptKinds(parameter.childForFieldName('type')) : [];
+    const exempt = typed && typescript && pattern?.type === 'identifier' ? exemptKinds(parameter.childForFieldName('type'), declared) : [];
     for (const name of patternNames(pattern)) out.push({ name, ...(exempt.length && { exempt }) });
   }
   for (const name of patternNames(node.childForFieldName('parameter'))) out.push({ name });

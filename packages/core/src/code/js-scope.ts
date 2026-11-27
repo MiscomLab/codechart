@@ -1,6 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import { Scopes } from './js-scope-build.js';
-import type { ExemptKind } from './js-types.js';
+import { declaredTypeNames, type ExemptKind } from './js-types.js';
 import type { CodeRange, Import } from './model.js';
 
 /**
@@ -25,6 +25,8 @@ export interface JsCallScope {
 export interface JsScopeReader {
   /** Whether the file is TypeScript, where an annotation is a type tsc checks: a `.js` file's JSDoc never counts. */
   readonly typescript: boolean;
+  /** The type names the file declares anywhere, which shadow the global lib types of the same name. */
+  readonly typeNames: ReadonlySet<string>;
   meaningAt: (node: Node, name: string) => JsMeaning;
   /** Whether `name` at `node` is one `const` binding of an object/array literal or `Object.create(null)`. */
   isLocalLiteral: (node: Node, name: string) => boolean;
@@ -34,9 +36,10 @@ export interface JsScopeReader {
 
 /** Reads what the callee and an identifier receiver mean at any call site of a JS/TS tree. */
 export function jsScopes(root: Node, path: string, imports: readonly Import[]): JsScopeReader {
-  const scopes = new Scopes(root, path, imports);
+  const scopes = new Scopes(root, path, imports, declaredTypeNames(root));
   return {
     typescript: scopes.typescript,
+    typeNames: scopes.typeNames,
     meaningAt: (node, name) => scopes.meaningAt(node, name),
     isLocalLiteral: (node, name) => scopes.isLocalLiteral(node, name),
     computedExempt: (node, name) => scopes.computedExempt(node, name),

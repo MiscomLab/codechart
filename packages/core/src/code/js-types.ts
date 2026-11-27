@@ -28,13 +28,48 @@ const typeArguments = (node: Node): Node[] => node.childForFieldName('type_argum
 /** Whether a union member is `undefined` or `null`: it adds no exemption but does not spoil one. */
 const nullish = (node: Node): boolean => node.type === 'literal_type' && (node.text === 'undefined' || node.text === 'null');
 
-/** The exemption a `Record<K, V>` or a named container type gives. */
-function genericKinds(node: Node): ExemptKind[] {
+/** The exemption a `Record<K, V>` or a named container type gives, unless the file declares a type of that name. */
+function genericKinds(node: Node, declared: ReadonlySet<string>): ExemptKind[] {
   const name = node.childForFieldName('name');
-  if (name?.type !== 'type_identifier') return [];
+  if (name?.type !== 'type_identifier' || declared.has(name.text)) return [];
   if (CONTAINER_BASES.has(name.text)) return ['container'];
   const args = typeArguments(node);
   return name.text === 'Record' && args.length === 2 && keyType(args[0]) && !anyType(args[1]) ? ['record'] : [];
+}
+
+const TYPE_DECLARATIONS = new Set(['type_alias_declaration', 'interface_declaration', 'class_declaration', 'abstract_class_declaration', 'enum_declaration']);
+
+/** The one name a declaration node of a type, type parameter or module binds, if any. */
+function declaredName(node: Node): string | undefined {
+  if (TYPE_DECLARATIONS.has(node.type) || node.type === 'type_parameter') return node.childForFieldName('name')?.text;
+  if (node.type !== 'internal_module' && node.type !== 'module') return undefined;
+  const name = node.childForFieldName('name') ?? node.namedChildren.find((child) => child?.type === 'identifier');
+  if (!name || name.type === 'string') return undefined;
+  return name.type === 'nested_identifier' ? (name.namedChildren[0]?.text ?? name.text) : name.text;
+}
+
+/** The local names an import node binds: a default, namespace or named import. */
+function importNames(node: Node): string[] {
+  if (node.type === 'import_specifier') {
+    const local = node.childForFieldName('alias') ?? node.childForFieldName('name');
+    return local ? [local.text] : [];
+  }
+  if (node.type !== 'import_clause' && node.type !== 'namespace_import') return [];
+  return node.namedChildren.filter((child) => child?.type === 'identifier').map((child) => child!.text);
+}
+
+/** The names a file declares as types: aliases, interfaces, classes, enums, type parameters, imports and modules. */
+export function declaredTypeNames(root: Node): Set<string> {
+  const names = new Set<string>();
+  const stack: Node[] = [root];
+  while (stack.length) {
+    const node = stack.pop()!;
+    const name = declaredName(node);
+    if (name) names.add(name);
+    for (const imported of importNames(node)) names.add(imported);
+    for (const child of node.namedChildren) if (child) stack.push(child);
+  }
+  return names;
 }
 
 /** The exemption an object type with an index signature gives: tsc assigns an object to it only through the signature. */
@@ -63,6 +98,16 @@ function thisMember(node: Node): Node | undefined {
     if (OWN_FUNCTIONS.has(current.type)) return undefined;
   }
   return undefined;
+}
+
+/** Function values a class field can hold, whose own `this` parameter then replaces the class's `this` type. */
+const FIELD_FUNCTIONS = new Set(['arrow_function', 'function_expression', 'generator_function', 'generator_function_declaration']);
+
+/** Whether a class member's own function — its method, or the function its field holds — declares a `this` parameter. */
+function declaresThis(member: Node): boolean {
+  const value = FIELD_TYPES.has(member.type) ? member.childForFieldName('value') : undefined;
+  const fn = member.type === 'method_definition' ? member : value && FIELD_FUNCTIONS.has(value.type) ? value : undefined;
+  return (fn?.childForFieldName('parameters')?.namedChildren ?? []).some((parameter) => parameter?.type === 'required_parameter' && parameter.childForFieldName('pattern')?.type === 'this');
 }
 
 /** Whether a constructor parameter declares a property: it has an accessibility modifier or `readonly`. */
@@ -95,18 +140,19 @@ function classDeclarations(body: Node, name: string, staticSide: boolean): Node[
 /**
  * The exemptions a `this.x[k]` write gets from the class body's declaration of `x` (COD-59 option B): the body must
  * declare exactly one member named `x` of that static-ness, a field or constructor parameter property, whose type
- * `exemptKinds` accepts. A method, a second declaration or no annotation gives nothing.
+ * `exemptKinds` accepts. A method, a second declaration, no annotation or a member declaring its own `this` gives nothing.
  */
-export function thisFieldKinds(receiver: Node, at: Node): ExemptKind[] {
+export function thisFieldKinds(receiver: Node, at: Node, declared: ReadonlySet<string>): ExemptKind[] {
   const property = receiver.childForFieldName('property');
   if (receiver.type !== 'member_expression' || receiver.childForFieldName('object')?.type !== 'this') return [];
   if (property?.type !== 'property_identifier' && property?.type !== 'private_property_identifier') return [];
   const member = thisMember(at);
   const body = member?.parent;
-  if (!member || body?.type !== 'class_body') return [];
+  // A method (or a function a field holds) with its own `this` parameter replaces the class's `this` type entirely.
+  if (!member || body?.type !== 'class_body' || declaresThis(member)) return [];
   const declarations = classDeclarations(body, property.text, member.type === 'class_static_block' || staticMember(member));
   if (declarations.length !== 1 || declarations[0]!.type === 'method_definition') return [];
-  return exemptKinds(declarations[0]!.childForFieldName('type'));
+  return exemptKinds(declarations[0]!.childForFieldName('type'), declared);
 }
 
 /**
@@ -115,15 +161,15 @@ export function thisFieldKinds(receiver: Node, at: Node): ExemptKind[] {
  * `Map`/`Set`/`WeakMap`/`WeakSet`, `Array<T>`, `T[]` and tuples. A union is exempt when every member is exempt or
  * `undefined`/`null`. Everything else stays strict: `any`, `unknown`, `object`, type references, intersections.
  */
-export function exemptKinds(node: Node | null | undefined): ExemptKind[] {
+export function exemptKinds(node: Node | null | undefined, declared: ReadonlySet<string>): ExemptKind[] {
   const type = typeNode(node);
   if (!type) return [];
   if (type.type === 'union_type') {
     const members = type.namedChildren;
-    if (members.some((member) => !member || (!nullish(member) && !exemptKinds(member).length))) return [];
-    return [...new Set(members.flatMap((member) => (member ? exemptKinds(member) : [])))];
+    if (members.some((member) => !member || (!nullish(member) && !exemptKinds(member, declared).length))) return [];
+    return [...new Set(members.flatMap((member) => (member ? exemptKinds(member, declared) : [])))];
   }
-  if (type.type === 'generic_type') return genericKinds(type);
+  if (type.type === 'generic_type') return genericKinds(type, declared);
   if (type.type === 'object_type') return objectKinds(type);
   return type.type === 'array_type' || type.type === 'tuple_type' ? ['container'] : [];
 }

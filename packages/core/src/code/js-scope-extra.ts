@@ -32,11 +32,11 @@ function literalValue(value: Node | null | undefined): boolean {
  * What a variable declarator binds: a function value is a `def`, a literal stays its own, and a TypeScript type
  * annotation records the computed-write exemptions it gives.
  */
-export function variableBinding(kind: 'const' | 'let' | 'var', node: Node, typescript: boolean, parameter: boolean): Binding {
+export function variableBinding(kind: 'const' | 'let' | 'var', node: Node, typescript: boolean, parameter: boolean, declared: ReadonlySet<string>): Binding {
   const value = node.childForFieldName('value');
   const alias = value && !parameter ? aliasName(value) : undefined;
   const literal = kind === 'const' && literalValue(value);
-  const exempt = typescript && !literal ? exemptKinds(node.childForFieldName('type')) : [];
+  const exempt = typescript && !literal ? exemptKinds(node.childForFieldName('type'), declared) : [];
   if (literal) return { kind: 'other', literal: true };
   if (alias) return { kind: 'other', alias, ...(exempt.length && { exempt }) };
   return exempt.length ? { kind: 'other', exempt } : OTHER;

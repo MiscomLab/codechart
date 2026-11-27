@@ -261,6 +261,7 @@ function javascriptIndex(root: Node, symbols: readonly CodeSymbol[], imports: re
       (at, name) => scopes.isLocalLiteral(at, name),
       (at, name) => scopes.computedExempt(at, name),
       scopes.typescript,
+      scopes.typeNames,
     ),
     escapes: javascriptEscapes(root),
   };

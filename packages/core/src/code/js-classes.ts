@@ -100,10 +100,10 @@ function reflectiveNames(node: Node): string[] {
  * What a computed write's receiver proves: `literal` when it is the write target's own object/array literal,
  * the exemptions a declared type gives, or undefined when the key may name a member.
  */
-function computedReceiver(node: Node, literal: LiteralReceiver, typed?: TypedReceiver, typescript = false): readonly ExemptKind[] | 'literal' | undefined {
+function computedReceiver(node: Node, literal: LiteralReceiver, typed: TypedReceiver | undefined, typescript: boolean, declared: ReadonlySet<string>): readonly ExemptKind[] | 'literal' | undefined {
   const object = inner(node.childForFieldName('object'));
   if (object?.type === 'identifier') return literal(object, object.text) ? 'literal' : typed?.(object, object.text);
-  return object?.type === 'member_expression' && typescript ? thisFieldKinds(object, node) : undefined;
+  return object?.type === 'member_expression' && typescript ? thisFieldKinds(object, node, declared) : undefined;
 }
 
 /**
@@ -115,7 +115,7 @@ function computedReceiver(node: Node, literal: LiteralReceiver, typed?: TypedRec
  * cannot hold a class instance is a `*record`/`*container` marker, which dispatch turns back into `*` only when its
  * repo-wide guard trips.
  */
-function writeNames(root: Node, onlyThis: boolean, literal: LiteralReceiver, typed?: TypedReceiver, typescript = false): string[] {
+function writeNames(root: Node, onlyThis: boolean, literal: LiteralReceiver, typed: TypedReceiver | undefined, typescript: boolean, declared: ReadonlySet<string>): string[] {
   const names: string[] = [];
   const add = (target: Node | null | undefined): void => {
     const node = inner(target);
@@ -125,7 +125,7 @@ function writeNames(root: Node, onlyThis: boolean, literal: LiteralReceiver, typ
       return;
     }
     if (node.type === 'subscript_expression' && stringValue(node.childForFieldName('index')) === undefined) {
-      const exempt = computedReceiver(node, literal, typed, typescript);
+      const exempt = computedReceiver(node, literal, typed, typescript, declared);
       if (exempt === 'literal') return;
       if (exempt?.length) {
         if (!onlyThis) for (const kind of exempt) names.push(`*${kind}`);
@@ -148,8 +148,8 @@ function writeNames(root: Node, onlyThis: boolean, literal: LiteralReceiver, typ
 }
 
 /** Every member name any write of the file rebinds, through `this` or any other object. */
-export function javascriptMemberWrites(root: Node, literal: LiteralReceiver = () => false, typed?: TypedReceiver, typescript = false): string[] {
-  return writeNames(root, false, literal, typed, typescript);
+export function javascriptMemberWrites(root: Node, literal: LiteralReceiver, typed: TypedReceiver | undefined, typescript: boolean, declared: ReadonlySet<string>): string[] {
+  return writeNames(root, false, literal, typed, typescript, declared);
 }
 
 /** The identifiers an `extends` expression names: a plain one through the scopes, the last one of `a.B`, all of `M(B)`. */
@@ -321,7 +321,7 @@ export function javascriptClasses(root: Node, symbols: readonly CodeSymbol[], im
       bases: baseNames(value, (base) => (value ? canonicalBase(base.text, value, scopes, imports) : base.text)),
       ...classMembers(body),
       ...(value && opaqueBase(value) && { opaqueBase: true }),
-      writes: writeNames(body, true, (at, name) => scopes.isLocalLiteral(at, name), undefined, scopes.typescript),
+      writes: writeNames(body, true, (at, name) => scopes.isLocalLiteral(at, name), undefined, scopes.typescript, scopes.typeNames),
     });
   }
   return classes;
