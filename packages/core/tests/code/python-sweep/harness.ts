@@ -108,7 +108,11 @@ function hasSymbolForTag(tag: string, path: string, files: Files): boolean {
   return (files.get(path)?.symbols ?? []).some((symbol) => callableKinds.has(symbol.kind) && symbol.path.join('.') === tag);
 }
 
-/** Links every program with one shared `b.py` and judges each recorded outcome against the call core resolved. */
+/**
+ * Links each program on its own with the shared `b.py`, as record.py runs it (one `exec` per program), and judges each
+ * recorded outcome against the call core resolved. One link pass over all programs would let one program's run-time
+ * effects (an `exec`, a module escaping) reach the others, which CPython never sees.
+ */
 export async function checkAll(programs: readonly Program[], fixture: Fixture): Promise<CheckResult> {
   const tree: Record<string, string> = { 'b.py': programs[0]?.b ?? '' };
   const paths = programs.map((_, index) => {
@@ -119,7 +123,14 @@ export async function checkAll(programs: readonly Program[], fixture: Fixture): 
   const parsed = (await Promise.all(Object.entries(tree).map(([path, text]) => parseCode(path, text)))).filter(
     (file): file is ParsedFile => !!file,
   );
-  const linked = new Map(linkCode(parsed, createResolver(Object.keys(tree), (path) => tree[path])).map((file) => [file.file.path, file]));
+  const shared = parsed.find((file) => file.file.path === 'b.py');
+  const byPath = new Map(parsed.map((file) => [file.file.path, file]));
+  /** The linked files of one program: it and `b.py`, nothing else. */
+  const linkOne = (path: string): Files => {
+    const own = byPath.get(path);
+    const files = [own, shared].filter((file): file is ParsedFile => !!file);
+    return new Map(linkCode(files, createResolver([path, 'b.py'], (p) => tree[p])).map((file) => [file.file.path, file]));
+  };
 
   const result: CheckResult = {
     python: fixture.python,
@@ -158,6 +169,7 @@ export async function checkAll(programs: readonly Program[], fixture: Fixture): 
       continue;
     }
     result.nonSyntax++;
+    const linked = linkOne(path);
     const calls = (linked.get(path)?.calls ?? []).filter((call) => call.name === 'f');
     result.callsFound += calls.length;
     if (calls.length !== 1) {
