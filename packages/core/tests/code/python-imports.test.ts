@@ -150,4 +150,10 @@ describe('an import whose statement holds a syntax error', () => {
   it('keeps the dynamic import when the same operators parse cleanly', async () => {
     expect(await specsOf('import importlib\ny = importlib.import_module("m", a not in b)\n')).toEqual(['importlib', 'm']);
   });
+
+  // 3,000 nested lists parse cleanly; main reads every import here (checked by running this program on main).
+  it('reads every import past a dynamic import with 3,000 nested lists in its arguments', async () => {
+    const text = `import importlib\nm = importlib.import_module("m", ${'['.repeat(3000)}${']'.repeat(3000)})\nfrom n import g\n`;
+    expect(await specsOf(text)).toEqual(['importlib', 'm', 'n']);
+  });
 });

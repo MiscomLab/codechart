@@ -20,6 +20,13 @@ const SOURCES: Record<string, string> = {
   match: 'match x:\n    case 1: pass\n    case [a, *b] if a: pass\n    case {"k": v}: pass\n    case _: pass\n',
   'f-strings': 's = f"{a!r:>{w}} 😀 {b:{c}.{d}}"\nt = f"{x=}"\n',
   'decorators and type params': '@d\nclass K[T](B, metaclass=M): pass\n@e(1)\ndef g[**P, *Ts](a, /, b, *, c): ...\ntype X[T] = list[T]\nlambda: (yield)\n',
+  // The MISSING token is a hidden newline the cursor never visits, so only the real flags of `block` and `module` show it.
+  'error in a hidden token': 'match x\n  case 1: pass\nfrom m import f\n',
+  // An ERROR node whose children carry fields (`subscript`, `operators`): tree-sitter still finds none of them by field.
+  'fields under an ERROR': 'x[ = a,[1]\n',
+  'operators under an ERROR': 'x == a[1]in\n',
+  'deep nesting': `x = ${'['.repeat(3000)}${']'.repeat(3000)}\n`,
+  'deep nesting with an error at the bottom': `x = ${'['.repeat(3000)}1 2${']'.repeat(3000)}\ny = 1\n`,
 };
 
 describe('mirrorTree equals the web-tree-sitter tree', () => {
