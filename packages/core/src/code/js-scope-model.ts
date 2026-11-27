@@ -2,6 +2,16 @@ import type { Node } from 'web-tree-sitter';
 import type { ExemptKind } from './js-types.js';
 import type { CodeRange } from './model.js';
 
+/** A fresh object a single unwritten binding was initialized to. */
+export interface FreshInit {
+  /** `assign` for `Object.assign(<fresh literal>, …)`, which a source's own `__proto__` property can reach; else `literal`. */
+  kind: 'literal' | 'assign';
+  /** The builtins the initializer names, which must be unbound where it sits. */
+  globals: readonly string[];
+  /** The declarator, from which the globals' scopes are read. */
+  at: Node;
+}
+
 /** One declaration of a name in a scope. */
 export interface Binding {
   kind: 'def' | 'import' | 'other';
@@ -13,8 +23,8 @@ export interface Binding {
   written?: boolean;
   /** For `const x = other`: the name whose value `x` holds, followed when a class extends `x`. */
   alias?: string;
-  /** A `const` bound to an object literal, array literal or `Object.create(null)`: its computed writes stay its own. */
-  literal?: boolean;
+  /** An initializer that gives the binding its own fresh object: its computed writes stay its own. */
+  fresh?: FreshInit;
   /** The computed-write exemptions a TypeScript type annotation on the declaration gives. */
   exempt?: readonly ExemptKind[];
 }

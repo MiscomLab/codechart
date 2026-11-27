@@ -205,10 +205,12 @@ export class Dispatch {
   /**
    * Whether any JS/TS file of the repo writes the member `member`, or writes a member it cannot name. A typed computed
    * write (`*record`, `*container`) counts as `*` only when its guard trips: the record one repo-wide, the container
-   * one only when the dispatched class's own chain can hold a container instance.
+   * one only when the dispatched class's own chain can hold a container instance. An `*assign` marker counts as `*`
+   * only while a file can give an object an own `__proto__` property (`*ownproto`), which `Object.assign` copies.
    */
   jsMemberWritten(member: string, info: ClassInfo): boolean {
     if (this.jsWrites.has(member) || this.jsWrites.has('*')) return true;
+    if (this.jsWrites.has('*assign') && this.jsWrites.has('*ownproto')) return true;
     if (this.jsRecordUnsafe && this.jsWrites.has('*record')) return true;
     return this.jsWrites.has('*container') && this.containerUnsafe(info);
   }

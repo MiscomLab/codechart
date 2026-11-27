@@ -1,9 +1,9 @@
 import type { Node } from 'web-tree-sitter';
 import { langOf } from './languages.js';
-import { declareEnum, declareModule, exemptAt, isLocalLiteral, markEvals, namespaceBlock, variableBinding, walkCatch, walkFor, type ScopeApi } from './js-scope-extra.js';
+import { declareEnum, declareModule, exemptAt, freshAt, markEvals, namespaceBlock, variableBinding, walkCatch, walkFor, type ScopeApi } from './js-scope-extra.js';
 import { importNames, isUsing, parameterBindings, patternNames, pointOf, startsWithUseStrict, strictFile, writeTargets } from './js-scope-decl.js';
 import { meaningIn, NONE_MEANING, OTHER_MEANING } from './js-scope-mean.js';
-import type { Binding, Scope, ScopeKind } from './js-scope-model.js';
+import type { Binding, FreshInit, Scope, ScopeKind } from './js-scope-model.js';
 import type { JsMeaning } from './js-scope.js';
 import type { ExemptKind } from './js-types.js';
 import type { Import } from './model.js';
@@ -105,9 +105,9 @@ export class Scopes {
     return NONE_MEANING;
   }
 
-  /** Whether `name` at `node` is one `const` binding of an object literal, array literal or `Object.create(null)`. */
-  isLocalLiteral(node: Node, name: string): boolean {
-    return isLocalLiteral(node, name, (at) => this.nearestScope(at));
+  /** The fresh initializer the one unwritten binding of `name` nearest `node` has, when its builtins are unshadowed. */
+  freshLocal(node: Node, name: string): FreshInit['kind'] | undefined {
+    return freshAt(node, name, (at) => this.nearestScope(at));
   }
 
   /** The computed-write exemption the one binding of `name` nearest `node` declares, if any. */
@@ -283,7 +283,7 @@ export class Scopes {
     if (name.type !== 'identifier') {
       for (const bound of patternNames(name)) this.add(target, bound, OTHER);
     } else if (this.isParameterBinding(target, name.text) || !value || !FUNCTION_VALUES.has(value.type)) {
-      this.add(target, name.text, variableBinding(kind, node, this.typescript, this.isParameterBinding(target, name.text), this.typeNames));
+      this.add(target, name.text, variableBinding(node, this.typescript, this.isParameterBinding(target, name.text), this.typeNames));
     } else {
       this.add(target, name.text, { kind: 'def', start: pointOf(node), func: true });
     }

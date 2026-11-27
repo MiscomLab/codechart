@@ -1,28 +1,14 @@
 import type { Node } from 'web-tree-sitter';
 import type { JsScopeReader } from './js-scope.js';
 import { thisFieldKinds, type ExemptKind } from './js-types.js';
+import { augmentedSafe, builtinCall, inner, keyName, keySafe, ownProtoHazard, stringValue, valueSafe, WRAPPERS } from './js-writes.js';
 import type { ClassInfo, CodeRange, CodeSymbol, Import } from './model.js';
 import { nodeRange } from './tree.js';
-
-/** Expressions a write target may sit behind: a cast or a parenthesized member is still that member. */
-const WRAPPERS = new Set(['parenthesized_expression', 'as_expression', 'satisfies_expression', 'non_null_expression', 'type_assertion']);
 
 /** Destructuring a write target may sit in: `[x.f] = …`, `({ a: x.f } = …)`. */
 const TARGET_PATTERNS = new Set(['array_pattern', 'object_pattern', 'pair_pattern', 'rest_pattern', 'assignment_pattern', 'object_assignment_pattern']);
 
 const FUNCTION_VALUES = new Set(['arrow_function', 'function_expression']);
-
-/** A node with the casts and parentheses around it removed. */
-function inner(node: Node | null | undefined): Node | undefined {
-  if (!node) return undefined;
-  return WRAPPERS.has(node.type) ? inner(node.namedChildren[0]) : node;
-}
-
-/** A plain string literal's text (`'f'` → `f`), or undefined for a key only the run time knows. */
-function stringValue(node: Node | null | undefined): string | undefined {
-  if (node?.type !== 'string') return undefined;
-  return node.namedChildren.find((child) => child?.type === 'string_fragment')?.text ?? node.text.replace(/^['"]|['"]$/g, '');
-}
 
 /** Whether a member or subscript expression's receiver is `this`, through any cast. */
 function onThis(node: Node): boolean {
@@ -39,18 +25,11 @@ function writtenMember(target: Node | null | undefined): string | undefined {
   return undefined;
 }
 
-/** A const binding whose initializer is an object or array literal or `Object.create(null)`: its elements are its own. */
-export type LiteralReceiver = (node: Node, name: string) => boolean;
+/** A binding initialized to a fresh object: `literal` for its own literal/container, `assign` for `Object.assign(…)`. */
+export type FreshReceiver = (node: Node, name: string) => 'literal' | 'assign' | undefined;
 
 /** The exemption a receiver's declared TypeScript type gives a computed write, when it cannot hold a class instance. */
 export type TypedReceiver = (node: Node, name: string) => readonly ExemptKind[] | undefined;
-
-/** The key a property names, `*` when only the run time knows it. */
-function keyName(node: Node | null | undefined): string {
-  if (!node) return '*';
-  if (node.type === 'computed_property_name') return '*';
-  return stringValue(node) ?? node.text.replace(/^#/, '');
-}
 
 /** The keys an object literal binds, or undefined when the value is not one; a spread may add any key. */
 function objectKeys(node: Node | null | undefined): string[] | undefined {
@@ -66,20 +45,10 @@ function objectKeys(node: Node | null | undefined): string[] | undefined {
   return keys;
 }
 
-/** The `Object.fn`/`Reflect.fn` a call applies, when the receiver is one of the two builtins. */
-function builtinCall(node: Node): [string, string] | undefined {
-  const fn = node.childForFieldName('function');
-  if (fn?.type !== 'member_expression') return undefined;
-  const object = fn.childForFieldName('object');
-  const property = fn.childForFieldName('property')?.text;
-  if (object?.type !== 'identifier' || (object.text !== 'Object' && object.text !== 'Reflect') || !property) return undefined;
-  return [object.text, property];
-}
-
-/** The member names `Object.assign` rebinds: its sources' keys, unless its target is a fresh literal that owns them. */
+/** The member names `Object.assign` rebinds: a fresh-literal target owns its keys until the own-`__proto__` guard trips. */
 function assignedNames(args: readonly Node[]): string[] {
   const target = inner(args[0]);
-  return target?.type === 'object' || target?.type === 'array' ? [] : args.slice(1).flatMap((arg) => objectKeys(arg) ?? ['*']);
+  return target?.type === 'object' || target?.type === 'array' ? ['*assign'] : args.slice(1).flatMap((arg) => objectKeys(arg) ?? ['*']);
 }
 
 /** The member names a call rebinds through `Object.defineProperty`/`assign`/`defineProperties` or a `Reflect` write. */
@@ -97,59 +66,77 @@ function reflectiveNames(node: Node): string[] {
 }
 
 /**
- * What a computed write's receiver proves: `literal` when it is the write target's own object/array literal,
- * the exemptions a declared type gives, or undefined when the key may name a member.
+ * What a computed write's receiver proves: a fresh local's kind, the exemptions a declared type gives, or undefined
+ * when the key may name a member.
  */
-function computedReceiver(node: Node, literal: LiteralReceiver, typed: TypedReceiver | undefined, typescript: boolean, declared: ReadonlySet<string>): readonly ExemptKind[] | 'literal' | undefined {
+function computedReceiver(node: Node, fresh: FreshReceiver, typed: TypedReceiver | undefined, typescript: boolean, declared: ReadonlySet<string>): readonly ExemptKind[] | 'literal' | 'assign' | undefined {
   const object = inner(node.childForFieldName('object'));
-  if (object?.type === 'identifier') return literal(object, object.text) ? 'literal' : typed?.(object, object.text);
+  if (object?.type === 'identifier') return fresh(object, object.text) ?? typed?.(object, object.text);
   return object?.type === 'member_expression' && typescript ? thisFieldKinds(object, node, declared) : undefined;
+}
+
+/** One member-write walk: where names go, whether only `this` counts, and the receiver exemptions to read. */
+interface WriteContext {
+  names: string[];
+  onlyThis: boolean;
+  fresh: FreshReceiver;
+  typed: TypedReceiver | undefined;
+  typescript: boolean;
+  declared: ReadonlySet<string>;
+}
+
+/** Records one write target; its value cannot carry a class prototype when `safe`. */
+function addTarget(target: Node | null | undefined, safe: boolean, ctx: WriteContext): void {
+  const node = inner(target);
+  if (!node) return;
+  if (TARGET_PATTERNS.has(node.type)) {
+    for (const child of node.namedChildren) addTarget(child, false, ctx);
+    return;
+  }
+  if (node.type === 'subscript_expression' && stringValue(node.childForFieldName('index')) === undefined) {
+    const exempt = computedReceiver(node, ctx.fresh, ctx.typed, ctx.typescript, ctx.declared);
+    const kind = exempt === 'literal' || exempt === 'assign' ? exempt : undefined;
+    if (kind && (safe || keySafe(node.childForFieldName('index')))) {
+      if (!ctx.onlyThis && kind === 'assign') ctx.names.push('*assign');
+      return;
+    }
+    if (Array.isArray(exempt) && exempt.length) {
+      if (!ctx.onlyThis) for (const exemptKind of exempt) ctx.names.push(`*${exemptKind}`);
+      return;
+    }
+  }
+  const name = writtenMember(node);
+  if (name && (!ctx.onlyThis || onThis(node))) ctx.names.push(name);
 }
 
 /**
  * Every member name the file's writes rebind: `x.f =`, `x.f +=`, `x.f++`, `x['f'] =`, a computed subscript (`*`),
  * inside a destructuring pattern and through a cast; `delete x.f`, `delete x[k]`, and the reflective
  * `Object.defineProperty`/`assign`/`defineProperties` and `Reflect` writes. `onlyThis` keeps the ones written on `this`.
- * A computed subscript on a const object or array literal writes that literal's own elements, never a class member;
- * one on a receiver whose declared TypeScript type — a binding's annotation, or the class field behind `this.x` —
- * cannot hold a class instance is a `*record`/`*container` marker, which dispatch turns back into `*` only when its
- * repo-wide guard trips.
+ * A computed subscript on a fresh local rebinds no class member only when its key cannot be `"__proto__"` or its value
+ * cannot carry a class prototype; a write on an `Object.assign`-initialized one is a `*assign` marker, which dispatch
+ * turns back into `*` only when its repo-wide guard trips. A declared TypeScript type that cannot hold a class instance
+ * is a `*record`/`*container` marker, handled the same way.
  */
-function writeNames(root: Node, onlyThis: boolean, literal: LiteralReceiver, typed: TypedReceiver | undefined, typescript: boolean, declared: ReadonlySet<string>): string[] {
-  const names: string[] = [];
-  const add = (target: Node | null | undefined): void => {
-    const node = inner(target);
-    if (!node) return;
-    if (TARGET_PATTERNS.has(node.type)) {
-      for (const child of node.namedChildren) add(child);
-      return;
-    }
-    if (node.type === 'subscript_expression' && stringValue(node.childForFieldName('index')) === undefined) {
-      const exempt = computedReceiver(node, literal, typed, typescript, declared);
-      if (exempt === 'literal') return;
-      if (exempt?.length) {
-        if (!onlyThis) for (const kind of exempt) names.push(`*${kind}`);
-        return;
-      }
-    }
-    const name = writtenMember(node);
-    if (name && (!onlyThis || onThis(node))) names.push(name);
-  };
+function writeNames(root: Node, onlyThis: boolean, fresh: FreshReceiver, typed: TypedReceiver | undefined, typescript: boolean, declared: ReadonlySet<string>): string[] {
+  const ctx: WriteContext = { names: [], onlyThis, fresh, typed, typescript, declared };
   const visit = (node: Node): void => {
-    if (node.type === 'assignment_expression' || node.type === 'augmented_assignment_expression') add(node.childForFieldName('left'));
-    else if (node.type === 'update_expression') add(node.namedChildren[0]);
-    else if (node.type === 'for_in_statement' && !node.childForFieldName('kind')) add(node.childForFieldName('left'));
-    else if (node.type === 'unary_expression' && node.children.some((child) => child?.type === 'delete')) add(node.namedChildren[0]);
-    else if (node.type === 'call_expression') for (const name of reflectiveNames(node)) names.push(name);
+    if (node.type === 'assignment_expression') addTarget(node.childForFieldName('left'), valueSafe(node.childForFieldName('right')), ctx);
+    else if (node.type === 'augmented_assignment_expression') addTarget(node.childForFieldName('left'), augmentedSafe(node), ctx);
+    else if (node.type === 'update_expression') addTarget(node.namedChildren[0], true, ctx);
+    else if (node.type === 'for_in_statement' && !node.childForFieldName('kind')) addTarget(node.childForFieldName('left'), node.childForFieldName('operator')?.text === 'in', ctx);
+    else if (node.type === 'unary_expression' && node.children.some((child) => child?.type === 'delete')) addTarget(node.namedChildren[0], true, ctx);
+    else if (node.type === 'call_expression') for (const name of reflectiveNames(node)) ctx.names.push(name);
     for (const child of node.namedChildren) if (child) visit(child);
   };
   visit(root);
-  return names;
+  return ctx.names;
 }
 
 /** Every member name any write of the file rebinds, through `this` or any other object. */
-export function javascriptMemberWrites(root: Node, literal: LiteralReceiver, typed: TypedReceiver | undefined, typescript: boolean, declared: ReadonlySet<string>): string[] {
-  return writeNames(root, false, literal, typed, typescript, declared);
+export function javascriptMemberWrites(root: Node, fresh: FreshReceiver, typed: TypedReceiver | undefined, typescript: boolean, declared: ReadonlySet<string>): string[] {
+  const names = writeNames(root, false, fresh, typed, typescript, declared);
+  return ownProtoHazard(root) ? [...names, '*ownproto'] : names;
 }
 
 /** The identifiers an `extends` expression names: a plain one through the scopes, the last one of `a.B`, all of `M(B)`. */
@@ -321,7 +308,7 @@ export function javascriptClasses(root: Node, symbols: readonly CodeSymbol[], im
       bases: baseNames(value, (base) => (value ? canonicalBase(base.text, value, scopes, imports) : base.text)),
       ...classMembers(body),
       ...(value && opaqueBase(value) && { opaqueBase: true }),
-      writes: writeNames(body, true, (at, name) => scopes.isLocalLiteral(at, name), undefined, scopes.typescript, scopes.typeNames),
+      writes: writeNames(body, true, (at, name) => scopes.freshLocal(at, name), undefined, scopes.typescript, scopes.typeNames),
     });
   }
   return classes;

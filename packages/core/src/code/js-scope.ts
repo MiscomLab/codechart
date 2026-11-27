@@ -28,8 +28,8 @@ export interface JsScopeReader {
   /** The type names the file declares anywhere, which shadow the global lib types of the same name. */
   readonly typeNames: ReadonlySet<string>;
   meaningAt: (node: Node, name: string) => JsMeaning;
-  /** Whether `name` at `node` is one `const` binding of an object/array literal or `Object.create(null)`. */
-  isLocalLiteral: (node: Node, name: string) => boolean;
+  /** The fresh initializer the one unwritten binding of `name` nearest `node` has, if any: `literal` or `assign`. */
+  freshLocal: (node: Node, name: string) => 'literal' | 'assign' | undefined;
   /** The computed-write exemptions the one binding of `name` nearest `node` declares, if any. */
   computedExempt: (node: Node, name: string) => readonly ExemptKind[] | undefined;
 }
@@ -41,7 +41,7 @@ export function jsScopes(root: Node, path: string, imports: readonly Import[]): 
     typescript: scopes.typescript,
     typeNames: scopes.typeNames,
     meaningAt: (node, name) => scopes.meaningAt(node, name),
-    isLocalLiteral: (node, name) => scopes.isLocalLiteral(node, name),
+    freshLocal: (node, name) => scopes.freshLocal(node, name),
     computedExempt: (node, name) => scopes.computedExempt(node, name),
   };
 }
