@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { linkFiles } from './scope-helpers.js';
+import { linkFiles, resolvedOne } from './scope-helpers.js';
 
 /**
  * COD-59 round 5, the owner's decision on unannotated locals: a computed write on a local bound once to a fresh
@@ -7,7 +7,9 @@ import { linkFiles } from './scope-helpers.js';
  * reassigned, writes that object's own elements and rebinds no class method. A computed key can be `"__proto__"`, so
  * the write stays exempt only when its key cannot be `"__proto__"` or its value cannot carry a class prototype.
  * Every expectation is name-only (`to` undefined) unless the runtime reaches the symbol core names.
- * Oracle: node 25.3 (`node a.js`); the printed result is in the comment above each.
+ * Oracle: tsc 6.0.3 (the compiler line: `this.f()` has exactly one declaration, `K.f`, and no visible rebind names it;
+ * a computed write, a prototype swap and an own `__proto__` key are accepted blind spots); node 25.3 (`node a.js`)
+ * prints the runtime result in the comment above each.
  */
 
 /** Every call named `name` in `path`, as its resolved target or undefined for name-only. */
@@ -17,6 +19,9 @@ const targets = async (tree: Record<string, string>, path: string, name = 'f'): 
 };
 
 const K = 'class K {\n  f() { return "K.f"; }\n  m() { return this.f(); }\n}\n';
+
+/** tsc's one declaration of `f`: the class method on line 2 of a.js. */
+const METHOD = { kind: 'MethodDeclaration', parentKind: 'ClassDeclaration', file: 'a.js', line: 2 };
 
 /** A local bound to `init`, written through a computed key with a primitive value; the driver never touches a K. */
 const local = (decl: string, init: string): string => `${K}${decl} o = ${init};\nfunction put(k) { o[k] = 1; }\nput("f");\nconsole.log(new K().m());\n`;
@@ -55,7 +60,8 @@ describe('round 5: a computed write on a fresh local rebinds no class method', (
     // Object.assign sets the target's prototype from a source's own "__proto__" property.
     ['Object.assign onto {} from a source with an own __proto__ key', `${K}function merge(a, b) { return Object.assign({}, a, b); }\nconst o = merge({ ["__proto__"]: new K() }, { f: () => "g" });\nconsole.log(o.m());\n`],
     ['a local from Object.assign({}, …) whose source comes from Object.fromEntries', `${K}const src = Object.fromEntries([["__proto__", new K()]]);\nconst o = Object.assign({}, src);\nfunction put(k) { o[k] = () => "g"; }\nput("f");\nconsole.log(o.m());\n`],
-  ])('not exempt: %s', async (_form, src) => {
-    expect(await targets({ 'a.js': src }, 'a.js')).toEqual([undefined]);
+  ])('not exempt: %s resolves to K.f (tsc; the rebind is a blind spot)', async (_form, src) => {
+    // Compiler line: tsc gives this.f() exactly one declaration, K.f.
+    await resolvedOne({ 'a.js': src }, 'a.js', 'a.js::K.f::method', METHOD);
   });
 });

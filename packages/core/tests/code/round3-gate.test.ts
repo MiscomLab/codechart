@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openCodeIndex, type CodeIndex } from '../../src/code/code-index.js';
-import { linkFiles } from './scope-helpers.js';
+import { linkFiles, resolvedOne } from './scope-helpers.js';
 
 /**
  * COD-59 round 3: a module object that escapes as a value, a submodule import from another file, and the owner's
@@ -157,6 +157,8 @@ describe('round 3: a live index re-resolves when another file starts rebinding t
 });
 
 const TS_K = 'class K {\n  f() { return "K.f"; }\n  m() { return this.f(); }\n}\n';
+/** tsc's one declaration of `f`: the class method on line `line` of `file`. */
+const methodAt = (file: string, line = 2) => ({ kind: 'MethodDeclaration', parentKind: 'ClassDeclaration', file, line });
 const TS_K_MAP = 'class K extends Map<string, number> {\n  f() { return "K.f"; }\n  m() { return this.f(); }\n}\n';
 
 /** A computed write through a parameter whose declared type tsc proves cannot hold a K; the driver passes a non-K. */
@@ -198,10 +200,16 @@ describe('round 3: option B, a computed write on a receiver typed as no class in
     // K extends Map, so a Map-typed receiver can be a K.
     ['Map when the class extends Map', open('x: Map<string, number>, k: string, v: unknown', '(x as any)[k] = v', TS_K_MAP)],
     ['an alias of a class type', open('x: T, k: keyof T, v: any', 'x[k] = v', TS_K, 'type T = K;\n')],
+  ])('TS-B not exempt: %s resolves to K.f (tsc; a computed write on it is a blind spot)', async (_form, src) => {
+    // Compiler line: tsc gives this.f() exactly one declaration, K.f; the computed write names no member.
+    await resolvedOne({ 'a.ts': src }, 'a.ts', 'a.ts::K.f::method', methodAt('a.ts'));
+  });
+
+  it('TS-B not exempt: Record when a class declares an index signature resolves to K.f (tsc; a computed write on it is a blind spot)', async () => {
     // A class that declares an index signature is assignable to a Record of that value type.
-    ['Record when a class declares an index signature', open('x: Record<string, unknown>, k: string, v: unknown', 'x[k] = v', TS_K.replace('class K {\n', 'class K {\n  [key: string]: unknown;\n'))],
-  ])('TS-B not exempt: %s', async (_form, src) => {
-    expect(await targets({ 'a.ts': src }, 'a.ts')).toEqual([undefined]);
+    // Compiler line: tsc gives this.f() exactly one declaration, K.f (line 3: the index signature is erased).
+    const src = open('x: Record<string, unknown>, k: string, v: unknown', 'x[k] = v', TS_K.replace('class K {\n', 'class K {\n  [key: string]: unknown;\n'));
+    await resolvedOne({ 'a.ts': src }, 'a.ts', 'a.ts::K.f::method', methodAt('a.ts', 3));
   });
 
   const setWrite = 'function put(x: Set<string>, k: string, v: unknown) { (x as any)[k] = v; }\n';
@@ -217,10 +225,11 @@ describe('round 3: option B, a computed write on a receiver typed as no class in
     expect(await targets({ 'a.ts': src }, 'a.ts')).toEqual(['a.ts::K.f::method']);
   });
 
-  it('TS-B not exempt: the class extends Set through a base', async () => {
+  it('TS-B not exempt: the class extends Set through a base resolves to K.f (tsc; a computed write on it is a blind spot)', async () => {
     // node 25: prints "g"; tsc --strict accepts it (a K is a Set<string>).
     const src = `class B extends Set<string> {}\n${TS_K.replace('class K {', 'class K extends B {')}${setWrite}const k = new K();\nput(k, "f", () => "g");\nconsole.log(k.m());\n`;
-    expect(await targets({ 'a.ts': src }, 'a.ts')).toEqual([undefined]);
+    // Compiler line: tsc gives this.f() exactly one declaration, K.f (line 3: B is declared first).
+    await resolvedOne({ 'a.ts': src }, 'a.ts', 'a.ts::K.f::method', methodAt('a.ts', 3));
   });
 
   it.each([
@@ -242,13 +251,15 @@ describe('round 3: option B, a computed write on a receiver typed as no class in
     ['a field typed any', `${TS_K}class C {\n  t: any;\n  constructor(t: any) { this.t = t; }\n  put(key: string, v: any) { this.t[key] = v; }\n}\nconst k = new K();\nnew C(k).put("f", () => "g");\nconsole.log(k.m());\n`],
     ['a field typed unknown', `${TS_K}class C {\n  t: unknown;\n  constructor(t: unknown) { this.t = t; }\n  put(key: string, v: any) { (this.t as any)[key] = v; }\n}\nconst k = new K();\nnew C(k).put("f", () => "g");\nconsole.log(k.m());\n`],
     ['Object.assign onto a parameter', `${TS_K}function mix(t: object, s: object) { Object.assign(t, s); }\nconst k = new K();\nmix(k, { f: () => "g" });\nconsole.log(k.m());\n`],
-  ])('TS-B not exempt: %s', async (_form, src) => {
-    expect(await targets({ 'a.ts': src }, 'a.ts')).toEqual([undefined]);
+  ])('TS-B not exempt: %s resolves to K.f (tsc; a computed write through it is a blind spot)', async (_form, src) => {
+    // Compiler line: tsc gives this.f() exactly one declaration, K.f; the write names no f on K.
+    await resolvedOne({ 'a.ts': src }, 'a.ts', 'a.ts::K.f::method', methodAt('a.ts'));
   });
 
-  it('TS-B untyped JS stays strict even with a JSDoc type', async () => {
+  it('TS-B untyped JS resolves to K.f even with a JSDoc type (tsc; a computed write is a blind spot)', async () => {
     // node 25: prints "g"; JSDoc is not checked, so put may receive a K.
     const src = 'class K {\n  f() { return "K.f"; }\n  m() { return this.f(); }\n}\n/** @param {Record<string, number>} x */\nfunction put(x, k, v) { x[k] = v; }\nconst k = new K();\nput(k, "f", () => "g");\nconsole.log(k.m());\n';
-    expect(await targets({ 'a.js': src }, 'a.js')).toEqual([undefined]);
+    // Compiler line: tsc gives this.f() exactly one declaration, K.f; JS inference adds no second one.
+    await resolvedOne({ 'a.js': src }, 'a.js', 'a.js::K.f::method', methodAt('a.js'));
   });
 });

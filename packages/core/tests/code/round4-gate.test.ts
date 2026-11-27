@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { linkFiles } from './scope-helpers.js';
+import { linkFiles, resolvedOne } from './scope-helpers.js';
 
 /**
  * COD-59 round 4 (gate on 1160703): a module rebound through any spelling of `sys.modules`, a repeated `importlib`,
@@ -93,14 +93,18 @@ describe('round 4: a package escaping as a value reaches its submodules', () => 
 
 const TS_K = 'class K {\n  f() { return "K.f"; }\n  m() { return this.f(); }\n}\n';
 
+/** tsc's one declaration of `f`: the class method on line 2 of a.ts. */
+const METHOD = { kind: 'MethodDeclaration', parentKind: 'ClassDeclaration', file: 'a.ts', line: 2 };
+
 describe('round 4: option B on a field gives nothing when the method declares its own this', () => {
   it.each([
     // Each form: tsc --strict accepts the program (this.cache is a K, or any); node 25 prints "g".
     ['this typed as an object holding a K', 'put(this: { cache: K }, k: "f", v: any) { this.cache[k] = v; }'],
     ['this typed any', 'put(this: any, k: string, v: any) { this.cache[k] = v; }'],
-  ])('TS-B not exempt: %s', async (_form, method) => {
+  ])('TS-B not exempt: %s resolves to K.f (tsc; a computed write on a field is a blind spot)', async (_form, method) => {
     const src = `${TS_K}class C {\n  cache: Record<string, number> = {};\n  ${method}\n}\nconst k = new K();\nC.prototype.put.call({ cache: k }, "f", () => "g");\nconsole.log(k.m());\n`;
-    expect(await targets({ 'a.ts': src }, 'a.ts')).toEqual([undefined]);
+    // Compiler line: tsc gives this.f() exactly one declaration, K.f; this.cache[k] is a computed write.
+    await resolvedOne({ 'a.ts': src }, 'a.ts', 'a.ts::K.f::method', METHOD);
   });
 
   it.each([
@@ -108,14 +112,16 @@ describe('round 4: option B on a field gives nothing when the method declares it
     ['Map', 'type Map<A, B> = K;', 'Map<string, number>'],
     ['Set', 'type Set<T> = K;', 'Set<string>'],
     ['Record', 'type Record<A, B> = K;', 'Record<string, number>'],
-  ])('TS-B not exempt: a field typed through a local alias named %s', async (_name, alias, type) => {
+  ])('TS-B not exempt: a field typed through a local alias named %s resolves to K.f (tsc; a computed write on a field is a blind spot)', async (_name, alias, type) => {
     const src = `${TS_K}${alias}\nclass C {\n  x: ${type};\n  constructor(x: ${type}) { this.x = x; }\n  put(k: keyof K, v: any) { this.x[k] = v; }\n}\nconst k = new K();\nnew C(k).put("f", () => "g");\nconsole.log(k.m());\n`;
-    expect(await targets({ 'a.ts': src }, 'a.ts')).toEqual([undefined]);
+    // Compiler line: tsc gives this.f() exactly one declaration, K.f; this.x[k] is a computed write.
+    await resolvedOne({ 'a.ts': src }, 'a.ts', 'a.ts::K.f::method', METHOD);
   });
 
-  it('TS-B not exempt: a parameter typed through a local alias named Map', async () => {
+  it('TS-B not exempt: a parameter typed through a local alias named Map resolves to K.f (tsc; a computed write is a blind spot)', async () => {
     // tsc --strict accepts the program; node 25 prints "g".
     const src = `${TS_K}type Map<A, B> = K;\nfunction put(x: Map<string, number>, k: keyof K, v: any) { x[k] = v; }\nconst k = new K();\nput(k, "f", () => "g");\nconsole.log(k.m());\n`;
-    expect(await targets({ 'a.ts': src }, 'a.ts')).toEqual([undefined]);
+    // Compiler line: tsc gives this.f() exactly one declaration, K.f; x[k] is a computed write.
+    await resolvedOne({ 'a.ts': src }, 'a.ts', 'a.ts::K.f::method', METHOD);
   });
 });

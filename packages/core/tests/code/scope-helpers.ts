@@ -3,7 +3,7 @@ import type { CallRef } from '../../src/code/model.js';
 import { parseCode, type ParsedFile } from '../../src/code/parse.js';
 import { linkCode } from '../../src/code/resolve/link.js';
 import { createResolver } from '../../src/code/resolve/resolver.js';
-import { tsDeclarationAt, tsDeclarationOfIdentifier, type TsDeclaration } from './ts-oracle.js';
+import { tsDeclarationAt, tsDeclarationOfIdentifier, tsDeclarationsAt, type TsDeclaration } from './ts-oracle.js';
 
 /** Shared harnesses of the COD-59 scope tests: in-memory linking, call lookup and the TS-checker assertions. */
 
@@ -80,6 +80,15 @@ export function resolved(repo: Repo, name: string, to: string, ts: TsExpect, cal
   expect(found.line).toBeLessThanOrEqual(target!.range.end.line);
   expect(call).toMatchObject({ name, to, evidence: 'resolved' });
   return call;
+}
+
+/** The compiler line: tsc gives the call exactly ONE declaration (`ts`), and the call resolves to that symbol `to`. */
+export async function resolvedOne(tree: Tree, path: string, to: string, ts: TsExpect, caller?: string, name = 'f'): Promise<CallRef> {
+  const repo = await link(tree);
+  const call = callOf(repo, name, caller, path);
+  const declarations = tsDeclarationsAt(tree, path, call.range.start.line, call.range.start.column, name);
+  expect(declarations, `tsc declarations of ${name} in ${path}`).toHaveLength(1);
+  return resolved(repo, name, to, ts, caller, path);
 }
 
 export function unbound(repo: Repo, name: string, caller?: string): CallRef {

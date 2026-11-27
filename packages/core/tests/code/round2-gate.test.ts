@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { linkFiles } from './scope-helpers.js';
+import { linkFiles, resolvedOne } from './scope-helpers.js';
 
 /**
  * COD-59 round 2: the causes the first round's gates did not cover, checked against the runtime that executes each
@@ -130,14 +130,18 @@ describe('round 2: Python dispatch refuses a target the runtime does not reach',
 
 const TS_K = 'export class K {\n  f() { return "K.f"; }\n  m() { return this.f(); }\n}\n';
 
+/** tsc's one declaration of `f`: the class method on line 2 of `file`. */
+const methodAt = (file: string, line = 2) => ({ kind: 'MethodDeclaration', parentKind: 'ClassDeclaration', file, line });
+
 describe('round 2: JS/TS dispatch refuses a target the runtime does not reach', () => {
   it.each([
     // node 25: new L().m() -> "L.f".
     ['a call', "import { K } from './k';\nfunction b() { return K; }\nexport class L extends b() {\n  f() { return 'L.f'; }\n}\n"],
     // node 25: new L().m() -> "L.f".
     ['a subscript', "import { K } from './k';\nconst bs = [K];\nexport class L extends bs[0] {\n  f() { return 'L.f'; }\n}\n"],
-  ])('J1 a class extends %s', async (_form, lText) => {
-    expect(await targets({ 'k.ts': TS_K, 'l.ts': lText }, 'k.ts')).toEqual([undefined]);
+  ])('J1 a class extends %s resolves to K.f (tsc; an unresolved base is a blind spot)', async (_form, lText) => {
+    // Compiler line: tsc gives this.f() exactly one declaration, K.f; the unresolved base writes nothing core can see.
+    await resolvedOne({ 'k.ts': TS_K, 'l.ts': lText }, 'k.ts', 'k.ts::K.f::method', methodAt('k.ts'));
   });
 
   it.each([
@@ -151,13 +155,15 @@ describe('round 2: JS/TS dispatch refuses a target the runtime does not reach', 
     expect(await targets({ 'k.ts': TS_K, 'w.ts': wText }, 'k.ts')).toEqual([undefined]);
   });
 
-  it('J3 a sloppy-mode direct eval in a .js script rebinds the function', async () => {
+  it('J3 a sloppy-mode direct eval in a .js script resolves to f (tsc; direct eval is a blind spot)', async () => {
     // node 25 (.js, sloppy): m() -> 2; the direct eval's assignment replaces the function declaration.
-    expect(
-      await targets({
-        'a.js': "function f() { return 1; }\nfunction m() { eval('f = function () { return 2; };'); return f(); }\nm();\n",
-      }, 'a.js'),
-    ).toEqual([undefined]);
+    // Compiler line: tsc gives f() exactly one declaration, the function f.
+    await resolvedOne(
+      { 'a.js': "function f() { return 1; }\nfunction m() { eval('f = function () { return 2; };'); return f(); }\nm();\n" },
+      'a.js',
+      'a.js::f::function',
+      { kind: 'FunctionDeclaration', parentKind: 'SourceFile', file: 'a.js', line: 1 },
+    );
   });
 
   it.each([
@@ -167,8 +173,9 @@ describe('round 2: JS/TS dispatch refuses a target the runtime does not reach', 
     ['Function.prototype.call', 'class K {\n  f() { return "K.f"; }\n  m() { return this.f(); }\n}\nclass L {\n  f() { return "L.f"; }\n}\n(K.prototype.m as any).call(new L());\n'],
     // node 25: setPrototypeOf(o, K.prototype) keeps o's own f, so o.m() -> "own.f".
     ['Object.setPrototypeOf', 'class K {\n  f() { return "K.f"; }\n  m() { return this.f(); }\n}\nconst o: any = { f: () => "own.f" };\nObject.setPrototypeOf(o, K.prototype);\no.m();\n'],
-  ])('J4 a method receiver escapes through %s', async (_form, aText) => {
-    expect(await targets({ 'a.ts': aText }, 'a.ts')).toEqual([undefined]);
+  ])('J4 a method receiver escapes through %s: this.f() resolves to K.f (tsc; an escaped receiver is a blind spot)', async (_form, aText) => {
+    // Compiler line: tsc gives this.f() exactly one declaration, K.f; K.prototype.m is read, never written.
+    await resolvedOne({ 'a.ts': aText }, 'a.ts', 'a.ts::K.f::method', methodAt('a.ts'));
   });
 
   it('J5 an enum member is visible in a later initializer', async () => {
@@ -189,8 +196,9 @@ describe('round 2: JS/TS dispatch refuses a target the runtime does not reach', 
       'k.ts': TS_K,
       'l.ts': "import { K } from './k';\nconst Base = K as any;\nexport class L extends Base {\n  f() { return 'L.f'; }\n}\n",
     }],
-  ])('J6 a class extends %s', async (_form, tree) => {
-    expect(await targets(tree as Record<string, string>, 'k.ts')).toEqual([undefined]);
+  ])('J6 a class extends %s resolves to K.f (tsc; an alias base is a blind spot)', async (_form, tree) => {
+    // Compiler line: tsc gives this.f() exactly one declaration, K.f; the alias is no write.
+    await resolvedOne(tree as Record<string, string>, 'k.ts', 'k.ts::K.f::method', methodAt('k.ts'));
   });
 });
 

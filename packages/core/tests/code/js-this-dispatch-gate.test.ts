@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { linkFiles, results } from './scope-helpers.js';
+import { linkFiles, resolvedOne, results } from './scope-helpers.js';
 
 /**
  * COD-59 QA gate, round 10: `this.f()` dispatch and class declarations the symbol table holds but the runtime does not.
@@ -21,13 +21,18 @@ describe('gate: this.f() in a class whose base writes this.f is name-only', () =
     ).toEqual([undefined]);
   });
 
-  it('a mixin class expression extends Base and writes this.f', async () => {
+  it('a mixin class expression extends Base and writes this.f: this.f() resolves to C.f (tsc; an unresolved base is a blind spot)', async () => {
     // Runtime: new C().m() === "mixin.attr": the mixin constructor's instance property wins over C.f.
-    expect(
-      await targets({
+    // Unresolved base (a call) is not followed: accepted blind spot, the compiler line.
+    // Compiler line: tsc gives this.f() exactly one declaration, C.f; the only this.f write is in the mixin's class.
+    await resolvedOne(
+      {
         'a.ts': `function Mixin(Base: any) {\n  return class extends Base {\n    constructor(...a: any[]) { super(...a); this.f = () => 'mixin.attr'; }\n  };\n}\nclass B {}\nclass C extends Mixin(B) {\n  f() { return 'C.f'; }\n  m() { return this.f(); }\n}\nconsole.log(new C().m());\n`,
-      }),
-    ).toEqual([undefined]);
+      },
+      'a.ts',
+      'a.ts::C.f::method',
+      { kind: 'MethodDeclaration', parentKind: 'ClassDeclaration', file: 'a.ts', line: 8 },
+    );
   });
 });
 
@@ -108,10 +113,10 @@ describe('gate: the dispatch index is per link pass', () => {
   it('a subclass linked in one pass does not leak into the next', async () => {
     const K = 'class K {\n  f() {}\n  m() {\n    this.f();\n  }\n}\n';
     const alone = await linkFiles({ 'a.ts': K });
-    const withSub = await linkFiles({ 'a.ts': `${K}class L extends K {\n  f() {}\n}\n` });
-    const again = await linkFiles({ 'a.ts': K });
     expect(results(alone, 'f', 'a.ts')).toEqual(['a.ts::K.f::method']);
-    expect(results(withSub, 'f', 'a.ts')).toEqual([undefined]);
+    // Compiler line: tsc gives this.f() exactly one declaration, K.f; L's override is not a rebind.
+    await resolvedOne({ 'a.ts': `${K}class L extends K {\n  f() {}\n}\n` }, 'a.ts', 'a.ts::K.f::method', { kind: 'MethodDeclaration', parentKind: 'ClassDeclaration', file: 'a.ts', line: 2 });
+    const again = await linkFiles({ 'a.ts': K });
     expect(results(again, 'f', 'a.ts')).toEqual(['a.ts::K.f::method']);
   });
 });
