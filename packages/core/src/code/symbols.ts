@@ -1,5 +1,5 @@
 import type { Node, Query, Tree } from 'web-tree-sitter';
-import { decodeString } from './js-writes.js';
+import { decodeString, literalKey, stringValue } from './js-writes.js';
 import type { Grammar } from './languages.js';
 import { SYMBOL_KINDS, symbolId, type CodeSymbol, type CodeRange, type SymbolKind } from './model.js';
 import { errorNodes, nodeRange, touches } from './tree.js';
@@ -70,8 +70,10 @@ function initializerNames(node: Node, parent: Node | undefined): string[] {
   const names: string[] = [];
   for (let current = node.parent; current && current.id !== parent?.id; current = current.parent) {
     if (current.type !== 'field_definition' && current.type !== 'public_field_definition') continue;
-    const name = (current.childForFieldName('name') ?? current.childForFieldName('property'))?.text;
-    if (name && current.childForFieldName('name')?.type !== 'computed_property_name') names.unshift(name);
+    const key = current.childForFieldName('name') ?? current.childForFieldName('property');
+    // A literal key (quoted, escaped, computed from a literal) names the field by its decoded value.
+    const name = key?.type === 'computed_property_name' ? literalKey(key.namedChildren[0]) : key?.type === 'string' ? stringValue(key) : key?.text;
+    if (name) names.unshift(name);
   }
   return names;
 }

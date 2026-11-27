@@ -48,7 +48,18 @@ function decodeEscape(body: string, i: number): [string, number] | undefined {
 
 /** The text a quoted string literal stands for, escapes decoded; undefined when an escape cannot be decoded (a legacy octal). */
 export function decodeString(literal: string): string | undefined {
-  const body = literal.slice(1, -1);
+  return decodeBody(literal.slice(1, -1));
+}
+
+/**
+ * The cooked value of a template without substitutions: a string's escapes, with raw line breaks normalized to `\n`;
+ * undefined where the cooked value is (an octal or `\0` before a digit, a bad `\x` or `\u`).
+ */
+function decodeTemplate(literal: string): string | undefined {
+  return decodeBody(literal.slice(1, -1).replace(/\r\n?/g, '\n'));
+}
+
+function decodeBody(body: string): string | undefined {
   let out = '';
   for (let i = 0; i < body.length; ) {
     if (body[i] !== '\\') out += body[i++];
@@ -71,7 +82,7 @@ export function stringValue(node: Node | null | undefined): string | undefined {
 export function literalKey(node: Node | null | undefined): string | undefined {
   const key = inner(node);
   if (key?.type === 'string') return stringValue(key);
-  return key?.type === 'template_string' && !key.namedChildren.some((child) => child?.type === 'template_substitution') ? key.text.slice(1, -1) : undefined;
+  return key?.type === 'template_string' && !key.namedChildren.some((child) => child?.type === 'template_substitution') ? decodeTemplate(key.text) : undefined;
 }
 
 /** The `Object.fn`/`Reflect.fn` a call applies, when the receiver is one of the two builtins. */
