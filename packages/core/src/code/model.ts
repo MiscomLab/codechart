@@ -40,6 +40,8 @@ export interface ClassInfo {
   statics?: string[];
   /** JS/TS: members whose body is not a callable method (a getter/setter, `abstract`, or a signature). */
   nonCallable?: string[];
+  /** JS/TS: the body declares an index signature, so an instance can sit in a `Record`-typed slot. */
+  indexSignature?: boolean;
   /** JS/TS: ranges where `this` is the constructor (a static block, a static field initializer). */
   staticRanges?: CodeRange[];
 }

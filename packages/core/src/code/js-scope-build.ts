@@ -1,9 +1,11 @@
 import type { Node } from 'web-tree-sitter';
-import { declareEnum, declareModule, isLocalLiteral, literalValue, markEvals, namespaceBlock, walkCatch, walkFor, type ScopeApi } from './js-scope-extra.js';
-import { aliasName, importNames, isUsing, parameterNames, patternNames, pointOf, startsWithUseStrict, strictFile, writeTargets } from './js-scope-decl.js';
+import { langOf } from './languages.js';
+import { declareEnum, declareModule, exemptAt, isLocalLiteral, markEvals, namespaceBlock, variableBinding, walkCatch, walkFor, type ScopeApi } from './js-scope-extra.js';
+import { importNames, isUsing, parameterBindings, patternNames, pointOf, startsWithUseStrict, strictFile, writeTargets } from './js-scope-decl.js';
 import { meaningIn, NONE_MEANING, OTHER_MEANING } from './js-scope-mean.js';
 import type { Binding, Scope, ScopeKind } from './js-scope-model.js';
 import type { JsMeaning } from './js-scope.js';
+import type { ExemptKind } from './js-types.js';
 import type { Import } from './model.js';
 
 const OTHER: Binding = { kind: 'other' };
@@ -17,6 +19,8 @@ type Handler = (node: Node, scope: Scope, strict: boolean) => void;
 /** The scopes of one JS/TS file, built once and read per call site. */
 export class Scopes {
   private readonly byNode = new Map<number, Scope>();
+  /** Only a TypeScript file's annotations declare a type tsc checks: a `.js` file's JSDoc never counts. */
+  private readonly typescript: boolean;
 
   private readonly handlers: Record<string, Handler> = {
     function_declaration: (node, scope, strict) => this.declaredFunction(node, scope, strict),
@@ -47,6 +51,7 @@ export class Scopes {
   };
 
   constructor(root: Node, path: string, imports: readonly Import[]) {
+    this.typescript = langOf(path) === 'typescript';
     const writes = writeTargets(root);
     const program = this.make('program', root, undefined, strictFile(path, root));
     this.declareValueImports(program, imports);
@@ -103,6 +108,11 @@ export class Scopes {
   /** Whether `name` at `node` is one `const` binding of an object literal, array literal or `Object.create(null)`. */
   isLocalLiteral(node: Node, name: string): boolean {
     return isLocalLiteral(node, name, (at) => this.nearestScope(at));
+  }
+
+  /** The computed-write exemption the one binding of `name` nearest `node` declares, if any. */
+  computedExempt(node: Node, name: string): readonly ExemptKind[] | undefined {
+    return exemptAt(node, name, (at) => this.nearestScope(at));
   }
 
   /** Whether the node runs in the object environment record of a `with` body, which sits in front of every scope. */
@@ -181,7 +191,7 @@ export class Scopes {
     const name = FUNCTION_NAMES.has(node.type) ? node.childForFieldName('name') : undefined;
     const outer = name ? this.nameScope(node, scope, name.text, strict, { kind: 'def', start: pointOf(node), func: true }) : scope;
     const params = this.make('params', node, outer, strict);
-    for (const parameter of parameterNames(node)) this.add(params, parameter, OTHER);
+    for (const parameter of parameterBindings(node, this.typescript)) this.add(params, parameter.name, parameter.exempt ? { kind: 'other', exempt: parameter.exempt } : OTHER);
     const list = node.childForFieldName('parameters');
     if (list) this.children(list, params, strict);
     const single = node.childForFieldName('parameter');
@@ -273,9 +283,7 @@ export class Scopes {
     if (name.type !== 'identifier') {
       for (const bound of patternNames(name)) this.add(target, bound, OTHER);
     } else if (this.isParameterBinding(target, name.text) || !value || !FUNCTION_VALUES.has(value.type)) {
-      const alias = value && !this.isParameterBinding(target, name.text) ? aliasName(value) : undefined;
-      const literal = kind === 'const' && literalValue(value);
-      this.add(target, name.text, literal ? { kind: 'other', literal: true } : alias ? { kind: 'other', alias } : OTHER);
+      this.add(target, name.text, variableBinding(kind, node, this.typescript, this.isParameterBinding(target, name.text)));
     } else {
       this.add(target, name.text, { kind: 'def', start: pointOf(node), func: true });
     }

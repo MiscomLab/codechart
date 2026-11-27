@@ -1,4 +1,5 @@
 import type { Node } from 'web-tree-sitter';
+import type { ExemptKind } from './js-types.js';
 import type { CodeRange } from './model.js';
 
 /** One declaration of a name in a scope. */
@@ -14,6 +15,8 @@ export interface Binding {
   alias?: string;
   /** A `const` bound to an object literal, array literal or `Object.create(null)`: its computed writes stay its own. */
   literal?: boolean;
+  /** The computed-write exemptions a TypeScript type annotation on the declaration gives. */
+  exempt?: readonly ExemptKind[];
 }
 
 export type ScopeKind = 'program' | 'function' | 'params' | 'name' | 'block';

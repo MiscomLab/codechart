@@ -37,7 +37,7 @@ export function surface(parsed: ParsedFile, files: ReadonlySet<string>): string 
     parsed.symbols.map((s) => [s.id, s.kind]),
     [parsed.exports.names.map((n) => [n.name, n.local ?? '']), parsed.exports.complete],
     (parsed.bindings ?? []).filter((b) => b.scope === '').map((b) => [b.name, b.kind, !!b.conditional, !!b.dotted, !!b.alias, !!b.never]),
-    (parsed.classes ?? []).map((c) => [c.id ?? '', c.name, c.bases, c.members, c.writes, c.metaclass ?? false, c.opaqueBase ?? false, c.statics ?? [], c.nonCallable ?? []]),
+    (parsed.classes ?? []).map((c) => [c.id ?? '', c.name, c.bases, c.members, c.writes, c.metaclass ?? false, c.opaqueBase ?? false, c.statics ?? [], c.nonCallable ?? [], c.indexSignature ?? false]),
     [parsed.attrWrites ?? [], parsed.memberWrites ?? [], parsed.moduleWrites ?? [], parsed.escapes ?? []],
     submodulesOf(parsed.file.path, files),
   ]);

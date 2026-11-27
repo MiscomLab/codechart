@@ -1,6 +1,7 @@
 import type { Node } from 'web-tree-sitter';
-import { patternNames, unwrapExpression } from './js-scope-decl.js';
+import { aliasName, patternNames, unwrapExpression } from './js-scope-decl.js';
 import type { Binding, Scope } from './js-scope-model.js';
+import { exemptKinds, type ExemptKind } from './js-types.js';
 
 /** The scope work that is not a handler: enum bodies, sloppy `eval` taints and literal receivers. */
 
@@ -16,7 +17,7 @@ export interface ScopeApi {
 }
 
 /** Whether a `const` initializer is an object literal, array literal or `Object.create(null)`, through any cast. */
-export function literalValue(value: Node | null | undefined): boolean {
+function literalValue(value: Node | null | undefined): boolean {
   const node = unwrapExpression(value);
   if (!node) return false;
   if (node.type === 'object' || node.type === 'array') return true;
@@ -25,6 +26,20 @@ export function literalValue(value: Node | null | undefined): boolean {
   if (fn?.type !== 'member_expression' || fn.childForFieldName('object')?.text !== 'Object' || fn.childForFieldName('property')?.text !== 'create') return false;
   const args = node.childForFieldName('arguments')?.namedChildren ?? [];
   return args.length === 1 && args[0]?.type === 'null';
+}
+
+/**
+ * What a variable declarator binds: a function value is a `def`, a literal stays its own, and a TypeScript type
+ * annotation records the computed-write exemptions it gives.
+ */
+export function variableBinding(kind: 'const' | 'let' | 'var', node: Node, typescript: boolean, parameter: boolean): Binding {
+  const value = node.childForFieldName('value');
+  const alias = value && !parameter ? aliasName(value) : undefined;
+  const literal = kind === 'const' && literalValue(value);
+  const exempt = typescript && !literal ? exemptKinds(node.childForFieldName('type')) : [];
+  if (literal) return { kind: 'other', literal: true };
+  if (alias) return { kind: 'other', alias, ...(exempt.length && { exempt }) };
+  return exempt.length ? { kind: 'other', exempt } : OTHER;
 }
 
 /** An enum body: every member name is bound there for the initializers, and a member is no callable function. */
@@ -108,4 +123,14 @@ export function isLocalLiteral(node: Node, name: string, nearestScope: (node: No
     return entries.length === 1 && !!entries[0]!.literal && !entries[0]!.written;
   }
   return false;
+}
+
+/** The exemption the one binding of `name` nearest `node` declares, when its TypeScript annotation gives one. */
+export function exemptAt(node: Node, name: string, nearestScope: (node: Node) => Scope | undefined): readonly ExemptKind[] | undefined {
+  for (let scope = nearestScope(node); scope; scope = scope.parent) {
+    const entries = scope.decls.get(name);
+    if (!entries) continue;
+    return entries.length === 1 ? entries[0]!.exempt : undefined;
+  }
+  return undefined;
 }

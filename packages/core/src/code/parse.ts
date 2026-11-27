@@ -47,8 +47,11 @@ export interface ParsedFile {
   lambdas?: CodeRange[];
   /** Every attribute name written anywhere in the file (`x.f = …`, `del x.f`, `x.f += …`), Python only. */
   attrWrites?: string[];
-  /** Attribute writes on a module the file imported: the local module name and the attribute they rebind, Python only. */
-  moduleWrites?: { receiver: string; name: string }[];
+  /**
+   * Attribute writes on a module the file imported: the local module name and the attribute they rebind, Python only.
+   * `import` names the file's import the receiver is bound by (an escaping module value), `dotted` an `import a.b`.
+   */
+  moduleWrites?: { receiver: string; name: string; import?: number; dotted?: boolean }[];
   /** Attribute or member names read as values that could run with another receiver (`*` for any), either language. */
   escapes?: string[];
   /** Every member name any write of the file rebinds (`x.f =`, `x['f'] =`, `x.f++`), JS/TS only. */
@@ -252,7 +255,11 @@ function unlinked(imp: Import): Import {
 function javascriptIndex(root: Node, symbols: readonly CodeSymbol[], imports: readonly Import[], scopes: JsScopeReader): Required<Pick<ParsedFile, 'classes' | 'memberWrites' | 'escapes'>> {
   return {
     classes: javascriptClasses(root, symbols, imports, scopes),
-    memberWrites: javascriptMemberWrites(root, (at, name) => scopes.isLocalLiteral(at, name)),
+    memberWrites: javascriptMemberWrites(
+      root,
+      (at, name) => scopes.isLocalLiteral(at, name),
+      (at, name) => scopes.computedExempt(at, name),
+    ),
     escapes: javascriptEscapes(root),
   };
 }

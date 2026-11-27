@@ -1,4 +1,5 @@
 import type { Node } from 'web-tree-sitter';
+import { exemptKinds, type ExemptKind } from './js-types.js';
 import type { CodeRange } from './model.js';
 
 /** A binding pattern's names, in source order: `{ a, b: [c], ...d }` binds `a`, `c`, `d`; defaults bind nothing. */
@@ -14,14 +15,17 @@ export function patternNames(node: Node | null | undefined): string[] {
 const PATTERNS = new Set(['array_pattern', 'object_pattern', 'rest_pattern', 'parenthesized_expression']);
 
 /** Every name a function-like node's parameters bind, from `formal_parameters` or a lone arrow parameter. */
-export function parameterNames(node: Node): string[] {
-  const out: string[] = [];
-  const list = node.childForFieldName('parameters');
-  for (const parameter of list?.namedChildren ?? []) {
-    const pattern = parameter?.type === 'required_parameter' || parameter?.type === 'optional_parameter' ? parameter.childForFieldName('pattern') : parameter;
-    out.push(...patternNames(pattern));
+export function parameterBindings(node: Node, typescript: boolean): { name: string; exempt?: readonly ExemptKind[] }[] {
+  const out: { name: string; exempt?: readonly ExemptKind[] }[] = [];
+  for (const parameter of node.childForFieldName('parameters')?.namedChildren ?? []) {
+    if (!parameter) continue;
+    const typed = parameter.type === 'required_parameter' || parameter.type === 'optional_parameter';
+    const pattern = typed ? parameter.childForFieldName('pattern') : parameter;
+    // Only a plain identifier's own annotation counts: a destructured parameter declares no single type.
+    const exempt = typed && typescript && pattern?.type === 'identifier' ? exemptKinds(parameter.childForFieldName('type')) : [];
+    for (const name of patternNames(pattern)) out.push({ name, ...(exempt.length && { exempt }) });
   }
-  out.push(...patternNames(node.childForFieldName('parameter')));
+  for (const name of patternNames(node.childForFieldName('parameter'))) out.push({ name });
   return out;
 }
 

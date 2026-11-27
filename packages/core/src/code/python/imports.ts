@@ -4,6 +4,7 @@ import type { ClassInfo, CodeRange, CodeSymbol, Import } from '../model.js';
 import { nodeRange } from '../tree.js';
 import { collectBindings, type PyBinding, type PyDefinition } from './module-scope.js';
 import { moduleExports, settleGuards } from './exports.js';
+import { moduleEscapes } from './module-escapes.js';
 import { editsSysPath, statedModules, typeGuarded } from './nodes.js';
 import { escapedAttributes } from './scope-nodes.js';
 import { attributeWrites } from './write-nodes.js';
@@ -107,7 +108,7 @@ function moduleAttributeWrites(root: Node, bindings: readonly PyBinding[], impor
 export function extractPythonImports(file: string, tree: Tree, query: Query, symbols: readonly CodeSymbol[]): PythonFile {
   const imports: ImportSpec[] = [];
   const hidden: ImportSpec[] = [];
-  const index = new Map<number, { locals: { name: string; dotted: boolean; index: number }[]; typeOnly: boolean; wildcard: boolean }>();
+  const index = new Map<number, { locals: { name: string; dotted: boolean; index: number }[]; typeOnly: boolean; wildcard: boolean; at: number }>();
   const seen = new Set<number>();
   for (const match of query.matches(tree.rootNode)) {
     const capture = match.captures.find((c) => c.name !== 'mod' && c.name !== 'fn');
@@ -116,20 +117,20 @@ export function extractPythonImports(file: string, tree: Tree, query: Query, sym
     const main = capture.node;
     const typeOnly = typeGuarded(main);
     const locals: { name: string; dotted: boolean; index: number }[] = [];
-    let stated = false;
+    let first = -1;
     for (const module of statedModules(main, capture.name)) {
       const spec: ImportSpec = { file, spec: module.spec, kind: module.kind, ...(module.anchored && { anchored: module.anchored }), ...(typeOnly && { typeOnly }), names: typeOnly ? module.names.map((n) => ({ ...n, typeOnly: true })) : module.names, range: nodeRange(main) };
       if (main.hasError) {
         hidden.push(spec);
         continue;
       }
-      stated = true;
       const at = imports.push(spec) - 1;
+      if (first < 0) first = at;
       for (const name of module.names) locals.push({ name: name.local, dotted: false, index: at });
       if (module.dotted) locals.push({ name: module.dotted, dotted: true, index: at });
     }
     const wildcard = main.namedChildren.some((c) => c?.type === 'wildcard_import');
-    if (stated) index.set(main.id, { locals, typeOnly, wildcard });
+    if (first >= 0) index.set(main.id, { locals, typeOnly, wildcard, at: first });
   }
   const { bindings, defs, deferred, lambdas, classes } = collectBindings(tree.rootNode, symbols, index);
   resolveClassBases(classes, bindings, imports);
@@ -144,7 +145,7 @@ export function extractPythonImports(file: string, tree: Tree, query: Query, sym
     deferred,
     lambdas,
     attrWrites,
-    moduleWrites: moduleAttributeWrites(tree.rootNode, bindings, imports),
+    moduleWrites: [...moduleAttributeWrites(tree.rootNode, bindings, imports), ...moduleEscapes(tree.rootNode, symbols, bindings, index)],
     escapes: escapedAttributes(tree.rootNode),
     classes,
     sysPathEdited: editsSysPath(tree.rootNode),

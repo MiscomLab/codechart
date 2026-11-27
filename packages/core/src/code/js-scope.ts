@@ -1,5 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import { Scopes } from './js-scope-build.js';
+import type { ExemptKind } from './js-types.js';
 import type { CodeRange, Import } from './model.js';
 
 /**
@@ -25,10 +26,16 @@ export interface JsScopeReader {
   meaningAt: (node: Node, name: string) => JsMeaning;
   /** Whether `name` at `node` is one `const` binding of an object/array literal or `Object.create(null)`. */
   isLocalLiteral: (node: Node, name: string) => boolean;
+  /** The computed-write exemptions the one binding of `name` nearest `node` declares, if any. */
+  computedExempt: (node: Node, name: string) => readonly ExemptKind[] | undefined;
 }
 
 /** Reads what the callee and an identifier receiver mean at any call site of a JS/TS tree. */
 export function jsScopes(root: Node, path: string, imports: readonly Import[]): JsScopeReader {
   const scopes = new Scopes(root, path, imports);
-  return { meaningAt: (node, name) => scopes.meaningAt(node, name), isLocalLiteral: (node, name) => scopes.isLocalLiteral(node, name) };
+  return {
+    meaningAt: (node, name) => scopes.meaningAt(node, name),
+    isLocalLiteral: (node, name) => scopes.isLocalLiteral(node, name),
+    computedExempt: (node, name) => scopes.computedExempt(node, name),
+  };
 }

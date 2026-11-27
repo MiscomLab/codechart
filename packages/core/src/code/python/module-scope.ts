@@ -39,8 +39,8 @@ export interface PyBinding {
   start?: CodeRange['start'];
 }
 
-/** The import index of each import or import call node, by node id; the extractor fills it. */
-export type ImportIndex = ReadonlyMap<number, { locals: { name: string; dotted: boolean; index: number }[]; typeOnly: boolean; wildcard: boolean }>;
+/** The import index of each import or import call node, by node id; the extractor fills it, `at` being its first import. */
+export type ImportIndex = ReadonlyMap<number, { locals: { name: string; dotted: boolean; index: number }[]; typeOnly: boolean; wildcard: boolean; at: number }>;
 
 /** A Python definition's scope id and where its body starts: calls before it sit in the header (defaults, annotations). */
 export interface PyDefinition {

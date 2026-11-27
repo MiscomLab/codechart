@@ -278,8 +278,9 @@ class Index implements CodeIndex {
       for (const name of namesOf(before.get(path))) names.add(name);
       for (const name of namesOf(next.get(path))) names.add(name);
     }
-    // A member write the parse cannot name (`*`) may rebind any attribute, so every file with a member call is re-resolved.
-    if (names.has('*')) for (const path of next.keys()) affected.add(path);
+    // A member write the parse cannot name (`*`) or a typed computed write (`*record`, `*container`) whose repo-wide guard
+    // may trip can rebind any attribute, so every file with a member call is re-resolved.
+    if ([...names].some((name) => name.startsWith('*'))) for (const path of next.keys()) affected.add(path);
     for (const path of nameUsers(this.reverse, names)) affected.add(path);
     for (const path of [...affected]) if (!next.has(path)) affected.delete(path);
     return affected;

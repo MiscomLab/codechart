@@ -150,17 +150,22 @@ function topLevel(files: Files, found: Found, kinds: readonly string[] = ['funct
   const bound = bindings[0]!;
   if (bound.kind !== 'def' || bound.never || (strict && bound.conditional)) return undefined;
   const symbols = (parsed?.symbols ?? []).filter((s) => s.path.length === 1 && s.path[0] === found.binding && kinds.includes(s.kind));
-  return symbols.length === 1 ? symbols[0] : undefined;
+  const symbol = symbols.length === 1 ? symbols[0] : undefined;
+  return symbol && !submoduleShadowed(files, symbol) ? symbol : undefined;
 }
 
 /** The package folder a `__init__` module sits in, or undefined for a file that cannot own submodules. */
 const packageFolder = (file: string): string | undefined => (file.endsWith('/__init__.py') ? file.slice(0, -'/__init__.py'.length) : undefined);
 
-/** Whether the package's `__init__.py` imports a submodule of `name`, replacing the same-named attribute with it. */
-function submoduleShadows(files: Files, parsed: ParsedFile, name: string): boolean {
-  const folder = packageFolder(parsed.file.path);
+/**
+ * Whether a top-level name of a package `__init__.py` is the package's attribute at run time: any file of the repo that
+ * imports the submodule of that name makes CPython set it on the package, replacing the function or class.
+ */
+function submoduleShadowed(files: Files, target: CodeSymbol): boolean {
+  const folder = packageFolder(target.file);
+  const name = target.path.at(-1)!;
   const submodule = folder === undefined ? undefined : submoduleIn(files, folder, name);
-  return submodule !== undefined && parsed.imports.some((imp) => imp.resolved === submodule);
+  return submodule !== undefined && dispatchOf(files).pythonSubmoduleImported(submodule);
 }
 
 /** The module file an import binding stands for, when the bound name is a module. */
@@ -288,7 +293,7 @@ function bareTarget(parsed: ParsedFile, files: Files, name: string, chain: reado
     if (!def || (def.kind !== 'function' && def.kind !== 'class')) return undefined;
     // A top-level name of a package `__init__.py` is not what `import pkg.name` leaves on the package.
     if (def.path.length !== 1) return def;
-    if (submoduleShadows(files, parsed, name)) return undefined;
+    if (submoduleShadowed(files, def)) return undefined;
     return def.kind === 'function' && dispatchOf(files).pythonModuleWritten(parsed.file.path, name) ? undefined : def;
   }
   if (m?.kind !== 'import' || m.name.imported === '*' || m.imp.status !== 'resolved' || !m.imp.resolved) return undefined;

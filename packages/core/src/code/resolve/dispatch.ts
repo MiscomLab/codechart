@@ -1,6 +1,7 @@
+import { CONTAINER_BASES } from '../js-types.js';
 import type { ClassInfo } from '../model.js';
 import type { ParsedFile } from '../parse.js';
-import { createTracer, type Tracer } from './trace.js';
+import { createTracer, submoduleIn, type Tracer } from './trace.js';
 
 type Files = ReadonlyMap<string, ParsedFile>;
 
@@ -17,18 +18,27 @@ export class Dispatch {
   private readonly pythonWrites = new Set<string>();
   private readonly pythonModuleWrites = new Map<string, Set<string>>();
   private readonly pythonAnyModuleWrites = new Set<string>();
+  /** Every module a Python import anywhere names, and every folder above one, so a submodule a package gains is known. */
+  private readonly pythonImportedModules = new Set<string>();
+  private readonly pythonImportedFolders = new Set<string>();
   private readonly pythonEscapes = new Set<string>();
   private readonly jsWrites = new Set<string>();
   private readonly jsEscapes = new Set<string>();
   private readonly pythonOpaque = new Set<string>();
   private readonly jsOpaque = new Set<string>();
   private readonly subclassCache = new Map<string, boolean>();
+  /** A class extends a container or has an opaque base: a container-typed slot can hold one. */
+  private jsContainerUnsafe = false;
+  /** A class declares an index signature: a `Record`-typed slot can hold one. */
+  private jsRecordUnsafe = false;
 
   constructor(private readonly files: Files) {
+    for (const parsed of files.values()) if (parsed.file.lang === 'python') this.addSubmoduleImports(parsed);
     const trace = createTracer(files);
     for (const parsed of files.values()) this.addFile(parsed);
     for (const infos of this.named.values()) for (const info of infos) this.addExtending(info, trace);
     this.markOpaque();
+    this.markExemptions();
   }
 
   /** Indexes one file's classes, writes, module writes and escaped names. */
@@ -50,6 +60,34 @@ export class Dispatch {
   /** Puts each class under every base name it extends, resolved through its file's imports and re-exports. */
   private addExtending(info: ClassInfo, trace: Tracer): void {
     for (const base of info.bases) push(this.extending, this.canonicalBase(info, base, trace), info);
+  }
+
+  /** Records each module a Python import names and the folders above it, so a submodule can be known from any file. */
+  private addSubmoduleImports(parsed: ParsedFile): void {
+    for (const imp of parsed.imports) {
+      if (imp.status !== 'resolved' || !imp.resolved) continue;
+      this.pythonImportedModules.add(imp.resolved);
+      const parts = imp.resolved.split('/');
+      for (let i = 1; i < parts.length; i++) this.pythonImportedFolders.add(parts.slice(0, i).join('/'));
+    }
+  }
+
+  /** Whether any Python file imports `file` or a module inside its package: CPython then sets it on the parent package. */
+  pythonSubmoduleImported(file: string): boolean {
+    if (this.pythonImportedModules.has(file)) return true;
+    const folder = file.endsWith('/__init__.py') ? file.slice(0, -'/__init__.py'.length) : undefined;
+    return folder !== undefined && this.pythonImportedFolders.has(folder);
+  }
+
+  /** Whether a JS/TS class can sit in a `Record`- or container-typed slot, so that computed-write exemption proves nothing. */
+  private markExemptions(): void {
+    for (const infos of this.named.values()) {
+      for (const info of infos) {
+        if (this.langOf.get(info) === 'python') continue;
+        if (info.indexSignature) this.jsRecordUnsafe = true;
+        if (info.opaqueBase || info.bases.some((base) => CONTAINER_BASES.has(base))) this.jsContainerUnsafe = true;
+      }
+    }
   }
 
   /** Records the names an opaque-base class binds, so any instance could sit in front of a same-named method. */
@@ -84,10 +122,11 @@ export class Dispatch {
   private addModuleWrites(parsed: ParsedFile): void {
     if (!parsed.moduleWrites?.length) return;
     const modules = moduleBindings(parsed);
-    for (const { receiver, name } of parsed.moduleWrites) {
-      const file = modules.get(receiver);
-      // A write on a module outside the repo (stdlib, site-packages) cannot touch a module here.
-      if (file === EXTERNAL) continue;
+    for (const { receiver, name, import: index, dotted } of parsed.moduleWrites) {
+      // Without an import, a receiver naming no module binding is unprovable, never a proven value.
+      const file = index === undefined ? (modules.get(receiver) ?? null) : importModule(this.files, parsed, index, receiver, !!dotted);
+      // A write on a module outside the repo (stdlib, site-packages) cannot touch a module here; a value binds no module.
+      if (file === EXTERNAL || file === undefined) continue;
       if (!file) {
         this.pythonAnyModuleWrites.add(name);
         continue;
@@ -108,9 +147,13 @@ export class Dispatch {
     return this.pythonOpaque.has(member) || this.pythonOpaque.has('*');
   }
 
-  /** Whether any JS/TS file of the repo writes the member `member`, or writes a member it cannot name. */
+  /**
+   * Whether any JS/TS file of the repo writes the member `member`, or writes a member it cannot name. A typed computed
+   * write (`*record`, `*container`) counts as `*` only when its repo-wide guard trips: a class can then sit in the slot.
+   */
   jsMemberWritten(member: string): boolean {
-    return this.jsWrites.has(member) || this.jsWrites.has('*');
+    if (this.jsWrites.has(member) || this.jsWrites.has('*')) return true;
+    return (this.jsRecordUnsafe && this.jsWrites.has('*record')) || (this.jsContainerUnsafe && this.jsWrites.has('*container'));
   }
 
   /** Whether any JS/TS file reads the method object `member` as a value, or any method object at all (`*`). */
@@ -223,6 +266,42 @@ const binds = (info: ClassInfo, member: string): boolean => info.members.include
 
 /** A module binding whose import is known to sit outside the repo: writing to it cannot rebind a module here. */
 const EXTERNAL = '\0external';
+
+/**
+ * The module file an import binding names: the imported module, a submodule a from-import binds, EXTERNAL, undefined
+ * when the binding holds a value, or null when the parse cannot prove which.
+ */
+function importModule(files: Files, parsed: ParsedFile, index: number, name: string, dotted: boolean): string | null | undefined {
+  const imp = parsed.imports[index];
+  // Only a proven repo module can be written through a value: an external or unknown import names none.
+  if (!imp || imp.status !== 'resolved' || !imp.resolved) return undefined;
+  if (dotted) return dottedPackage(files, imp);
+  const entry = imp.names?.find((n) => n.local === name);
+  if (!entry) return imp.resolved;
+  if (entry.imported === '*') return imp.resolved;
+  const folder = imp.resolved.endsWith('/__init__.py') ? imp.resolved.slice(0, -'/__init__.py'.length) : undefined;
+  const pkg = files.get(imp.resolved);
+  // A plain module's attribute is a value, never a module; a package's name may be a submodule.
+  if (!folder || !pkg) return undefined;
+  // A package whose own names are not provable may bind the name itself, so the submodule is not certain.
+  if (!pkg.exports.complete) return null;
+  if (pkg.exports.names.some((n) => n.name === entry.imported)) return undefined;
+  // The package binds neither: the from-import raises unless the name is one of its submodules.
+  return submoduleIn(files, folder, entry.imported);
+}
+
+/** The package `import a.b` binds (`a`), found from the resolved submodule path; undefined for a namespace package. */
+function dottedPackage(files: Files, imp: ParsedFile['imports'][number]): string | undefined {
+  const resolved = imp.resolved;
+  if (!resolved) return undefined;
+  const parts = imp.spec.split('.');
+  const module = `${parts.join('/')}.py`;
+  const init = `${parts.join('/')}/__init__.py`;
+  const root = resolved.endsWith(module) ? resolved.slice(0, -module.length) : resolved.endsWith(init) ? resolved.slice(0, -init.length) : undefined;
+  if (root === undefined) return undefined;
+  const file = `${root}${parts[0]}/__init__.py`;
+  return files.has(file) ? file : undefined;
+}
 
 /** The module file each module-scope import binding names, `EXTERNAL` for one outside the repo, null when unprovable. */
 function moduleBindings(parsed: ParsedFile): Map<string, string | null> {

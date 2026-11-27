@@ -1,5 +1,6 @@
 import type { Node } from 'web-tree-sitter';
 import type { JsScopeReader } from './js-scope.js';
+import type { ExemptKind } from './js-types.js';
 import type { ClassInfo, CodeRange, CodeSymbol, Import } from './model.js';
 import { nodeRange } from './tree.js';
 
@@ -40,6 +41,9 @@ function writtenMember(target: Node | null | undefined): string | undefined {
 
 /** A const binding whose initializer is an object or array literal or `Object.create(null)`: its elements are its own. */
 export type LiteralReceiver = (node: Node, name: string) => boolean;
+
+/** The exemption a receiver's declared TypeScript type gives a computed write, when it cannot hold a class instance. */
+export type TypedReceiver = (node: Node, name: string) => readonly ExemptKind[] | undefined;
 
 /** The key a property names, `*` when only the run time knows it. */
 function keyName(node: Node | null | undefined): string {
@@ -90,9 +94,11 @@ function reflectiveNames(node: Node): string[] {
  * Every member name the file's writes rebind: `x.f =`, `x.f +=`, `x.f++`, `x['f'] =`, a computed subscript (`*`),
  * inside a destructuring pattern and through a cast; `delete x.f`, `delete x[k]`, and the reflective
  * `Object.defineProperty`/`assign`/`defineProperties` and `Reflect` writes. `onlyThis` keeps the ones written on `this`.
- * A computed subscript on a const object or array literal writes that literal's own elements, never a class member.
+ * A computed subscript on a const object or array literal writes that literal's own elements, never a class member;
+ * one on a receiver whose declared TypeScript type cannot hold a class instance is a `*record`/`*container` marker,
+ * which dispatch turns back into `*` only when its repo-wide guard trips.
  */
-function writeNames(root: Node, onlyThis: boolean, literal: LiteralReceiver): string[] {
+function writeNames(root: Node, onlyThis: boolean, literal: LiteralReceiver, typed?: TypedReceiver): string[] {
   const names: string[] = [];
   const add = (target: Node | null | undefined): void => {
     const node = inner(target);
@@ -104,6 +110,11 @@ function writeNames(root: Node, onlyThis: boolean, literal: LiteralReceiver): st
     if (node.type === 'subscript_expression' && stringValue(node.childForFieldName('index')) === undefined) {
       const object = inner(node.childForFieldName('object'));
       if (object?.type === 'identifier' && literal(object, object.text)) return;
+      const exempt = object?.type === 'identifier' ? typed?.(object, object.text) : undefined;
+      if (exempt?.length) {
+        if (!onlyThis) for (const kind of exempt) names.push(`*${kind}`);
+        return;
+      }
     }
     const name = writtenMember(node);
     if (name && (!onlyThis || onThis(node))) names.push(name);
@@ -121,8 +132,8 @@ function writeNames(root: Node, onlyThis: boolean, literal: LiteralReceiver): st
 }
 
 /** Every member name any write of the file rebinds, through `this` or any other object. */
-export function javascriptMemberWrites(root: Node, literal: LiteralReceiver = () => false): string[] {
-  return writeNames(root, false, literal);
+export function javascriptMemberWrites(root: Node, literal: LiteralReceiver = () => false, typed?: TypedReceiver): string[] {
+  return writeNames(root, false, literal, typed);
 }
 
 /** The identifiers an `extends` expression names: a plain one through the scopes, the last one of `a.B`, all of `M(B)`. */
@@ -187,11 +198,12 @@ const isStatic = (member: Node): boolean => member.children.some((child) => chil
 const staticContext = (member: Node): boolean => member.type === 'class_static_block' || (FIELD_TYPES.has(member.type) && isStatic(member));
 
 /** What a class body declares: the member names, its statics, the members without a callable body, and its static ranges. */
-function classMembers(body: Node): Pick<ClassInfo, 'members' | 'statics' | 'nonCallable' | 'staticRanges'> {
+function classMembers(body: Node): Pick<ClassInfo, 'members' | 'statics' | 'nonCallable' | 'staticRanges' | 'indexSignature'> {
   const members: string[] = [];
   const statics: string[] = [];
   const nonCallable: string[] = [];
   const staticRanges: CodeRange[] = [];
+  const indexSignature = body.namedChildren.some((member) => member?.type === 'index_signature');
   for (const member of body.namedChildren) {
     if (!member) continue;
     if (staticContext(member)) staticRanges.push(nodeRange(member));
@@ -201,7 +213,7 @@ function classMembers(body: Node): Pick<ClassInfo, 'members' | 'statics' | 'nonC
     if (isStatic(member)) statics.push(name);
     if (!callableMember(member)) nonCallable.push(name);
   }
-  return { members, ...(statics.length && { statics }), ...(nonCallable.length && { nonCallable }), ...(staticRanges.length && { staticRanges }) };
+  return { members, ...(statics.length && { statics }), ...(nonCallable.length && { nonCallable }), ...(staticRanges.length && { staticRanges }), ...(indexSignature && { indexSignature }) };
 }
 
 /** Whether a member access sits in call position (`X.m()`), where it calls rather than escapes as a value. */
