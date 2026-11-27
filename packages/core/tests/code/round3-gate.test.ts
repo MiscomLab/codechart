@@ -204,6 +204,25 @@ describe('round 3: option B, a computed write on a receiver typed as no class in
     expect(await targets({ 'a.ts': src }, 'a.ts')).toEqual([undefined]);
   });
 
+  const setWrite = 'function put(x: Set<string>, k: string, v: unknown) { (x as any)[k] = v; }\n';
+  it.each([
+    // Precision: sound refinement, COD-59 round 3 (the container guard is per class)
+    // node 25: prints "K.f L.f"; tsc --strict accepts it. `implements` is erased: it is no base at run time.
+    ['an implements clause is no base', `interface I { f(): string }\nclass L implements I {\n  f() { return "L.f"; }\n}\n${TS_K}${setWrite}put(new Set(), "f", 1);\nconsole.log(new K().m(), new L().f());\n`],
+    // node 25: prints "K.f"; tsc --strict accepts it.
+    ['the dispatched class itself implements an interface', `interface I { m(): string }\n${TS_K.replace('class K {', 'class K implements I {')}${setWrite}put(new Set(), "f", 1);\nconsole.log(new K().m());\n`],
+    // node 25: prints "K.f" though put writes "f" on an S; tsc --strict rejects `const k: Set<string> = new K()` (TS2740).
+    ['an unrelated class extends Set', `class S extends Set<string> {}\n${TS_K}${setWrite}put(new S(), "f", () => "g");\nconsole.log(new K().m());\n`],
+  ])('TS-B exempt: %s', async (_form, src) => {
+    expect(await targets({ 'a.ts': src }, 'a.ts')).toEqual(['a.ts::K.f::method']);
+  });
+
+  it('TS-B not exempt: the class extends Set through a base', async () => {
+    // node 25: prints "g"; tsc --strict accepts it (a K is a Set<string>).
+    const src = `class B extends Set<string> {}\n${TS_K.replace('class K {', 'class K extends B {')}${setWrite}const k = new K();\nput(k, "f", () => "g");\nconsole.log(k.m());\n`;
+    expect(await targets({ 'a.ts': src }, 'a.ts')).toEqual([undefined]);
+  });
+
   it('TS-B untyped JS stays strict even with a JSDoc type', async () => {
     // node 25: prints "g"; JSDoc is not checked, so put may receive a K.
     const src = 'class K {\n  f() { return "K.f"; }\n  m() { return this.f(); }\n}\n/** @param {Record<string, number>} x */\nfunction put(x, k, v) { x[k] = v; }\nconst k = new K();\nput(k, "f", () => "g");\nconsole.log(k.m());\n';
