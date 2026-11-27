@@ -48,14 +48,13 @@ class MirrorNode implements PyNode {
   readonly namedChildren: MirrorNode[] = [];
   private readonly children: MirrorNode[] = [];
   private readonly fields: (string | null)[] = [];
-  private error: boolean | undefined;
   private from: PyNode['startPosition'] | undefined;
   private to: PyNode['endPosition'] | undefined;
 
   constructor(
     readonly id: number,
     readonly type: string,
-    private readonly missing: boolean,
+    readonly hasError: boolean,
     private readonly source: Source,
     private readonly span: { readonly start: number; readonly end: number },
     readonly parent: MirrorNode | null,
@@ -71,11 +70,6 @@ class MirrorNode implements PyNode {
 
   get endPosition(): PyNode['endPosition'] {
     return (this.to ??= this.source.point(this.span.end));
-  }
-
-  get hasError(): boolean {
-    this.error ??= this.type === 'ERROR' || this.missing || this.children.some((child) => child.hasError);
-    return this.error;
   }
 
   add(child: MirrorNode, named: boolean, field: string | null): void {
@@ -102,7 +96,9 @@ export function mirrorTree(tree: Tree, source: string): { root: PyNode; byId: Re
   const cursor = tree.walk();
   const byId = new Map<number, MirrorNode>();
   const text = new Source(source);
-  // Each cursor read is a call into WASM, so what a node type fixes is read once per type, and a MISSING node (always zero-width) only where one could be.
+  // Each cursor read is a call into WASM, so what a node type fixes is read once per type, and `hasError` is read per node only in a tree that has an error,
+  // and only below a node that has one (a clean file costs no extra call). The real flag also counts an error in a hidden token the cursor never visits.
+  const broken = tree.rootNode.hasError;
   const types = new Map<number, { type: string; named: boolean }>();
   const fieldNames = new Map<number, string | null>();
   const make = (parent: MirrorNode | null): MirrorNode => {
@@ -111,7 +107,8 @@ export function mirrorTree(tree: Tree, source: string): { root: PyNode; byId: Re
     if (!kind) types.set(typeId, (kind = { type: cursor.nodeType, named: cursor.nodeIsNamed }));
     const start = cursor.startIndex;
     const end = cursor.endIndex;
-    const node = new MirrorNode(cursor.nodeId, kind.type, start === end && cursor.nodeIsMissing, text, { start, end }, parent);
+    const hasError = broken && (!parent || parent.hasError) && cursor.currentNode.hasError;
+    const node = new MirrorNode(cursor.nodeId, kind.type, hasError, text, { start, end }, parent);
     if (parent) {
       const fieldId = cursor.currentFieldId;
       let field = fieldNames.get(fieldId);
